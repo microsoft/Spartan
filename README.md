@@ -1,14 +1,35 @@
+# Spartan: High-speed zkSNARKs without trusted setup
 
-# Contributing
+![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)
 
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit https://cla.opensource.microsoft.com.
+Spartan is a research project to design high-speed zero-knowledge proof systems, a cryptographic protocol that enables a prover to prove a mathematical statement (e.g., that a given program was executed correctly) without revealing anything besides the validity of the statement. 
 
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
+The current repository includes a library that implements 
+a zero-knowledge succinct non-interactive arguments of knowledge (zkSNARKs), a type of zero-knowledge proof system with short proofs and verification times. Unlike many other zkSNARKs, Spartan does not require a trusted setup and its security relies on the hardness of computing discrete logarithms (a well-studied assumption). The scheme is described in our [paper](https://eprint.iacr.org/2019/550).
 
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
+## Building libspartan
+    cargo build
+    # On a machine that supports avx2 or ifma instructions:
+    export RUSTFLAGS="-C target_cpu=native" 
+    cargo build --features "simd_backend" --release
+
+## Performance
+    cargo build
+    # On a machine that supports avx2 or ifma instructions:
+    export RUSTFLAGS="-C target_cpu=native" 
+    cargo build --features "simd_backend,profile" --release
+    ./target/release/profiler
+
+    cargo bench
+    # On a machine that supports avx2 or ifma instructions:
+    export RUSTFLAGS="-C target_cpu=native" 
+    cargo bench --features "simd_backend"
+
+
+## LICENSE
+
+See [LICENSE](./LICENSE)
+
+## Contributing
+
+See [CONTRIBUTING](./CONTRIBUTING.md)
