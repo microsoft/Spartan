@@ -1,0 +1,52 @@
+[package]
+name = "spartan"
+version = "0.1.0"
+authors = ["Srinath Setty <srinath@microsoft.com>"]
+edition = "2018"
+
+[dependencies]
+curve25519-dalek = { version = "2", features = ["serde"]}
+merlin = "1.2.0"
+rand = "0.7.2"
+digest = "0.8.1"
+sha3 = "0.8.2"
+byteorder = "1.3.2"
+rayon = "1.1.0"
+serde = { version = "1.0.100", features = ["derive"] }
+bincode = "1.2.0"
+subtle = { version = "^2.2.1", default-features = false }
+rand_core = { version = "0.5", default-features = false }
+
+
+[dev-dependencies]
+criterion = "0.3.0"
+
+[lib]
+name = "libspartan"
+path = "src/lib.rs"
+
+[[bin]]
+name = "app"
+path = "src/app.rs"
+
+[[bench]]
+name = "commitments"
+harness = false
+
+[[bench]]
+name = "dotproduct"
+harness = false
+
+[[bench]]
+name = "polycommit"
+harness = false
+
+[[bench]]
+name = "r1csproof"
+harness = false
+
+[features]
+simd_backend = ["curve25519-dalek/simd_backend"]
+rayon_par = []
+
+# default = ["simd_backend"]
