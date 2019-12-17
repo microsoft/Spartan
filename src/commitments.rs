@@ -62,7 +62,7 @@ impl Commitments for Vec<Scalar> {
 
 impl Commitments for [Scalar] {
   fn commit(&self, blind: &Scalar, gens_n: &MultiCommitGens) -> RistrettoPoint {
-    assert!(gens_n.n == self.len());
+    assert_eq!(gens_n.n, self.len());
     RistrettoPoint::vartime_multiscalar_mul(&Scalar::decompress_seq(&self), &gens_n.G)
       + Scalar::decompress_scalar(&blind) * gens_n.h
   }

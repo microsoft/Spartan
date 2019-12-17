@@ -4,11 +4,9 @@ extern crate libspartan;
 extern crate merlin;
 extern crate rand;
 
-use libspartan::dense_mlpoly::{
-  DensePolynomial, DensePolynomialTrait, PolyCommitmentBlinds, PolyCommitmentGens,
-};
+use libspartan::dense_mlpoly::{DensePolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
 use libspartan::math::Math;
-use libspartan::r1csinstance::{R1CSCommitmentBlinds, R1CSCommitmentGens, R1CSInstance};
+use libspartan::r1csinstance::{R1CSCommitmentGens, R1CSInstance};
 use libspartan::scalar::Scalar;
 use libspartan::spartan::{SpartanBlinds, SpartanGens, SpartanProof};
 use merlin::Transcript;
@@ -26,32 +24,31 @@ pub fn main() {
   assert_eq!(n, m * m);
   println!("Finished producing a synthetic R1CS");
 
-  let poly_vars = DensePolynomial::<Scalar>::new(vars.clone());
+  let poly_vars = DensePolynomial::new(vars.clone());
   let poly_size = poly_vars.size();
   let r1cs_size = inst.size();
 
   let gens_z = PolyCommitmentGens::new(&poly_size, b"gens_z");
   let gens_r1cs = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs");
-
-  // create a commitment to R1CSInstance
-
-  let start = Instant::now();
   let mut csprng: OsRng = OsRng;
-  let blinds_r1cs = R1CSCommitmentBlinds::new(&r1cs_size, &mut csprng);
-  let comm = SpartanProof::encode(&inst, &gens_r1cs, &blinds_r1cs);
+  // create a commitment to R1CSInstance
+  println!("Encoding the R1CS relation");
+  let start = Instant::now();
+  let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs);
   let duration = start.elapsed();
   println!("#### Encoder time is: {:?}", duration);
 
   // produce a proof of satisfiability
   let blinds_z = PolyCommitmentBlinds::new(&poly_size, &mut csprng);
   let gens = SpartanGens::new(gens_z, gens_r1cs);
-  let blinds = SpartanBlinds::new(blinds_z, blinds_r1cs);
+  let blinds = SpartanBlinds::new(blinds_z, Scalar::one());
 
   let start = Instant::now();
   let mut prover_transcript = Transcript::new(b"example");
   let proof = SpartanProof::prove(
     &inst,
     &comm,
+    &decomm,
     vars,
     &input,
     &blinds,

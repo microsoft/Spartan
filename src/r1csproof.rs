@@ -1,6 +1,6 @@
 use super::dense_mlpoly::{
-  DensePolynomial, DensePolynomialTrait, EqPolynomial, PolyCommitment, PolyCommitmentBlinds,
-  PolyCommitmentGens, PolyEvalProof,
+  DensePolynomial, EqPolynomial, PolyCommitment, PolyCommitmentBlinds, PolyCommitmentGens,
+  PolyEvalProof,
 };
 use super::errors::ProofVerifyError;
 use super::math::Math;
@@ -36,10 +36,10 @@ pub struct R1CSProof {
 impl R1CSProof {
   fn prove_phase_one(
     num_rounds: usize,
-    evals_tau: &mut DensePolynomial<Scalar>,
-    evals_Az: &mut DensePolynomial<Scalar>,
-    evals_Bz: &mut DensePolynomial<Scalar>,
-    evals_Cz: &mut DensePolynomial<Scalar>,
+    evals_tau: &mut DensePolynomial,
+    evals_Az: &mut DensePolynomial,
+    evals_Bz: &mut DensePolynomial,
+    evals_Cz: &mut DensePolynomial,
     transcript: &mut Transcript,
   ) -> (SumcheckInstanceProof<CubicPoly>, Vec<Scalar>) {
     // in the first set of rounds, we bound x variables to random values
@@ -95,8 +95,8 @@ impl R1CSProof {
   fn prove_phase_two(
     num_rounds: usize,
     claim: &Scalar,
-    evals_z: &mut DensePolynomial<Scalar>,
-    evals_ABC: &mut DensePolynomial<Scalar>,
+    evals_z: &mut DensePolynomial,
+    evals_ABC: &mut DensePolynomial,
     transcript: &mut Transcript,
   ) -> (SumcheckInstanceProof<QuadPoly>, Vec<Scalar>) {
     let comb_func =
@@ -117,6 +117,7 @@ impl R1CSProof {
     input: &Vec<Scalar>,
     blinds: &PolyCommitmentBlinds,
     gens: &PolyCommitmentGens,
+    blind_eval: &Scalar,
     transcript: &mut Transcript,
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
     transcript.append_protocol_name(R1CSProof::protocol_name());
@@ -137,10 +138,10 @@ impl R1CSProof {
 
     println!("Number of variables to commit is {}", vars.len());
     // create a multilinear polynomial using the supplied assignment for variables
-    let poly_vars = DensePolynomial::<Scalar>::new(vars);
+    let poly_vars = DensePolynomial::new(vars);
 
     // produce a commitment to the satisfying assignment
-    let comm_vars = poly_vars.commit(blinds, gens);
+    let comm_vars = poly_vars.commit(Some(blinds), gens);
 
     // add the commitment to the prover's transcript
     comm_vars.append_to_transcript(b"poly_commitment", transcript);
@@ -161,10 +162,10 @@ impl R1CSProof {
     let (evals_Az, evals_Bz, evals_Cz) = inst.multiply_vec(inst.get_num_cons(), num_cols, &z);
 
     let (mut poly_tau, mut poly_Az, mut poly_Bz, mut poly_Cz) = (
-      DensePolynomial::<Scalar>::new(evals_tau),
-      DensePolynomial::<Scalar>::new(evals_Az),
-      DensePolynomial::<Scalar>::new(evals_Bz),
-      DensePolynomial::<Scalar>::new(evals_Cz),
+      DensePolynomial::new(evals_tau),
+      DensePolynomial::new(evals_Az),
+      DensePolynomial::new(evals_Bz),
+      DensePolynomial::new(evals_Cz),
     );
     let (sc_proof_phase1, rx) = R1CSProof::prove_phase_one(
       num_rounds_x,
@@ -223,9 +224,10 @@ impl R1CSProof {
     let (proof_eval_vars_at_ry, comm_vars_at_ry) = PolyEvalProof::prove(
       &poly_vars,
       &comm_vars,
-      &blinds,
+      Some(&blinds),
       &ry[1..].to_vec(),
-      eval_vars_at_ry,
+      &eval_vars_at_ry,
+      blind_eval,
       &gens,
       transcript,
     );
@@ -309,7 +311,7 @@ impl R1CSProof {
         gens,
         transcript,
         &ry[1..].to_vec(),
-        self.comm_vars_at_ry,
+        &self.comm_vars_at_ry,
         &self.comm_vars
       )
       .is_ok());
@@ -459,8 +461,15 @@ mod tests {
     let blinds = PolyCommitmentBlinds::new(&poly_vars_size, &mut csprng);
 
     let mut prover_transcript = Transcript::new(b"example");
-    let (proof, rx, ry) =
-      R1CSProof::prove(&inst, vars, &input, &blinds, &gens, &mut prover_transcript);
+    let (proof, rx, ry) = R1CSProof::prove(
+      &inst,
+      vars,
+      &input,
+      &blinds,
+      &gens,
+      &Scalar::one(),
+      &mut prover_transcript,
+    );
 
     let eval_table_rx = EqPolynomial::new(rx).evals();
     let eval_table_ry = EqPolynomial::new(ry).evals();

@@ -9,7 +9,7 @@ extern crate rand;
 extern crate sha3;
 
 use libspartan::dense_mlpoly::{
-  DensePolynomial, DensePolynomialTrait, PolyCommitmentBlinds, PolyCommitmentGens, PolyEvalProof,
+  DensePolynomial, PolyCommitmentBlinds, PolyCommitmentGens, PolyEvalProof,
 };
 use libspartan::math::Math;
 use libspartan::scalar::Scalar;
@@ -141,7 +141,7 @@ fn evalproofverify_benchmark(c: &mut Criterion) {
     }
     assert_eq!(m * m, z.len()); // check if Z's size if a perfect square
 
-    let poly = DensePolynomial::<Scalar>::new(z);
+    let poly = DensePolynomial::new(z);
     let gens = PolyCommitmentGens::new(&poly.size(), b"test-m");
     let blinds = PolyCommitmentBlinds::new(&poly.size(), &mut csprng);
 

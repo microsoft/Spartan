@@ -319,13 +319,13 @@ impl DotProductProof {
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
     x: &Vec<Scalar>,
-    r_x: Scalar,
+    r_x: &Scalar,
     a: &Vec<Scalar>,
-    y: Scalar,
-    r_y: Scalar,
+    y: &Scalar,
+    r_y: &Scalar,
     d: &Vec<Scalar>,
-    r_delta: Scalar,
-    r_beta: Scalar,
+    r_delta: &Scalar,
+    r_beta: &Scalar,
   ) -> (DotProductProof, CompressedRistretto, CompressedRistretto) {
     assert_eq!(x.len(), n);
     assert_eq!(d.len(), n);
@@ -379,8 +379,8 @@ impl DotProductProof {
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
     a: &Vec<Scalar>,
-    Cx: CompressedRistretto,
-    Cy: CompressedRistretto,
+    Cx: &CompressedRistretto,
+    Cy: &CompressedRistretto,
   ) -> Result<(), ProofVerifyError> {
     assert_eq!(gens_n.n, a.len());
     assert_eq!(gens_1.n, 1);
@@ -525,18 +525,18 @@ mod tests {
       &gens_1024,
       &mut prover_transcript,
       &x,
-      r_x,
+      &r_x,
       &a,
-      y,
-      r_y,
+      &y,
+      &r_y,
       &d,
-      r_delta,
-      r_beta,
+      &r_delta,
+      &r_beta,
     );
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
-      .verify(&gens_1, &gens_1024, &mut verifier_transcript, &a, Cx, Cy)
+      .verify(&gens_1, &gens_1024, &mut verifier_transcript, &a, &Cx, &Cy)
       .is_ok());
   }
 }

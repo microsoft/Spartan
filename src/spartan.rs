@@ -1,7 +1,7 @@
 use super::dense_mlpoly::{EqPolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
 use super::errors::ProofVerifyError;
 use super::r1csinstance::{
-  R1CSCommitment, R1CSCommitmentBlinds, R1CSCommitmentGens, R1CSEvalProof, R1CSInstance,
+  R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
   R1CSInstanceEvals,
 };
 use super::r1csproof::R1CSProof;
@@ -12,7 +12,7 @@ use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
 #[cfg(test)]
-use super::dense_mlpoly::{DensePolynomial, DensePolynomialTrait};
+use super::dense_mlpoly::DensePolynomial;
 #[cfg(test)]
 use super::math::Math;
 
@@ -29,15 +29,12 @@ impl SpartanGens {
 
 pub struct SpartanBlinds {
   blinds_z: PolyCommitmentBlinds,
-  blinds_r1cs: R1CSCommitmentBlinds,
+  blind_zr: Scalar,
 }
 
 impl SpartanBlinds {
-  pub fn new(blinds_z: PolyCommitmentBlinds, blinds_r1cs: R1CSCommitmentBlinds) -> SpartanBlinds {
-    SpartanBlinds {
-      blinds_z,
-      blinds_r1cs,
-    }
+  pub fn new(blinds_z: PolyCommitmentBlinds, blind_zr: Scalar) -> SpartanBlinds {
+    SpartanBlinds { blinds_z, blind_zr }
   }
 }
 
@@ -58,15 +55,15 @@ impl SpartanProof {
   pub fn encode(
     inst: &R1CSInstance,
     gens: &R1CSCommitmentGens,
-    blinds: &R1CSCommitmentBlinds,
-  ) -> R1CSCommitment {
-    inst.commit(gens, blinds)
+  ) -> (R1CSCommitment, R1CSDecommitment) {
+    inst.commit(gens)
   }
 
   /// A method to produce a proof of the satisfiability of an R1CS instance
   pub fn prove(
     inst: &R1CSInstance,
     comm: &R1CSCommitment,
+    decomm: &R1CSDecommitment,
     vars: Vec<Scalar>,
     input: &Vec<Scalar>,
     blinds: &SpartanBlinds,
@@ -80,23 +77,32 @@ impl SpartanProof {
       input,
       &blinds.blinds_z,
       &gens.gens_z,
+      &blinds.blind_zr,
       transcript,
     );
 
     // We send evaluations of A, B, C at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
+    let start = Instant::now();
     let eval_table_rx = EqPolynomial::new(rx.clone()).evals();
     let eval_table_ry = EqPolynomial::new(ry.clone()).evals();
     let inst_evals = inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry);
+    let duration = start.elapsed();
+    println!(
+      "Evaluating with tables the three polynomials took {:?}",
+      duration
+    );
     // append the claim of evaluation
     inst_evals.append_to_transcript(b"r1cs_inst_evals", transcript);
 
     let r1cs_eval_proof = R1CSEvalProof::prove(
       inst,
       comm,
-      &blinds.blinds_r1cs,
+      decomm,
       &rx,
       &ry,
+      &eval_table_rx,
+      &eval_table_ry,
       &inst_evals,
       &gens.gens_r1cs,
       transcript,
@@ -173,7 +179,7 @@ mod tests {
     let m = n.square_root();
     assert_eq!(n, m * m);
 
-    let poly_vars = DensePolynomial::<Scalar>::new(vars.clone());
+    let poly_vars = DensePolynomial::new(vars.clone());
     let poly_size = poly_vars.size();
     let r1cs_size = inst.size();
 
@@ -182,21 +188,21 @@ mod tests {
 
     // create a commitment to R1CSInstance
     let mut csprng: OsRng = OsRng;
-    let blinds_r1cs = R1CSCommitmentBlinds::new(&r1cs_size, &mut csprng);
-    let comm = SpartanProof::encode(&inst, &gens_r1cs, &blinds_r1cs);
+    let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs);
 
     // produce a proof of satisfiability
     let blinds_z = PolyCommitmentBlinds::new(&poly_size, &mut csprng);
     let gens = SpartanGens { gens_z, gens_r1cs };
     let blinds = SpartanBlinds {
       blinds_z,
-      blinds_r1cs,
+      blind_zr: Scalar::one(),
     };
 
     let mut prover_transcript = Transcript::new(b"example");
     let proof = SpartanProof::prove(
       &inst,
       &comm,
+      &decomm,
       vars,
       &input,
       &blinds,

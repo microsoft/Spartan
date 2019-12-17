@@ -1,4 +1,4 @@
-use super::dense_mlpoly::{DensePolynomial, DensePolynomialTrait};
+use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
@@ -56,8 +56,8 @@ impl SumcheckInstanceProof<QuadPoly> {
   pub fn prove<F>(
     claim: &Scalar,
     num_rounds: usize,
-    poly_A: &mut DensePolynomial<Scalar>,
-    poly_B: &mut DensePolynomial<Scalar>,
+    poly_A: &mut DensePolynomial,
+    poly_B: &mut DensePolynomial,
     comb_func: F,
     transcript: &mut Transcript,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>)
@@ -110,9 +110,9 @@ impl SumcheckInstanceProof<CubicPoly> {
   pub fn prove<F>(
     claim: &Scalar,
     num_rounds: usize,
-    poly_A: &mut DensePolynomial<Scalar>,
-    poly_B: &mut DensePolynomial<Scalar>,
-    poly_C: &mut DensePolynomial<Scalar>,
+    poly_A: &mut DensePolynomial,
+    poly_B: &mut DensePolynomial,
+    poly_C: &mut DensePolynomial,
     comb_func: F,
     transcript: &mut Transcript,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>)

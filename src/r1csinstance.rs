@@ -2,9 +2,8 @@ use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{
-  SparseMatEntry, SparseMatPolyCommitment, SparseMatPolyCommitmentBlinds,
-  SparseMatPolyCommitmentGens, SparseMatPolyEvalProof, SparseMatPolynomial,
-  SparseMatPolynomialSize,
+  SparseMatEntry, SparseMatPolyCommitment, SparseMatPolyCommitmentGens, SparseMatPolyEvalProof,
+  SparseMatPolynomial, SparseMatPolynomialAsDense, SparseMatPolynomialSize,
 };
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
@@ -46,25 +45,6 @@ impl R1CSCommitmentGens {
   }
 }
 
-pub struct R1CSCommitmentBlinds {
-  blinds_A: SparseMatPolyCommitmentBlinds,
-  blinds_B: SparseMatPolyCommitmentBlinds,
-  blinds_C: SparseMatPolyCommitmentBlinds,
-}
-
-impl R1CSCommitmentBlinds {
-  pub fn new(size: &R1CSInstanceSize, csprng: &mut OsRng) -> R1CSCommitmentBlinds {
-    let blinds_A = SparseMatPolyCommitmentBlinds::new(&size.size_A, csprng);
-    let blinds_B = SparseMatPolyCommitmentBlinds::new(&size.size_A, csprng);
-    let blinds_C = SparseMatPolyCommitmentBlinds::new(&size.size_A, csprng);
-    R1CSCommitmentBlinds {
-      blinds_A,
-      blinds_B,
-      blinds_C,
-    }
-  }
-}
-
 pub struct R1CSCommitment {
   num_cons: usize,
   num_vars: usize,
@@ -75,6 +55,12 @@ pub struct R1CSCommitment {
   nz_A: usize,
   nz_B: usize,
   nz_C: usize,
+}
+
+pub struct R1CSDecommitment {
+  dense_A: SparseMatPolynomialAsDense,
+  dense_B: SparseMatPolynomialAsDense,
+  dense_C: SparseMatPolynomialAsDense,
 }
 
 impl R1CSCommitment {
@@ -284,12 +270,12 @@ impl R1CSInstance {
     }
   }
 
-  pub fn commit(&self, gens: &R1CSCommitmentGens, blinds: &R1CSCommitmentBlinds) -> R1CSCommitment {
-    let comm_A = self.A.commit(&blinds.blinds_A, &gens.gens_A);
-    let comm_B = self.B.commit(&blinds.blinds_B, &gens.gens_B);
-    let comm_C = self.C.commit(&blinds.blinds_C, &gens.gens_C);
+  pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {
+    let (comm_A, dense_A) = self.A.commit(&gens.gens_A);
+    let (comm_B, dense_B) = self.B.commit(&gens.gens_B);
+    let (comm_C, dense_C) = self.C.commit(&gens.gens_C);
 
-    R1CSCommitment {
+    let r1cs_comm = R1CSCommitment {
       num_cons: self.num_cons,
       num_vars: self.num_vars,
       num_inputs: self.num_inputs,
@@ -299,7 +285,15 @@ impl R1CSInstance {
       nz_A: self.A.get_num_nz_entries(),
       nz_B: self.B.get_num_nz_entries(),
       nz_C: self.C.get_num_nz_entries(),
-    }
+    };
+
+    let r1cs_decomm = R1CSDecommitment {
+      dense_A,
+      dense_B,
+      dense_C,
+    };
+
+    (r1cs_comm, r1cs_decomm)
   }
 }
 
@@ -315,9 +309,11 @@ impl R1CSEvalProof {
   pub fn prove(
     inst: &R1CSInstance,
     comm: &R1CSCommitment,
-    blinds: &R1CSCommitmentBlinds,
+    decomm: &R1CSDecommitment,
     rx: &Vec<Scalar>, // point at which the polynomial is evaluated
     ry: &Vec<Scalar>,
+    eval_table_rx: &Vec<Scalar>,
+    eval_table_ry: &Vec<Scalar>,
     evals: &R1CSInstanceEvals,
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
@@ -325,9 +321,11 @@ impl R1CSEvalProof {
     let proof_A = SparseMatPolyEvalProof::prove(
       &inst.A,
       &comm.comm_A,
-      &blinds.blinds_A,
+      &decomm.dense_A,
       rx,
       ry,
+      eval_table_rx,
+      eval_table_ry,
       evals.eval_A_r,
       &gens.gens_A,
       transcript,
@@ -336,9 +334,11 @@ impl R1CSEvalProof {
     let proof_B = SparseMatPolyEvalProof::prove(
       &inst.B,
       &comm.comm_B,
-      &blinds.blinds_B,
+      &decomm.dense_B,
       rx,
       ry,
+      eval_table_rx,
+      eval_table_ry,
       evals.eval_B_r,
       &gens.gens_B,
       transcript,
@@ -347,9 +347,11 @@ impl R1CSEvalProof {
     let proof_C = SparseMatPolyEvalProof::prove(
       &inst.C,
       &comm.comm_C,
-      &blinds.blinds_C,
+      &decomm.dense_C,
       rx,
       ry,
+      eval_table_rx,
+      eval_table_ry,
       evals.eval_C_r,
       &gens.gens_C,
       transcript,

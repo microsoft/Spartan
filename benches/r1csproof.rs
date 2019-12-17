@@ -9,7 +9,7 @@ extern crate rand;
 extern crate sha3;
 
 use libspartan::dense_mlpoly::{
-  DensePolynomial, DensePolynomialTrait, EqPolynomial, PolyCommitmentBlinds, PolyCommitmentGens,
+  DensePolynomial, EqPolynomial, PolyCommitmentBlinds, PolyCommitmentGens,
 };
 use libspartan::math::Math;
 use libspartan::r1csinstance::R1CSInstance;
