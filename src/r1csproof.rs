@@ -202,9 +202,7 @@ impl R1CSProof {
     assert_eq!(evals_A.len(), evals_B.len());
     assert_eq!(evals_A.len(), evals_C.len());
     let evals_ABC = (0..evals_A.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| r_A * evals_A[i] + r_B * evals_B[i] + r_C * evals_C[i])
+      .map(|i| r_A * evals_A[i] + r_B * evals_B[i] + r_C * evals_C[i])
       .collect::<Vec<Scalar>>();
 
     // another instance of the sum-check protocol
@@ -285,9 +283,7 @@ impl R1CSProof {
     transcript.append_scalar(b"Bz_claim", &Bz_claim);
     transcript.append_scalar(b"Cz_claim", &Cz_claim);
     let taus_bound_r: Scalar = (0..rx.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| &rx[i] * &tau[i] + (&Scalar::one() - &rx[i]) * (&Scalar::one() - &tau[i]))
+      .map(|i| &rx[i] * &tau[i] + (&Scalar::one() - &rx[i]) * (&Scalar::one() - &tau[i]))
       .product();
     let e_claim = &taus_bound_r * (&Az_claim * &Bz_claim - &Cz_claim);
     assert_eq!(e_claim, claim);
@@ -317,9 +313,7 @@ impl R1CSProof {
       .is_ok());
 
     let input_as_sparse_poly_entries = (0..input.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| SparsePolyEntry::new(i, input[i]))
+      .map(|i| SparsePolyEntry::new(i, input[i]))
       .collect::<Vec<SparsePolyEntry>>();
 
     let poly_input = SparsePolynomial::new(n.log2(), input_as_sparse_poly_entries);

@@ -31,9 +31,7 @@ impl ProofTranscript for Transcript {
 
   fn challenge_vector(&mut self, label: &'static [u8], len: usize) -> Vec<Scalar> {
     (0..len)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| self.challenge_scalar(label))
+      .map(|_i| self.challenge_scalar(label))
       .collect::<Vec<Scalar>>()
   }
 }

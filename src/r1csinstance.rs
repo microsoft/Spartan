@@ -150,9 +150,7 @@ impl R1CSInstance {
     let mut B: Vec<SparseMatEntry> = Vec::new();
     let mut C: Vec<SparseMatEntry> = Vec::new();
     let Z: Vec<Scalar> = (0..size_z)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::random(&mut csprng))
+      .map(|_i| Scalar::random(&mut csprng))
       .collect::<Vec<Scalar>>();
 
     let one = Scalar::one();
@@ -215,9 +213,7 @@ impl R1CSInstance {
     assert_eq!(Bz.len(), self.num_cons);
     assert_eq!(Cz.len(), self.num_cons);
     let res: usize = (0..self.num_cons)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| if Az[i] * Bz[i] == Cz[i] { 0 } else { 1 })
+      .map(|i| if Az[i] * Bz[i] == Cz[i] { 0 } else { 1 })
       .sum();
     if res > 0 {
       false

@@ -26,14 +26,10 @@ fn dotproduct_benchmark_dalek(c: &mut Criterion) {
 
     let n = (s as usize).pow2();
     let vec_a = (0..n)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| ScalarBytes::random(&mut csprng))
+      .map(|_i| ScalarBytes::random(&mut csprng))
       .collect::<Vec<ScalarBytes>>();
     let vec_b = (0..n)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| ScalarBytes::random(&mut csprng))
+      .map(|_i| ScalarBytes::random(&mut csprng))
       .collect::<Vec<ScalarBytes>>();
 
     let name = format!("dotproduct_dalek_{}", n);
@@ -62,14 +58,10 @@ fn dotproduct_benchmark_opt(c: &mut Criterion) {
 
     let n = (s as usize).pow2();
     let vec_a = (0..n)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::random(&mut csprng))
+      .map(|_i| Scalar::random(&mut csprng))
       .collect::<Vec<Scalar>>();
     let vec_b = (0..n)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::random(&mut csprng))
+      .map(|_i| Scalar::random(&mut csprng))
       .collect::<Vec<Scalar>>();
 
     let name = format!("dotproduct_opt_{}", n);

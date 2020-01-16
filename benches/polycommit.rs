@@ -29,9 +29,7 @@ fn commit_benchmark(c: &mut Criterion) {
     let n = (s as usize).pow2();
     let m = n.square_root();
     let z = (0..n)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::random(&mut csprng))
+      .map(|_i| Scalar::random(&mut csprng))
       .collect::<Vec<Scalar>>();
     assert_eq!(m * m, z.len()); // check if Z's size if a perfect square
 

@@ -309,9 +309,7 @@ impl DotProductProof {
   pub fn compute_dotproduct(a: &Vec<Scalar>, b: &Vec<Scalar>) -> Scalar {
     assert_eq!(a.len(), b.len());
     (0..a.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| &a[i] * &b[i])
+      .map(|i| &a[i] * &b[i])
       .sum()
   }
 
@@ -354,9 +352,7 @@ impl DotProductProof {
     let c = transcript.challenge_scalar(b"c");
 
     let z = (0..d.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| c * x[i] + d[i])
+      .map(|i| c * x[i] + d[i])
       .collect::<Vec<Scalar>>();
 
     let z_delta = c * r_x + r_delta;
@@ -443,9 +439,7 @@ impl DotProductProofLog {
   pub fn compute_dotproduct(a: &Vec<Scalar>, b: &Vec<Scalar>) -> Scalar {
     assert_eq!(a.len(), b.len());
     (0..a.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| &a[i] * &b[i])
+      .map(|i| &a[i] * &b[i])
       .sum()
   }
 

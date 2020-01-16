@@ -47,9 +47,7 @@ impl PolyCommitmentBlinds {
   pub fn new(size: &DensePolynomialSize, csprng: &mut OsRng) -> PolyCommitmentBlinds {
     let (left, _right) = EqPolynomial::compute_factored_lens(size.num_vars);
     let blinds = (0..left.pow2())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::random(csprng))
+      .map(|_i| Scalar::random(csprng))
       .collect::<Vec<Scalar>>();
     PolyCommitmentBlinds { blinds }
   }
@@ -69,9 +67,7 @@ impl PolyCommitment {
   pub fn combine(&self, comm: &PolyCommitment, s: &Scalar) -> PolyCommitment {
     assert_eq!(comm.C.len(), self.C.len());
     let C = (0..self.C.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| {
+      .map(|i| {
         (self.C[i].decompress().unwrap()
           + Scalar::decompress_scalar(s) * comm.C[i].decompress().unwrap())
         .compress()
@@ -82,9 +78,7 @@ impl PolyCommitment {
 
   pub fn combine_const(&self, comm: &ConstPolyCommitment) -> PolyCommitment {
     let C = (0..self.C.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| (self.C[i].decompress().unwrap() + comm.C.decompress().unwrap()).compress())
+      .map(|i| (self.C[i].decompress().unwrap() + comm.C.decompress().unwrap()).compress())
       .collect::<Vec<CompressedRistretto>>();
     PolyCommitment { C }
   }
@@ -102,9 +96,7 @@ impl EqPolynomial {
   pub fn evaluate(&self, rx: &Vec<Scalar>) -> Scalar {
     assert_eq!(self.r.len(), rx.len());
     (0..rx.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| self.r[i] * rx[i] + (Scalar::one() - self.r[i]) * (Scalar::one() - rx[i]))
+      .map(|i| self.r[i] * rx[i] + (Scalar::one() - self.r[i]) * (Scalar::one() - rx[i]))
       .product()
   }
 
@@ -191,9 +183,7 @@ impl IdentityPolynomial {
     let len = r.len();
     assert_eq!(len, self.size_point);
     (0..len)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| Scalar::from((len - i - 1).pow2() as u64) * r[i])
+      .map(|i| Scalar::from((len - i - 1).pow2() as u64) * r[i])
       .sum()
   }
 }
@@ -255,9 +245,7 @@ impl DensePolynomial {
     let R_size = self.Z.len() / L_size;
     assert_eq!(L_size * R_size, self.Z.len());
     let C = (0..L_size)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| {
+      .map(|i| {
         self.Z[R_size * i..R_size * (i + 1)]
           .commit(&blinds[i], gens)
           .compress()
@@ -298,13 +286,9 @@ impl DensePolynomial {
     let L_size = left_num_vars.pow2();
     let R_size = right_num_vars.pow2();
     (0..R_size)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| {
+      .map(|i| {
         (0..L_size)
-          .collect::<Vec<usize>>()
-          .iter()
-          .map(|&j| &L[j] * &self.Z[j * R_size + i])
+          .map(|j| &L[j] * &self.Z[j * R_size + i])
           .sum()
       })
       .collect::<Vec<Scalar>>()
@@ -364,9 +348,7 @@ impl DensePolynomial {
   pub fn from_usize(Z: &Vec<usize>) -> Self {
     DensePolynomial::new(
       (0..Z.len())
-        .collect::<Vec<usize>>()
-        .iter()
-        .map(|&i| Scalar::from(Z[i] as u64))
+        .map(|i| Scalar::from(Z[i] as u64))
         .collect::<Vec<Scalar>>(),
     )
   }
@@ -444,9 +426,7 @@ impl PolyEvalProof {
     // compute vector-matrix product between L and Z viewed as a matrix
     let LZ = poly.bound(&L);
     let LZ_blind: Scalar = (0..L.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| blinds.blinds[i] * L[i])
+      .map(|i| blinds.blinds[i] * L[i])
       .sum();
 
     let d = Scalar::random(&mut csprng);
@@ -595,13 +575,9 @@ mod tests {
 
     // compute vector-matrix product between L and Z viewed as a matrix
     let LZ = (0..m)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| {
+      .map(|i| {
         (0..m)
-          .collect::<Vec<usize>>()
-          .iter()
-          .map(|&j| L[j] * Z[j * m + i])
+          .map(|j| L[j] * Z[j * m + i])
           .sum()
       })
       .collect::<Vec<Scalar>>();

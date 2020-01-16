@@ -9,9 +9,7 @@ impl ScalarFromPrimitives for usize {
   #[inline]
   fn to_scalar(self) -> Scalar {
     (0..self)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::one())
+      .map(|_i| Scalar::one())
       .sum()
   }
 }
@@ -40,17 +38,13 @@ impl ScalarBytesFromScalar for Scalar {
 
   fn decompress_vec(v: &Vec<Scalar>) -> Vec<ScalarBytes> {
     (0..v.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| Scalar::decompress_scalar(&v[i]))
+      .map(|i| Scalar::decompress_scalar(&v[i]))
       .collect::<Vec<ScalarBytes>>()
   }
 
   fn decompress_seq(s: &[Scalar]) -> Vec<ScalarBytes> {
     (0..s.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| Scalar::decompress_scalar(&s[i]))
+      .map(|i| Scalar::decompress_scalar(&s[i]))
       .collect::<Vec<ScalarBytes>>()
   }
 }

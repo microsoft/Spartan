@@ -189,9 +189,7 @@ impl AddrTimestamps {
   pub fn deref(&self, mem_val: &Vec<Scalar>) -> DensePolynomial {
     DensePolynomial::new(
       (0..self.ops_addr.len())
-        .collect::<Vec<usize>>()
-        .iter()
-        .map(|&i| {
+        .map(|i| {
           let addr = self.ops_addr_usize[i];
           mem_val[addr]
         })
@@ -256,9 +254,7 @@ impl SparseMatPolynomial {
     assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
 
     (0..self.M.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| {
+      .map(|i| {
         let row = self.M[i].row;
         let col = self.M[i].col;
         let val = &self.M[i].val;
@@ -274,9 +270,7 @@ impl SparseMatPolynomial {
     assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
 
     (0..self.M.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| {
+      .map(|i| {
         let row = self.M[i].row;
         let col = self.M[i].col;
         let val = &self.M[i].val;
@@ -289,9 +283,7 @@ impl SparseMatPolynomial {
     assert_eq!(z.len(), num_cols);
 
     (0..self.M.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| {
+      .map(|i| {
         let row = self.M[i].row;
         let col = self.M[i].col;
         let val = &self.M[i].val;
@@ -365,14 +357,10 @@ impl ProductCircuit {
   ) -> (DensePolynomial, DensePolynomial) {
     let len = inp_left.len() + inp_right.len();
     let outp_left = (0..len / 4)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| &inp_left[i] * &inp_right[i])
+      .map(|i| &inp_left[i] * &inp_right[i])
       .collect::<Vec<Scalar>>();
     let outp_right = (len / 4..len / 2)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| &inp_left[i] * &inp_right[i])
+      .map(|i| &inp_left[i] * &inp_right[i])
       .collect::<Vec<Scalar>>();
 
     (
@@ -506,9 +494,7 @@ impl ProductCircuitEvalProof {
 
       assert_eq!(rand.len(), rand_prod.len());
       let eq: Scalar = (0..rand.len())
-        .collect::<Vec<usize>>()
-        .iter()
-        .map(|&i| {
+        .map(|i| {
           rand[i] * rand_prod[i] + (Scalar::one() - rand[i]) * (Scalar::one() - rand_prod[i])
         })
         .product();
@@ -549,9 +535,7 @@ impl EvalCircuit {
 
   pub fn evaluate(&self) -> Scalar {
     (0..self.poly_val.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| &self.poly_val[i] * &self.poly_row_val[i] * &self.poly_col_val[i])
+      .map(|i| &self.poly_val[i] * &self.poly_row_val[i] * &self.poly_col_val[i])
       .sum()
   }
 }
@@ -605,9 +589,7 @@ impl MemCircuitLayers {
 
     let poly_init_hashed = DensePolynomial::new(
       (0..num_mem_cells)
-        .collect::<Vec<usize>>()
-        .iter()
-        .map(|&i| {
+        .map(|i| {
           // at init time, addr is given by i, init value is given by eval_table, and ts = 0
           &hash_func(&Scalar::from(i as u64), &eval_table[i], &Scalar::zero()) - r_multiset_check
         })
@@ -616,9 +598,7 @@ impl MemCircuitLayers {
 
     let poly_read_hashed = DensePolynomial::new(
       (0..num_ops)
-        .collect::<Vec<usize>>()
-        .iter()
-        .map(|&i| {
+        .map(|i| {
           // at read time, addr is given by addrs, value is given by derefs, and ts is given by read_ts
           &hash_func(&addrs[i], &derefs[i], &read_ts[i]) - r_multiset_check
         })
@@ -627,9 +607,7 @@ impl MemCircuitLayers {
 
     let poly_write_hashed = DensePolynomial::new(
       (0..num_ops)
-        .collect::<Vec<usize>>()
-        .iter()
-        .map(|&i| {
+        .map(|i| {
           // at write time, addr is given by addrs, value is given by derefs, and ts is given by write_ts
           &hash_func(&addrs[i], &derefs[i], &write_ts[i]) - r_multiset_check
         })
@@ -638,9 +616,7 @@ impl MemCircuitLayers {
 
     let poly_audit_hashed = DensePolynomial::new(
       (0..num_mem_cells)
-        .collect::<Vec<usize>>()
-        .iter()
-        .map(|&i| {
+        .map(|i| {
           // at audit time, addr is given by i, value is given by eval_table, and ts is given by audit_ts
           &hash_func(&Scalar::from(i as u64), &eval_table[i], &audit_ts[i]) - r_multiset_check
         })
@@ -1592,9 +1568,7 @@ impl SparsePolynomial {
     assert_eq!(self.num_vars, r.len());
 
     (0..self.Z.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&i| {
+      .map(|i| {
         let bits = self.Z[i].idx.get_bits(r.len());
         SparsePolynomial::compute_chi(&bits, r) * self.Z[i].val
       })
@@ -1638,14 +1612,10 @@ mod tests {
 
     // evaluation
     let rx: Vec<Scalar> = (0..num_vars_x)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::random(&mut csprng))
+      .map(|_i| Scalar::random(&mut csprng))
       .collect::<Vec<Scalar>>();
     let ry: Vec<Scalar> = (0..num_vars_y)
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::random(&mut csprng))
+      .map(|_i| Scalar::random(&mut csprng))
       .collect::<Vec<Scalar>>();
     let eval = poly_M.evaluate(&rx, &ry);
 
