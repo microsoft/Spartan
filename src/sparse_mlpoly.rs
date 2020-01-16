@@ -1,7 +1,8 @@
 #[allow(dead_code)]
 use super::dense_mlpoly::DensePolynomial;
 use super::dense_mlpoly::{
-  DensePolynomialSize, EqPolynomial, PolyCommitment, PolyCommitmentGens, PolyEvalProof,
+  ConstPolynomial, DensePolynomialSize, EqPolynomial, IdentityPolynomial, PolyCommitment,
+  PolyCommitmentGens, PolyEvalProof,
 };
 use super::errors::ProofVerifyError;
 use super::math::Math;
@@ -35,7 +36,6 @@ pub struct SparseMatPolynomial {
 }
 
 struct AddrTimestamps {
-  mem_addr: DensePolynomial,
   ops_addr_usize: Vec<usize>,
   ops_addr: DensePolynomial,
   read_ts: DensePolynomial,
@@ -132,7 +132,6 @@ impl SparseMatPolyCommitmentGens {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct AddrTimestampsCommitment {
-  mem_addr: PolyCommitment,
   ops_addr: PolyCommitment,
   read_ts: PolyCommitment,
   write_ts: PolyCommitment,
@@ -161,7 +160,6 @@ impl AddrTimestamps {
     }
 
     AddrTimestamps {
-      mem_addr: DensePolynomial::from_usize(&((0..num_cells).collect::<Vec<usize>>())),
       ops_addr: DensePolynomial::from_usize(&ops_addr),
       ops_addr_usize: ops_addr,
       read_ts: DensePolynomial::from_usize(&read_ts),
@@ -172,7 +170,7 @@ impl AddrTimestamps {
 
   pub fn size(&self) -> AddrTimestampsSize {
     AddrTimestampsSize {
-      mem_size: self.mem_addr.size(),
+      mem_size: self.audit_ts.size(),
       ops_size: self.read_ts.size(),
     }
   }
@@ -181,7 +179,6 @@ impl AddrTimestamps {
     let blinds = None;
 
     AddrTimestampsCommitment {
-      mem_addr: self.mem_addr.commit(blinds, &gens.gens_mem),
       ops_addr: self.ops_addr.commit(blinds, &gens.gens_ops),
       read_ts: self.read_ts.commit(blinds, &gens.gens_ops),
       write_ts: self.write_ts.commit(blinds, &gens.gens_ops),
@@ -577,7 +574,6 @@ struct MemCircuitProductLayer {
 
 #[derive(Debug)]
 struct MemCircuitLayers {
-  //input_layer: MemCircuitInputLayer,
   hash_layer: MemCircuitHashLayer,
   prod_layer: MemCircuitProductLayer,
 }
@@ -979,24 +975,10 @@ impl EvalCircuitProof {
 
 #[derive(Debug, Serialize, Deserialize)]
 struct HashLayerProof {
-  eval_init_mem_addr: Scalar,
-  proof_init_mem_addr: PolyEvalProof,
-  eval_audit_mem_addr: Scalar,
-  proof_audit_mem_addr: PolyEvalProof,
   eval_audit_ts: Scalar,
   proof_audit_ts: PolyEvalProof,
-  eval_read_addr: Scalar,
-  proof_read_addr: PolyEvalProof,
-  eval_read_val: Scalar,
-  proof_read_val: PolyEvalProof,
-  eval_read_ts: Scalar,
-  proof_read_ts: PolyEvalProof,
-  eval_write_addr: Scalar,
-  proof_write_addr: PolyEvalProof,
-  eval_write_val: Scalar,
-  proof_write_val: PolyEvalProof,
-  eval_write_ts: Scalar,
-  proof_write_ts: PolyEvalProof,
+  proof_read: PolyEvalProof,
+  proof_write: PolyEvalProof,
 }
 
 impl HashLayerProof {
@@ -1008,123 +990,43 @@ impl HashLayerProof {
     rand: (&Vec<Scalar>, &Vec<Scalar>, &Vec<Scalar>, &Vec<Scalar>),
     addr_timestamps: &AddrTimestamps,
     comm_addr_timestamps: &AddrTimestampsCommitment,
-    ops_val: &DensePolynomial,
-    comm_ops_val: &PolyCommitment,
+    hash_layer: &MemCircuitHashLayer,
     gens: &AddrTimestampsGens,
     transcript: &mut Transcript,
   ) -> Self {
     transcript.append_protocol_name(HashLayerProof::protocol_name());
 
-    let (rand_init, rand_read, rand_write, rand_audit) = rand;
-
-    // init: decommit input_layer.mem_addr at rand_init
-    let eval_init_mem_addr = addr_timestamps.mem_addr.evaluate(rand_init);
-    eval_init_mem_addr.append_to_transcript(b"claim_eval_init_mem_addr", transcript);
-    let (proof_init_mem_addr, _comm_init_addr_eval) = PolyEvalProof::prove(
-      &addr_timestamps.mem_addr,
-      &comm_addr_timestamps.mem_addr,
-      None,
-      &rand_init,
-      &eval_init_mem_addr,
-      &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_mem,
-      transcript,
-    );
+    let (_rand_init, rand_read, rand_write, rand_audit) = rand;
 
     // read
-    let eval_read_addr = addr_timestamps.ops_addr.evaluate(rand_read);
-    eval_read_addr.append_to_transcript(b"claim_eval_read_addr", transcript);
-    let (proof_read_addr, _comm_read_addr_eval) = PolyEvalProof::prove(
-      &addr_timestamps.ops_addr,
-      &comm_addr_timestamps.ops_addr,
+    let eval_read = hash_layer.read.evaluate(rand_read);
+    eval_read.append_to_transcript(b"claim_eval_read", transcript);
+    let (proof_read, _comm_read_eval) = PolyEvalProof::prove(
+      &hash_layer.read,
+      &comm_addr_timestamps.ops_addr, // dummy parameter. TODO: remove it
       None,
       &rand_read,
-      &eval_read_addr,
-      &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_ops,
-      transcript,
-    );
-
-    let eval_read_val = ops_val.evaluate(rand_read);
-    eval_read_val.append_to_transcript(b"claim_eval_read_val", transcript);
-    let (proof_read_val, _comm_read_val_eval) = PolyEvalProof::prove(
-      ops_val,
-      comm_ops_val,
-      None,
-      &rand_read,
-      &eval_read_val,
-      &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_ops,
-      transcript,
-    );
-
-    let eval_read_ts = addr_timestamps.read_ts.evaluate(rand_read);
-    eval_read_ts.append_to_transcript(b"claim_eval_read_ts", transcript);
-    let (proof_read_ts, _comm_read_ts_eval) = PolyEvalProof::prove(
-      &addr_timestamps.read_ts,
-      &comm_addr_timestamps.read_ts,
-      None,
-      &rand_read,
-      &eval_read_ts,
+      &eval_read,
       &Scalar::zero(), // TODO: make this optional parameter
       &gens.gens_ops,
       transcript,
     );
 
     // write
-    let eval_write_addr = addr_timestamps.ops_addr.evaluate(rand_write);
-    eval_write_addr.append_to_transcript(b"claim_eval_write_addr", transcript);
-    let (proof_write_addr, _comm_write_addr_eval) = PolyEvalProof::prove(
-      &addr_timestamps.ops_addr,
+    let eval_write = hash_layer.write.evaluate(rand_write);
+    eval_write.append_to_transcript(b"claim_eval_write", transcript);
+    let (proof_write, _comm_write_eval) = PolyEvalProof::prove(
+      &hash_layer.write,
       &comm_addr_timestamps.ops_addr,
       None,
       &rand_write,
-      &eval_write_addr,
-      &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_ops,
-      transcript,
-    );
-
-    let eval_write_val = ops_val.evaluate(rand_write);
-    eval_write_val.append_to_transcript(b"claim_eval_write_val", transcript);
-    let (proof_write_val, _comm_write_val_eval) = PolyEvalProof::prove(
-      ops_val,
-      comm_ops_val,
-      None,
-      &rand_write,
-      &eval_write_val,
-      &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_ops,
-      transcript,
-    );
-
-    let eval_write_ts = addr_timestamps.write_ts.evaluate(rand_write);
-    eval_write_ts.append_to_transcript(b"claim_eval_write_ts", transcript);
-    let (proof_write_ts, _comm_write_ts_eval) = PolyEvalProof::prove(
-      &addr_timestamps.write_ts,
-      &comm_addr_timestamps.write_ts,
-      None,
-      &rand_write,
-      &eval_write_ts,
+      &eval_write,
       &Scalar::zero(), // TODO: make this optional parameter
       &gens.gens_ops,
       transcript,
     );
 
     // audit
-    let eval_audit_mem_addr = addr_timestamps.mem_addr.evaluate(rand_audit);
-    eval_audit_mem_addr.append_to_transcript(b"claim_eval_audit_mem_addr", transcript);
-    let (proof_audit_mem_addr, _comm_audit_addr_eval) = PolyEvalProof::prove(
-      &addr_timestamps.mem_addr,
-      &comm_addr_timestamps.mem_addr,
-      None,
-      &rand_audit,
-      &eval_audit_mem_addr,
-      &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_mem,
-      transcript,
-    );
-
     let eval_audit_ts = addr_timestamps.audit_ts.evaluate(rand_audit);
     eval_audit_ts.append_to_transcript(b"claim_eval_audit_ts", transcript);
     let (proof_audit_ts, _comm_audit_ts_eval) = PolyEvalProof::prove(
@@ -1139,24 +1041,10 @@ impl HashLayerProof {
     );
 
     HashLayerProof {
-      eval_init_mem_addr,
-      proof_init_mem_addr,
-      eval_audit_mem_addr,
-      proof_audit_mem_addr,
-      eval_audit_ts,
+      eval_audit_ts, // TODO: can be calculate on the verifier  side
       proof_audit_ts,
-      eval_read_addr,
-      proof_read_addr,
-      eval_read_val,
-      proof_read_val,
-      eval_read_ts,
-      proof_read_ts,
-      eval_write_addr,
-      proof_write_addr,
-      eval_write_val,
-      proof_write_val,
-      eval_write_ts,
-      proof_write_ts,
+      proof_read,
+      proof_write,
     }
   }
 
@@ -1183,126 +1071,59 @@ impl HashLayerProof {
     let (claim_init, claim_read, claim_write, claim_audit) = claims;
 
     // init
-    let eval_init_mem_addr = self.eval_init_mem_addr;
-    eval_init_mem_addr.append_to_transcript(b"claim_eval_init_mem_addr", transcript);
-    assert!(self
-      .proof_init_mem_addr
-      .verify_plain(
-        &gens.gens_mem,
-        transcript,
-        rand_init,
-        &eval_init_mem_addr,
-        &comm.mem_addr,
-      )
-      .is_ok());
-
-    let eval_init_mem_val = EqPolynomial::new(r.clone()).evaluate(rand_init);
+    let eval_init_addr = IdentityPolynomial::new(rand_init.len()).evaluate(rand_init);
+    let eval_init_val = EqPolynomial::new(r.clone()).evaluate(rand_init);
     let hash_init_at_rand_init =
-      hash_func(&eval_init_mem_addr, &eval_init_mem_val, &Scalar::zero()) - r_multiset_check; // verify the claim_last of init chunk
+      hash_func(&eval_init_addr, &eval_init_val, &Scalar::zero()) - r_multiset_check; // verify the claim_last of init chunk
     assert_eq!(&hash_init_at_rand_init, claim_init);
 
     // read
-    let eval_read_addr = self.eval_read_addr;
-    eval_read_addr.append_to_transcript(b"claim_eval_read_addr", transcript);
+    let eval_read = claim_read;
+    eval_read.append_to_transcript(b"claim_eval_read", transcript);
+
+    let comm_multiset_check =
+      ConstPolynomial::new(rand_read.len(), -r_multiset_check).commit(&gens.gens_ops);
+
     assert!(self
-      .proof_read_addr
-      .verify_plain(
+      .proof_read
+      .verify_plain_batched(
         &gens.gens_ops,
         transcript,
         rand_read,
-        &eval_read_addr,
-        &comm.ops_addr
+        &eval_read,
+        &[
+          &comm.ops_addr,
+          comm_ops_val,
+          &comm.read_ts,
+          &comm_multiset_check
+        ],
+        &[&Scalar::one(), r_hash, &r_hash_sqr, &Scalar::one()]
       )
       .is_ok());
-
-    let eval_read_val = self.eval_read_val;
-    eval_read_val.append_to_transcript(b"claim_eval_read_val", transcript);
-    assert!(self
-      .proof_read_val
-      .verify_plain(
-        &gens.gens_ops,
-        transcript,
-        rand_read,
-        &eval_read_val,
-        comm_ops_val
-      )
-      .is_ok());
-
-    let eval_read_ts = self.eval_read_ts;
-    eval_read_ts.append_to_transcript(b"claim_eval_read_ts", transcript);
-    assert!(self
-      .proof_read_ts
-      .verify_plain(
-        &gens.gens_ops,
-        transcript,
-        rand_read,
-        &eval_read_ts,
-        &comm.read_ts
-      )
-      .is_ok());
-
-    let hash_read_at_rand_read =
-      hash_func(&eval_read_addr, &eval_read_val, &eval_read_ts) - r_multiset_check;
-    assert_eq!(&hash_read_at_rand_read, claim_read); // verify the last step of the sum-check for read
 
     //write
-    let eval_write_addr = self.eval_write_addr;
-    eval_write_addr.append_to_transcript(b"claim_eval_write_addr", transcript);
+    let eval_write = claim_write;
+    eval_write.append_to_transcript(b"claim_eval_write", transcript);
+
     assert!(self
-      .proof_write_addr
-      .verify_plain(
+      .proof_write
+      .verify_plain_batched(
         &gens.gens_ops,
         transcript,
         rand_write,
-        &eval_write_addr,
-        &comm.ops_addr
+        &eval_write,
+        &[
+          &comm.ops_addr,
+          comm_ops_val,
+          &comm.write_ts,
+          &comm_multiset_check
+        ],
+        &[&Scalar::one(), &r_hash, &r_hash_sqr, &Scalar::one()]
       )
       .is_ok());
-
-    let eval_write_val = self.eval_write_val;
-    eval_write_val.append_to_transcript(b"claim_eval_write_val", transcript);
-    assert!(self
-      .proof_write_val
-      .verify_plain(
-        &gens.gens_ops,
-        transcript,
-        rand_write,
-        &eval_write_val,
-        comm_ops_val
-      )
-      .is_ok());
-
-    let eval_write_ts = self.eval_write_ts;
-    eval_write_ts.append_to_transcript(b"claim_eval_write_ts", transcript);
-    assert!(self
-      .proof_write_ts
-      .verify_plain(
-        &gens.gens_ops,
-        transcript,
-        rand_write,
-        &eval_write_ts,
-        &comm.write_ts
-      )
-      .is_ok());
-
-    let hash_write_at_rand_write =
-      hash_func(&eval_write_addr, &eval_write_val, &eval_write_ts) - r_multiset_check;
-    assert_eq!(&hash_write_at_rand_write, claim_write); // verify the last step of the sum-check for write
 
     //audit
-    let eval_audit_mem_addr = self.eval_audit_mem_addr;
-    eval_audit_mem_addr.append_to_transcript(b"claim_eval_audit_mem_addr", transcript);
-    assert!(self
-      .proof_audit_mem_addr
-      .verify_plain(
-        &gens.gens_mem,
-        transcript,
-        rand_audit,
-        &eval_audit_mem_addr,
-        &comm.mem_addr,
-      )
-      .is_ok());
-
+    let eval_audit_addr = IdentityPolynomial::new(rand_audit.len()).evaluate(rand_audit);
     let eval_audit_ts = self.eval_audit_ts;
     eval_audit_ts.append_to_transcript(b"claim_eval_audit_ts", transcript);
     assert!(self
@@ -1316,14 +1137,10 @@ impl HashLayerProof {
       )
       .is_ok());
 
-    let eval_audit_mem_val = EqPolynomial::new(r.clone()).evaluate(rand_audit);
+    let eval_audit_val = EqPolynomial::new(r.clone()).evaluate(rand_audit);
     let hash_audit_at_rand_audit =
-      hash_func(&eval_audit_mem_addr, &eval_audit_mem_val, &eval_audit_ts) - r_multiset_check;
+      hash_func(&eval_audit_addr, &eval_audit_val, &eval_audit_ts) - r_multiset_check;
     assert_eq!(&hash_audit_at_rand_audit, claim_audit); // verify the last step of the sum-check for audit
-
-    // read
-
-    // write
 
     Ok(())
   }
@@ -1351,8 +1168,6 @@ impl MemCircuitLayersProof {
     mem_circuit_layers: &mut MemCircuitLayers,
     addr_timestamps: &AddrTimestamps,
     comm_addr_timestamps: &AddrTimestampsCommitment,
-    ops_val: &DensePolynomial,
-    comm_ops_val: &PolyCommitment,
     gens: &AddrTimestampsGens,
     transcript: &mut Transcript,
   ) -> Self {
@@ -1386,8 +1201,7 @@ impl MemCircuitLayersProof {
       (&rand_init, &rand_read, &rand_write, &rand_audit),
       addr_timestamps,
       comm_addr_timestamps,
-      ops_val,
-      comm_ops_val,
+      &mem_circuit_layers.hash_layer,
       gens,
       transcript,
     );
@@ -1507,8 +1321,6 @@ impl MemCircuitProof {
   pub fn prove(
     mem_circuit: &mut MemCircuit,
     dense: &SparseMatPolynomialAsDense,
-    values: &Values,
-    comm_values: &ValuesCommitment,
     comm_sparsepoly: &SparseMatPolyCommitment,
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
@@ -1520,8 +1332,6 @@ impl MemCircuitProof {
       &mut mem_circuit.row_layers,
       &dense.row,
       &comm_sparsepoly.comm_row,
-      &values.row_ops_val,
-      &comm_values.comm_row_ops_val,
       &gens.gens_row,
       transcript,
     );
@@ -1529,8 +1339,6 @@ impl MemCircuitProof {
       &mut mem_circuit.col_layers,
       &dense.col,
       &comm_sparsepoly.comm_col,
-      &values.col_ops_val,
-      &comm_values.comm_col_ops_val,
       &gens.gens_col,
       transcript,
     );
@@ -1675,15 +1483,8 @@ impl SparseMatPolyEvalProof {
     println!("Time to produce eval_circuit_proof {:?}", duration);
 
     let start = Instant::now();
-    let mem_circuit_proof = MemCircuitProof::prove(
-      &mut net.mem_circuit,
-      &dense,
-      &values,
-      &comm_values,
-      comm,
-      gens,
-      transcript,
-    );
+    let mem_circuit_proof =
+      MemCircuitProof::prove(&mut net.mem_circuit, &dense, comm, gens, transcript);
     let duration = start.elapsed();
     println!("Time to produce mem_circuit_proof {:?}", duration);
 

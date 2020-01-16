@@ -1,7 +1,7 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::math::Math;
-use super::nizk::DotProductProof;
+use super::nizk::{DotProductProofGens, DotProductProofLog};
 use super::scalar::{Scalar, ScalarBytesFromScalar};
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::ops::Index;
@@ -26,17 +26,15 @@ pub struct DensePolynomialSize {
 }
 
 pub struct PolyCommitmentGens {
-  gens_1: MultiCommitGens,
-  gens_m: MultiCommitGens,
+  gens: DotProductProofGens,
 }
 
 impl PolyCommitmentGens {
   // the number of variables in the multilinear polynomial
   pub fn new(size: &DensePolynomialSize, label: &'static [u8]) -> PolyCommitmentGens {
     let (_left, right) = EqPolynomial::compute_factored_lens(size.num_vars);
-    let gens_1 = MultiCommitGens::new(1, label);
-    let gens_m = MultiCommitGens::new(right.pow2(), label);
-    PolyCommitmentGens { gens_1, gens_m }
+    let gens = DotProductProofGens::new(right.pow2(), label);
+    PolyCommitmentGens { gens }
   }
 }
 
@@ -60,6 +58,36 @@ impl PolyCommitmentBlinds {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PolyCommitment {
   C: Vec<CompressedRistretto>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ConstPolyCommitment {
+  C: CompressedRistretto,
+}
+
+impl PolyCommitment {
+  pub fn combine(&self, comm: &PolyCommitment, s: &Scalar) -> PolyCommitment {
+    assert_eq!(comm.C.len(), self.C.len());
+    let C = (0..self.C.len())
+      .collect::<Vec<usize>>()
+      .iter()
+      .map(|&i| {
+        (self.C[i].decompress().unwrap()
+          + Scalar::decompress_scalar(s) * comm.C[i].decompress().unwrap())
+        .compress()
+      })
+      .collect::<Vec<CompressedRistretto>>();
+    PolyCommitment { C }
+  }
+
+  pub fn combine_const(&self, comm: &ConstPolyCommitment) -> PolyCommitment {
+    let C = (0..self.C.len())
+      .collect::<Vec<usize>>()
+      .iter()
+      .map(|&i| (self.C[i].decompress().unwrap() + comm.C.decompress().unwrap()).compress())
+      .collect::<Vec<CompressedRistretto>>();
+    PolyCommitment { C }
+  }
 }
 
 pub struct EqPolynomial {
@@ -112,6 +140,61 @@ impl EqPolynomial {
     let R = EqPolynomial::new(self.r[left_num_vars..ell].to_vec()).evals();
 
     (L, R)
+  }
+}
+
+pub struct ConstPolynomial {
+  num_vars: usize,
+  c: Scalar,
+}
+
+impl ConstPolynomial {
+  pub fn new(num_vars: usize, c: Scalar) -> Self {
+    ConstPolynomial { num_vars, c }
+  }
+
+  pub fn evaluate(&self, rx: &Vec<Scalar>) -> Scalar {
+    assert_eq!(self.num_vars, rx.len());
+    self.c
+  }
+
+  pub fn get_num_vars(&self) -> usize {
+    self.num_vars
+  }
+
+  /// produces a binding commitment
+  pub fn commit(&self, gens: &PolyCommitmentGens) -> PolyCommitment {
+    let ell = self.get_num_vars();
+
+    let (left_num_vars, right_num_vars) = EqPolynomial::compute_factored_lens(ell);
+    let L_size = left_num_vars.pow2();
+    let R_size = right_num_vars.pow2();
+    assert_eq!(L_size * R_size, ell.pow2());
+
+    let vec = vec![self.c; R_size];
+
+    let c = vec.commit(&Scalar::zero(), &gens.gens.gens_n).compress();
+    PolyCommitment { C: vec![c; L_size] }
+  }
+}
+
+pub struct IdentityPolynomial {
+  size_point: usize,
+}
+
+impl IdentityPolynomial {
+  pub fn new(size_point: usize) -> Self {
+    IdentityPolynomial { size_point }
+  }
+
+  pub fn evaluate(&self, r: &Vec<Scalar>) -> Scalar {
+    let len = r.len();
+    assert_eq!(len, self.size_point);
+    (0..len)
+      .collect::<Vec<usize>>()
+      .iter()
+      .map(|&i| Scalar::from((len - i - 1).pow2() as u64) * r[i])
+      .sum()
   }
 }
 
@@ -207,7 +290,7 @@ impl DensePolynomial {
 
     assert_eq!(blinds.blinds.len(), L_size);
 
-    self.commit_inner(&blinds.blinds, &gens.gens_m)
+    self.commit_inner(&blinds.blinds, &gens.gens.gens_n)
   }
 
   pub fn bound(&self, L: &Vec<Scalar>) -> Vec<Scalar> {
@@ -260,7 +343,7 @@ impl DensePolynomial {
     assert_eq!(r.len(), self.get_num_vars());
     let chis = EqPolynomial::new(r.to_vec()).evals();
     assert_eq!(chis.len(), self.Z.len());
-    DotProductProof::compute_dotproduct(&self.Z, &chis)
+    DotProductProofLog::compute_dotproduct(&self.Z, &chis)
   }
 
   fn vec(&self) -> &Vec<Scalar> {
@@ -310,7 +393,7 @@ impl AppendToTranscript for PolyCommitment {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PolyEvalProof {
-  proof: DotProductProof,
+  proof: DotProductProofLog,
 }
 
 #[allow(dead_code)]
@@ -366,18 +449,15 @@ impl PolyEvalProof {
       .map(|&i| blinds.blinds[i] * L[i])
       .sum();
 
-    let d = (0..R.len())
-      .collect::<Vec<usize>>()
-      .iter()
-      .map(|&_i| Scalar::random(&mut csprng))
-      .collect::<Vec<Scalar>>();
+    let d = Scalar::random(&mut csprng);
     let r_delta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
     let r_beta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
-
-    let (proof, _C_LR, C_Zr_prime) = DotProductProof::prove(
+    let blinds_vec = (0..2 * R_size.log2())
+      .map(|_i| (Scalar::random(&mut csprng), Scalar::random(&mut csprng)))
+      .collect();
+    let (proof, _C_LR, C_Zr_prime) = DotProductProofLog::prove(
       R_size,
-      &gens.gens_1,
-      &gens.gens_m,
+      &gens.gens,
       transcript,
       &LZ,
       &LZ_blind,
@@ -387,6 +467,7 @@ impl PolyEvalProof {
       &d,
       &r_delta,
       &r_beta,
+      &blinds_vec,
     );
 
     (PolyEvalProof { proof }, C_Zr_prime)
@@ -414,7 +495,53 @@ impl PolyEvalProof {
 
     self
       .proof
-      .verify(&gens.gens_1, &gens.gens_m, transcript, &R, &C_LZ, C_Zr)
+      .verify(R.len(), &gens.gens, transcript, &R, &C_LZ, C_Zr)
+  }
+
+  pub fn verify_batched(
+    &self,
+    gens: &PolyCommitmentGens,
+    transcript: &mut Transcript,
+    r: &Vec<Scalar>,            // point at which the polynomial is evaluated
+    C_Zr: &CompressedRistretto, // commitment to \widetilde{Z}(r)
+    comm: &[&PolyCommitment],
+    coeff: &[&Scalar],
+  ) -> Result<(), ProofVerifyError> {
+    transcript.append_protocol_name(PolyEvalProof::protocol_name());
+
+    // compute L and R
+    let eq = EqPolynomial::new(r.to_vec());
+    let (L, R) = eq.compute_factored_evals();
+
+    // compute a weighted sum of commitments and L
+    let C_decompressed: Vec<Vec<RistrettoPoint>> = (0..comm.len())
+      .map(|i| {
+        comm[i]
+          .C
+          .iter()
+          .map(|pt| pt.decompress().unwrap())
+          .collect()
+      })
+      .collect();
+
+    let C_LZ: Vec<RistrettoPoint> = (0..comm.len())
+      .map(|i| {
+        RistrettoPoint::vartime_multiscalar_mul(Scalar::decompress_vec(&L), &C_decompressed[i])
+      })
+      .collect();
+
+    let C_LZ_combined: RistrettoPoint = (0..C_LZ.len())
+      .map(|i| C_LZ[i] * Scalar::decompress_scalar(&coeff[i]))
+      .sum();
+
+    self.proof.verify(
+      R.len(),
+      &gens.gens,
+      transcript,
+      &R,
+      &C_LZ_combined.compress(),
+      C_Zr,
+    )
   }
 
   pub fn verify_plain(
@@ -426,9 +553,26 @@ impl PolyEvalProof {
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
     // compute a commitment to Zr with a blind of zero
-    let C_Zr = Zr.commit(&Scalar::zero(), &gens.gens_1).compress();
+    let C_Zr = Zr.commit(&Scalar::zero(), &gens.gens.gens_1).compress();
 
     self.verify(gens, transcript, r, &C_Zr, comm)
+  }
+
+  pub fn verify_plain_batched(
+    &self,
+    gens: &PolyCommitmentGens,
+    transcript: &mut Transcript,
+    r: &Vec<Scalar>, // point at which the polynomial is evaluated
+    Zr: &Scalar,     // evaluation \widetilde{Z}(r)
+    comm: &[&PolyCommitment],
+    coeff: &[&Scalar],
+  ) -> Result<(), ProofVerifyError> {
+    // compute a commitment to Zr with a blind of zero
+    let C_Zr = Zr.commit(&Scalar::zero(), &gens.gens.gens_1).compress();
+
+    assert_eq!(comm.len(), coeff.len());
+
+    self.verify_batched(gens, transcript, r, &C_Zr, comm, coeff)
   }
 }
 
@@ -463,7 +607,7 @@ mod tests {
       .collect::<Vec<Scalar>>();
 
     // compute dot product between LZ and R
-    DotProductProof::compute_dotproduct(&LZ, &R)
+    DotProductProofLog::compute_dotproduct(&LZ, &R)
   }
 
   #[test]

@@ -10,6 +10,7 @@ extern crate rayon;
 extern crate sha3;
 extern crate test;
 
+mod bullet;
 pub mod commitments;
 pub mod dense_mlpoly;
 mod errors;

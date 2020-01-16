@@ -12,6 +12,7 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use rand_core::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
+use zeroize::Zeroize;
 
 // use crate::util::{adc, mac, sbb};
 /// Compute a + b + carry, returning the result and the new carry over.
@@ -357,6 +358,12 @@ where
   }
 }
 
+impl Zeroize for Scalar {
+  fn zeroize(&mut self) {
+    self.0 = [0u64; 4];
+  }
+}
+
 impl Scalar {
   /// Returns zero, the additive identity.
   #[inline]
@@ -591,6 +598,55 @@ impl Scalar {
     square_multiply(&mut y, 1 + 2, &_11);
 
     CtOption::new(y, !self.ct_eq(&Self::zero()))
+  }
+
+  pub fn batch_invert(inputs: &mut [Scalar]) -> Scalar {
+    // This code is essentially identical to the FieldElement
+    // implementation, and is documented there.  Unfortunately,
+    // it's not easy to write it generically, since here we want
+    // to use `UnpackedScalar`s internally, and `Scalar`s
+    // externally, but there's no corresponding distinction for
+    // field elements.
+
+    use zeroize::Zeroizing;
+
+    let n = inputs.len();
+    let one = Scalar::one();
+
+    // Place scratch storage in a Zeroizing wrapper to wipe it when
+    // we pass out of scope.
+    let scratch_vec = vec![one; n];
+    let mut scratch = Zeroizing::new(scratch_vec);
+
+    // Keep an accumulator of all of the previous products
+    let mut acc = Scalar::one();
+
+    // Pass through the input vector, recording the previous
+    // products in the scratch space
+    for (input, scratch) in inputs.iter().zip(scratch.iter_mut()) {
+      *scratch = acc;
+
+      acc = acc * input;
+    }
+
+    // acc is nonzero iff all inputs are nonzero
+    debug_assert!(acc != Scalar::zero());
+
+    // Compute the inverse of all products
+    acc = acc.invert().unwrap();
+
+    // We need to return the product of all inverses later
+    let ret = acc;
+
+    // Pass through the vector backwards to compute the inverses
+    // in place
+    for (input, scratch) in inputs.iter_mut().rev().zip(scratch.iter().rev()) {
+      let tmp = &acc * input.clone();
+      *input = &acc * scratch;
+      acc = tmp;
+    }
+
+    ret
   }
 
   #[inline(always)]

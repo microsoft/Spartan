@@ -16,6 +16,7 @@ serde = { version = "1.0.100", features = ["derive"] }
 bincode = "1.2.0"
 subtle = { version = "^2.2.1", default-features = false }
 rand_core = { version = "0.5", default-features = false }
+zeroize = { version = "1", default-features = false }
 
 
 [dev-dependencies]

@@ -33,6 +33,31 @@ impl MultiCommitGens {
       h: gens[n],
     }
   }
+
+  pub fn clone(&self) -> MultiCommitGens {
+    MultiCommitGens {
+      n: self.n,
+      h: self.h,
+      G: self.G.clone(),
+    }
+  }
+
+  pub fn split_at_mut(&mut self, mid: usize) -> (MultiCommitGens, MultiCommitGens) {
+    let (G1, G2) = self.G.split_at_mut(mid);
+
+    (
+      MultiCommitGens {
+        n: G1.len(),
+        G: G1.to_vec(),
+        h: self.h,
+      },
+      MultiCommitGens {
+        n: G2.len(),
+        G: G2.to_vec(),
+        h: self.h,
+      },
+    )
+  }
 }
 
 pub trait Commitments {
