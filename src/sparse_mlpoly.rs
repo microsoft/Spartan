@@ -55,14 +55,10 @@ pub struct ValuesCommitment {
 }
 
 impl Values {
-  pub fn commit(
-    &self,
-    gens_row: &AddrTimestampsGens,
-    gens_col: &AddrTimestampsGens,
-  ) -> ValuesCommitment {
+  pub fn commit(&self, gens: &PolyCommitmentGens) -> ValuesCommitment {
     let blinds = None;
-    let comm_row_ops_val = self.row_ops_val.commit(blinds, &gens_row.gens_ops);
-    let comm_col_ops_val = self.col_ops_val.commit(blinds, &gens_col.gens_ops);
+    let comm_row_ops_val = self.row_ops_val.commit(blinds, gens);
+    let comm_col_ops_val = self.col_ops_val.commit(blinds, gens);
     ValuesCommitment {
       comm_row_ops_val,
       comm_col_ops_val,
@@ -83,11 +79,6 @@ impl AppendToTranscript for ValuesCommitment {
   }
 }
 
-struct AddrTimestampsSize {
-  mem_size: DensePolynomialSize,
-  ops_size: DensePolynomialSize,
-}
-
 pub struct SparseMatPolynomialAsDense {
   val: Vec<Scalar>,
   row: AddrTimestamps,
@@ -95,37 +86,26 @@ pub struct SparseMatPolynomialAsDense {
 }
 
 pub struct SparseMatPolynomialSize {
-  val_size: DensePolynomialSize,
-  row_size: AddrTimestampsSize,
-  col_size: AddrTimestampsSize,
-}
-
-pub struct AddrTimestampsGens {
-  gens_mem: PolyCommitmentGens,
-  gens_ops: PolyCommitmentGens,
+  nz_size: DensePolynomialSize,
+  rx_size: DensePolynomialSize,
+  ry_size: DensePolynomialSize,
 }
 
 pub struct SparseMatPolyCommitmentGens {
-  gens_val: PolyCommitmentGens,
-  gens_row: AddrTimestampsGens,
-  gens_col: AddrTimestampsGens,
+  gens_nz: PolyCommitmentGens,
+  gens_rx: PolyCommitmentGens,
+  gens_ry: PolyCommitmentGens,
 }
 
 impl SparseMatPolyCommitmentGens {
   pub fn new(size: &SparseMatPolynomialSize, label: &'static [u8]) -> SparseMatPolyCommitmentGens {
-    let gens_val = PolyCommitmentGens::new(&size.val_size, label);
-    let gens_row = AddrTimestampsGens {
-      gens_mem: PolyCommitmentGens::new(&size.row_size.mem_size, label),
-      gens_ops: PolyCommitmentGens::new(&size.row_size.ops_size, label),
-    };
-    let gens_col = AddrTimestampsGens {
-      gens_mem: PolyCommitmentGens::new(&size.col_size.mem_size, label),
-      gens_ops: PolyCommitmentGens::new(&size.col_size.ops_size, label),
-    };
+    let gens_nz = PolyCommitmentGens::new(&size.nz_size, label);
+    let gens_rx = PolyCommitmentGens::new(&size.rx_size, label);
+    let gens_ry = PolyCommitmentGens::new(&size.ry_size, label);
     SparseMatPolyCommitmentGens {
-      gens_val,
-      gens_row,
-      gens_col,
+      gens_nz,
+      gens_rx,
+      gens_ry,
     }
   }
 }
@@ -168,21 +148,25 @@ impl AddrTimestamps {
     }
   }
 
-  pub fn size(&self) -> AddrTimestampsSize {
+  /*pub fn size(&self) -> AddrTimestampsSize {
     AddrTimestampsSize {
       mem_size: self.audit_ts.size(),
       ops_size: self.read_ts.size(),
     }
-  }
+  }*/
 
-  pub fn commit(&self, gens: &AddrTimestampsGens) -> AddrTimestampsCommitment {
+  pub fn commit(
+    &self,
+    gens_ops: &PolyCommitmentGens,
+    gens_mem: &PolyCommitmentGens,
+  ) -> AddrTimestampsCommitment {
     let blinds = None;
 
     AddrTimestampsCommitment {
-      ops_addr: self.ops_addr.commit(blinds, &gens.gens_ops),
-      read_ts: self.read_ts.commit(blinds, &gens.gens_ops),
-      write_ts: self.write_ts.commit(blinds, &gens.gens_ops),
-      audit_ts: self.audit_ts.commit(blinds, &gens.gens_mem),
+      ops_addr: self.ops_addr.commit(blinds, gens_ops),
+      read_ts: self.read_ts.commit(blinds, gens_ops),
+      write_ts: self.write_ts.commit(blinds, gens_ops),
+      audit_ts: self.audit_ts.commit(blinds, gens_mem),
     }
   }
 
@@ -239,9 +223,9 @@ impl SparseMatPolynomial {
   pub fn size(&self) -> SparseMatPolynomialSize {
     let dense = self.sparse_to_dense_rep();
     SparseMatPolynomialSize {
-      row_size: dense.row.size(),
-      col_size: dense.col.size(),
-      val_size: DensePolynomial::new(dense.val).size(),
+      rx_size: dense.row.audit_ts.size(),
+      ry_size: dense.col.audit_ts.size(),
+      nz_size: DensePolynomial::new(dense.val).size(),
     }
   }
 
@@ -317,9 +301,9 @@ impl SparseMatPolynomial {
     gens: &SparseMatPolyCommitmentGens,
   ) -> (SparseMatPolyCommitment, SparseMatPolynomialAsDense) {
     let dense = self.sparse_to_dense_rep();
-    let comm_row = dense.row.commit(&gens.gens_row);
-    let comm_col = dense.col.commit(&gens.gens_col);
-    let comm_val = DensePolynomial::new(dense.val.clone()).commit(None, &gens.gens_val);
+    let comm_row = dense.row.commit(&gens.gens_nz, &gens.gens_rx);
+    let comm_col = dense.col.commit(&gens.gens_nz, &gens.gens_ry);
+    let comm_val = DensePolynomial::new(dense.val.clone()).commit(None, &gens.gens_nz);
     (
       SparseMatPolyCommitment {
         comm_row,
@@ -614,9 +598,7 @@ impl PolyEvalNetwork {
 #[derive(Debug, Serialize, Deserialize)]
 struct EvalCircuitProof {
   proof_eval: LayerProof<CubicPoly>,
-  proof_row_eval: PolyEvalProof,
-  proof_col_eval: PolyEvalProof,
-  proof_val_eval: PolyEvalProof,
+  proof_row_col_val_eval: PolyEvalProof,
 }
 
 impl EvalCircuitProof {
@@ -628,9 +610,8 @@ impl EvalCircuitProof {
     eval_circuit: &mut EvalCircuit,
     values: &Values,
     comm_values: &ValuesCommitment,
-    comm_val: &PolyCommitment,
-    gens_val: &PolyCommitmentGens,
-    gens_values: &PolyCommitmentGens,
+    _comm_val: &PolyCommitment,
+    gens: &PolyCommitmentGens,
     eval: &Scalar, // evaluation of \widetilde{M}(r = (rx,ry))
     transcript: &mut Transcript,
   ) -> Self {
@@ -656,46 +637,24 @@ impl EvalCircuitProof {
     transcript.append_scalar(b"claim_poly_col_val", &claims_eval[1]);
     transcript.append_scalar(b"claim_poly_val", &claims_eval[2]);
 
-    // prove claim_poly_row_val and claim_poly_col_val
-    let row_eval = claims_eval[0];
-    debug_assert!(values.row_ops_val.evaluate(&r_eval) == row_eval);
+    // produce three random challenges and a joint evaluation
+    let coeffs = transcript.challenge_vector(b"challenge_coeffs_poly_row_col_val_eval", 3);
+    let joint_eval = (0..3).map(|i| &claims_eval[i] * &coeffs[i]).sum();
+    let joint_poly = DensePolynomial::new(
+      (0..values.row_ops_val.len())
+        .map(|i| &coeffs[0] * &values.row_ops_val[i] + &coeffs[1] * &values.col_ops_val[i] + &coeffs[2] * poly_val[i])
+        .collect::<Vec<Scalar>>(),
+    );
+
     let blinds = None;
-    let (proof_row_eval, _comm_row_eval) = PolyEvalProof::prove(
-      &values.row_ops_val,
+    let (proof_row_col_val_eval, _comm_row_col_val_eval) = PolyEvalProof::prove(
+      &joint_poly,
       &comm_values.comm_row_ops_val,
       blinds,
       &r_eval,
-      &row_eval,
+      &joint_eval,
       &Scalar::zero(),
-      gens_values,
-      transcript,
-    );
-
-    let col_eval = claims_eval[1];
-    debug_assert!(values.col_ops_val.evaluate(&r_eval) == col_eval);
-    let blinds = None;
-    let (proof_col_eval, _comm_col_eval) = PolyEvalProof::prove(
-      &values.col_ops_val,
-      &comm_values.comm_col_ops_val,
-      blinds,
-      &r_eval,
-      &col_eval,
-      &Scalar::zero(),
-      gens_values,
-      transcript,
-    );
-
-    // prove claim_vals using the dense polynomial commitment scheme
-    let val_eval = claims_eval[2];
-    debug_assert!(poly_val.evaluate(&r_eval) == claims_eval[2]);
-    let (proof_val_eval, _comm_val_eval) = PolyEvalProof::prove(
-      &poly_val,
-      comm_val,
-      blinds,
-      &r_eval,
-      &val_eval,
-      &Scalar::zero(),
-      gens_val,
+      gens,
       transcript,
     );
 
@@ -706,9 +665,7 @@ impl EvalCircuitProof {
 
     EvalCircuitProof {
       proof_eval,
-      proof_row_eval,
-      proof_col_eval,
-      proof_val_eval,
+      proof_row_col_val_eval,
     }
   }
 
@@ -716,10 +673,8 @@ impl EvalCircuitProof {
     &self,
     len: usize,
     comm_val: &PolyCommitment,
-    gens_val: &PolyCommitmentGens,
+    gens: &PolyCommitmentGens,
     comm_values: &ValuesCommitment,
-    gens_row: &PolyCommitmentGens,
-    gens_col: &PolyCommitmentGens,
     eval: Scalar, // evaluation of \widetilde{M}(r = (rx,ry))
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
@@ -740,38 +695,28 @@ impl EvalCircuitProof {
     println!("Verify: proof_eval took {:?}", duration);
 
     let start = Instant::now();
+
+    let coeffs = transcript.challenge_vector(b"challenge_coeffs_poly_row_col_val_eval", 3);
+    let joint_eval = (0..3)
+      .map(|i| &self.proof_eval.claims[i] * &coeffs[i])
+      .sum();
+
     assert!(self
-      .proof_row_eval
-      .verify_plain(
-        gens_row,
+      .proof_row_col_val_eval
+      .verify_plain_batched(
+        gens,
         transcript,
         &r_eval,
-        &self.proof_eval.claims[0],
-        &comm_values.comm_row_ops_val,
+        &joint_eval,
+        &[
+          &comm_values.comm_row_ops_val,
+          &comm_values.comm_col_ops_val,
+          comm_val
+        ],
+        &[&coeffs[0], &coeffs[1], &coeffs[2]]
       )
       .is_ok());
 
-    assert!(self
-      .proof_col_eval
-      .verify_plain(
-        gens_col,
-        transcript,
-        &r_eval,
-        &self.proof_eval.claims[1],
-        &comm_values.comm_col_ops_val,
-      )
-      .is_ok());
-
-    assert!(self
-      .proof_val_eval
-      .verify_plain(
-        gens_val,
-        transcript,
-        &r_eval,
-        &self.proof_eval.claims[2],
-        comm_val,
-      )
-      .is_ok());
     let duration = start.elapsed();
     println!("Verify: proof_row_col_val took {:?}", duration);
 
@@ -797,7 +742,8 @@ impl HashLayerProof {
     addr_timestamps: &AddrTimestamps,
     comm_addr_timestamps: &AddrTimestampsCommitment,
     hash_layer: &MemCircuitHashLayer,
-    gens: &AddrTimestampsGens,
+    gens_mem: &PolyCommitmentGens,
+    gens_ops: &PolyCommitmentGens,
     transcript: &mut Transcript,
   ) -> Self {
     transcript.append_protocol_name(HashLayerProof::protocol_name());
@@ -814,7 +760,7 @@ impl HashLayerProof {
       &rand_read,
       &eval_read,
       &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_ops,
+      gens_ops,
       transcript,
     );
 
@@ -828,7 +774,7 @@ impl HashLayerProof {
       &rand_write,
       &eval_write,
       &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_ops,
+      gens_ops,
       transcript,
     );
 
@@ -842,7 +788,7 @@ impl HashLayerProof {
       &rand_audit,
       &eval_audit_ts,
       &Scalar::zero(), // TODO: make this optional parameter
-      &gens.gens_mem,
+      gens_mem,
       transcript,
     );
 
@@ -859,7 +805,8 @@ impl HashLayerProof {
     rand: (&Vec<Scalar>, &Vec<Scalar>, &Vec<Scalar>, &Vec<Scalar>),
     claims: (&Scalar, &Scalar, &Scalar, &Scalar),
     comm: &AddrTimestampsCommitment,
-    gens: &AddrTimestampsGens,
+    gens_mem: &PolyCommitmentGens,
+    gens_ops: &PolyCommitmentGens,
     comm_ops_val: &PolyCommitment,
     r: &Vec<Scalar>,
     r_hash: &Scalar,
@@ -888,12 +835,12 @@ impl HashLayerProof {
     eval_read.append_to_transcript(b"claim_eval_read", transcript);
 
     let comm_multiset_check =
-      ConstPolynomial::new(rand_read.len(), -r_multiset_check).commit(&gens.gens_ops);
+      ConstPolynomial::new(rand_read.len(), -r_multiset_check).commit(gens_ops);
 
     assert!(self
       .proof_read
       .verify_plain_batched(
-        &gens.gens_ops,
+        gens_ops,
         transcript,
         rand_read,
         &eval_read,
@@ -914,7 +861,7 @@ impl HashLayerProof {
     assert!(self
       .proof_write
       .verify_plain_batched(
-        &gens.gens_ops,
+        gens_ops,
         transcript,
         rand_write,
         &eval_write,
@@ -935,7 +882,7 @@ impl HashLayerProof {
     assert!(self
       .proof_audit_ts
       .verify_plain(
-        &gens.gens_mem,
+        gens_mem,
         transcript,
         rand_audit,
         &eval_audit_ts,
@@ -972,7 +919,8 @@ impl MemCircuitLayersProof {
     mem_circuit_layers: &mut MemCircuitLayers,
     addr_timestamps: &AddrTimestamps,
     comm_addr_timestamps: &AddrTimestampsCommitment,
-    gens: &AddrTimestampsGens,
+    gens_mem: &PolyCommitmentGens,
+    gens_ops: &PolyCommitmentGens,
     transcript: &mut Transcript,
   ) -> Self {
     transcript.append_protocol_name(MemCircuitLayersProof::protocol_name());
@@ -1015,7 +963,8 @@ impl MemCircuitLayersProof {
       addr_timestamps,
       comm_addr_timestamps,
       &mem_circuit_layers.hash_layer,
-      gens,
+      gens_mem,
+      gens_ops,
       transcript,
     );
 
@@ -1050,7 +999,8 @@ impl MemCircuitLayersProof {
     num_cells: usize,
     num_ops: usize,
     comm: &AddrTimestampsCommitment,
-    gens: &AddrTimestampsGens,
+    gens_mem: &PolyCommitmentGens,
+    gens_ops: &PolyCommitmentGens,
     comm_ops_val: &PolyCommitment,
     r: &Vec<Scalar>,
     r_hash: &Scalar,
@@ -1103,7 +1053,8 @@ impl MemCircuitLayersProof {
           &claim_last_init_audit[1],
         ),
         comm,
-        gens,
+        gens_mem,
+        gens_ops,
         comm_ops_val,
         r,
         r_hash,
@@ -1143,14 +1094,16 @@ impl MemCircuitProof {
       &mut mem_circuit.row_layers,
       &dense.row,
       &comm_sparsepoly.comm_row,
-      &gens.gens_row,
+      &gens.gens_rx,
+      &gens.gens_nz,
       transcript,
     );
     let proof_col = MemCircuitLayersProof::prove(
       &mut mem_circuit.col_layers,
       &dense.col,
       &comm_sparsepoly.comm_col,
-      &gens.gens_col,
+      &gens.gens_ry,
+      &gens.gens_nz,
       transcript,
     );
 
@@ -1189,7 +1142,8 @@ impl MemCircuitProof {
         num_cells_row,
         num_ops,
         &comm.comm_row,
-        &gens.gens_row,
+        &gens.gens_rx,
+        &gens.gens_nz,
         &comm_values.comm_row_ops_val,
         rx,
         r_hash,
@@ -1203,7 +1157,8 @@ impl MemCircuitProof {
         num_cells_col,
         num_ops,
         &comm.comm_col,
-        &gens.gens_col,
+        &gens.gens_ry,
+        &gens.gens_nz,
         &comm_values.comm_col_ops_val,
         ry,
         r_hash,
@@ -1253,7 +1208,7 @@ impl SparseMatPolyEvalProof {
 
     // commit to non-deterministic choices of the prover i.e., eval_cicruit.poly_row_deref and eval_cicruit.poly_col_deref
     let start = Instant::now();
-    let comm_values = values.commit(&gens.gens_row, &gens.gens_col);
+    let comm_values = values.commit(&gens.gens_nz);
     comm_values.append_to_transcript(b"comm_poly_row_col_ops_val", transcript);
     let duration = start.elapsed();
     println!("Time to commit to non-det values {:?}", duration);
@@ -1285,8 +1240,7 @@ impl SparseMatPolyEvalProof {
       &values,
       &comm_values,
       &comm.comm_val,
-      &gens.gens_val,
-      &gens.gens_row.gens_ops,
+      &gens.gens_nz,
       &eval,
       transcript,
     );
@@ -1333,10 +1287,8 @@ impl SparseMatPolyEvalProof {
       .verify(
         nz,
         &comm.comm_val,
-        &gens.gens_val,
+        &gens.gens_nz,
         &self.comm_values,
-        &gens.gens_row.gens_ops,
-        &gens.gens_col.gens_ops,
         eval,
         transcript,
       )
