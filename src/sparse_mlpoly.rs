@@ -609,8 +609,6 @@ impl EvalCircuitProof {
   pub fn prove(
     eval_circuit: &mut EvalCircuit,
     values: &Values,
-    comm_values: &ValuesCommitment,
-    _comm_val: &PolyCommitment,
     gens: &PolyCommitmentGens,
     eval: &Scalar, // evaluation of \widetilde{M}(r = (rx,ry))
     transcript: &mut Transcript,
@@ -649,7 +647,6 @@ impl EvalCircuitProof {
     let blinds = None;
     let (proof_row_col_val_eval, _comm_row_col_val_eval) = PolyEvalProof::prove(
       &joint_poly,
-      &comm_values.comm_row_ops_val,
       blinds,
       &r_eval,
       &joint_eval,
@@ -740,7 +737,6 @@ impl HashLayerProof {
   fn prove(
     rand: (&Vec<Scalar>, &Vec<Scalar>, &Vec<Scalar>, &Vec<Scalar>),
     addr_timestamps: &AddrTimestamps,
-    comm_addr_timestamps: &AddrTimestampsCommitment,
     hash_layer: &MemCircuitHashLayer,
     gens_mem: &PolyCommitmentGens,
     gens_ops: &PolyCommitmentGens,
@@ -755,7 +751,6 @@ impl HashLayerProof {
     eval_read.append_to_transcript(b"claim_eval_read", transcript);
     let (proof_read, _comm_read_eval) = PolyEvalProof::prove(
       &hash_layer.read,
-      &comm_addr_timestamps.ops_addr, // dummy parameter. TODO: remove it
       None,
       &rand_read,
       &eval_read,
@@ -769,7 +764,6 @@ impl HashLayerProof {
     eval_write.append_to_transcript(b"claim_eval_write", transcript);
     let (proof_write, _comm_write_eval) = PolyEvalProof::prove(
       &hash_layer.write,
-      &comm_addr_timestamps.ops_addr,
       None,
       &rand_write,
       &eval_write,
@@ -783,7 +777,6 @@ impl HashLayerProof {
     eval_audit_ts.append_to_transcript(b"claim_eval_audit_ts", transcript);
     let (proof_audit_ts, _comm_audit_ts_eval) = PolyEvalProof::prove(
       &addr_timestamps.audit_ts,
-      &comm_addr_timestamps.audit_ts,
       None,
       &rand_audit,
       &eval_audit_ts,
@@ -918,7 +911,6 @@ impl MemCircuitLayersProof {
   fn prove(
     mem_circuit_layers: &mut MemCircuitLayers,
     addr_timestamps: &AddrTimestamps,
-    comm_addr_timestamps: &AddrTimestampsCommitment,
     gens_mem: &PolyCommitmentGens,
     gens_ops: &PolyCommitmentGens,
     transcript: &mut Transcript,
@@ -961,7 +953,6 @@ impl MemCircuitLayersProof {
         &rand_init_audit,
       ),
       addr_timestamps,
-      comm_addr_timestamps,
       &mem_circuit_layers.hash_layer,
       gens_mem,
       gens_ops,
@@ -1083,7 +1074,6 @@ impl MemCircuitProof {
   pub fn prove(
     mem_circuit: &mut MemCircuit,
     dense: &SparseMatPolynomialAsDense,
-    comm_sparsepoly: &SparseMatPolyCommitment,
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
   ) -> Self {
@@ -1093,7 +1083,6 @@ impl MemCircuitProof {
     let proof_row = MemCircuitLayersProof::prove(
       &mut mem_circuit.row_layers,
       &dense.row,
-      &comm_sparsepoly.comm_row,
       &gens.gens_rx,
       &gens.gens_nz,
       transcript,
@@ -1101,7 +1090,6 @@ impl MemCircuitProof {
     let proof_col = MemCircuitLayersProof::prove(
       &mut mem_circuit.col_layers,
       &dense.col,
-      &comm_sparsepoly.comm_col,
       &gens.gens_ry,
       &gens.gens_nz,
       transcript,
@@ -1188,8 +1176,6 @@ impl SparseMatPolyEvalProof {
   }
 
   pub fn prove(
-    _poly: &SparseMatPolynomial,
-    comm: &SparseMatPolyCommitment,
     dense: &SparseMatPolynomialAsDense,
     rx: &Vec<Scalar>, // point at which the polynomial is evaluated
     ry: &Vec<Scalar>,
@@ -1238,8 +1224,6 @@ impl SparseMatPolyEvalProof {
     let eval_circuit_proof = EvalCircuitProof::prove(
       &mut net.eval_circuit,
       &values,
-      &comm_values,
-      &comm.comm_val,
       &gens.gens_nz,
       &eval,
       transcript,
@@ -1249,7 +1233,7 @@ impl SparseMatPolyEvalProof {
 
     let start = Instant::now();
     let mem_circuit_proof =
-      MemCircuitProof::prove(&mut net.mem_circuit, &dense, comm, gens, transcript);
+      MemCircuitProof::prove(&mut net.mem_circuit, &dense, gens, transcript);
     let duration = start.elapsed();
     println!("Time to produce mem_circuit_proof {:?}", duration);
 
@@ -1412,8 +1396,6 @@ mod tests {
     let mut prover_transcript = Transcript::new(b"example");
 
     let proof = SparseMatPolyEvalProof::prove(
-      &poly_M,
-      &poly_comm,
       &dense,
       &rx,
       &ry,

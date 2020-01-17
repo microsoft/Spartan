@@ -382,7 +382,6 @@ impl PolyEvalProof {
 
   pub fn prove(
     poly: &DensePolynomial,
-    comm: &PolyCommitment,
     blinds_opt: Option<&PolyCommitmentBlinds>,
     r: &Vec<Scalar>,   // point at which the polynomial is evaluated
     Zr: &Scalar,       // evaluation of \widetilde{Z}(r)
@@ -398,7 +397,6 @@ impl PolyEvalProof {
     let (left_num_vars, right_num_vars) = EqPolynomial::compute_factored_lens(r.len());
     let L_size = left_num_vars.pow2();
     let R_size = right_num_vars.pow2();
-    assert_eq!(comm.C.len(), L_size);
 
     let default_blinds = PolyCommitmentBlinds {
       blinds: vec![Scalar::zero(); L_size],
@@ -738,7 +736,6 @@ mod tests {
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, C_Zr) = PolyEvalProof::prove(
       &poly,
-      &poly_commitment,
       Some(&blinds),
       &r,
       &eval,

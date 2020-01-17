@@ -62,7 +62,6 @@ impl SpartanProof {
   /// A method to produce a proof of the satisfiability of an R1CS instance
   pub fn prove(
     inst: &R1CSInstance,
-    comm: &R1CSCommitment,
     decomm: &R1CSDecommitment,
     vars: Vec<Scalar>,
     input: &Vec<Scalar>,
@@ -96,8 +95,6 @@ impl SpartanProof {
     inst_evals.append_to_transcript(b"r1cs_inst_evals", transcript);
 
     let r1cs_eval_proof = R1CSEvalProof::prove(
-      inst,
-      comm,
       decomm,
       &rx,
       &ry,
@@ -213,7 +210,6 @@ mod tests {
     let mut prover_transcript = Transcript::new(b"example");
     let proof = SpartanProof::prove(
       &inst,
-      &comm,
       &decomm,
       vars,
       &input,

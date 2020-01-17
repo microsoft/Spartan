@@ -47,7 +47,6 @@ pub fn main() {
   let mut prover_transcript = Transcript::new(b"example");
   let proof = SpartanProof::prove(
     &inst,
-    &comm,
     &decomm,
     vars,
     &input,

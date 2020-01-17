@@ -221,7 +221,6 @@ impl R1CSProof {
     let eval_vars_at_ry = poly_vars.evaluate(&ry[1..].to_vec());
     let (proof_eval_vars_at_ry, comm_vars_at_ry) = PolyEvalProof::prove(
       &poly_vars,
-      &comm_vars,
       Some(&blinds),
       &ry[1..].to_vec(),
       &eval_vars_at_ry,

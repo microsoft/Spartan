@@ -110,7 +110,6 @@ fn evalproof_benchmark(c: &mut Criterion) {
         let mut prover_transcript = Transcript::new(b"example");
         PolyEvalProof::prove(
           black_box(&poly),
-          black_box(&poly_commitment),
           black_box(&blinds),
           black_box(&r),
           black_box(eval),
@@ -154,7 +153,6 @@ fn evalproofverify_benchmark(c: &mut Criterion) {
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, c_zr) = PolyEvalProof::prove(
       black_box(&poly),
-      black_box(&poly_commitment),
       black_box(&blinds),
       black_box(&r),
       black_box(eval),

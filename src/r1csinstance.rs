@@ -303,8 +303,6 @@ pub struct R1CSEvalProof {
 
 impl R1CSEvalProof {
   pub fn prove(
-    inst: &R1CSInstance,
-    comm: &R1CSCommitment,
     decomm: &R1CSDecommitment,
     rx: &Vec<Scalar>, // point at which the polynomial is evaluated
     ry: &Vec<Scalar>,
@@ -315,8 +313,6 @@ impl R1CSEvalProof {
     transcript: &mut Transcript,
   ) -> R1CSEvalProof {
     let proof_A = SparseMatPolyEvalProof::prove(
-      &inst.A,
-      &comm.comm_A,
       &decomm.dense_A,
       rx,
       ry,
@@ -328,8 +324,6 @@ impl R1CSEvalProof {
     );
 
     let proof_B = SparseMatPolyEvalProof::prove(
-      &inst.B,
-      &comm.comm_B,
       &decomm.dense_B,
       rx,
       ry,
@@ -341,8 +335,6 @@ impl R1CSEvalProof {
     );
 
     let proof_C = SparseMatPolyEvalProof::prove(
-      &inst.C,
-      &comm.comm_C,
       &decomm.dense_C,
       rx,
       ry,
