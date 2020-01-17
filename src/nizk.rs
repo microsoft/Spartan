@@ -308,9 +308,7 @@ impl DotProductProof {
 
   pub fn compute_dotproduct(a: &Vec<Scalar>, b: &Vec<Scalar>) -> Scalar {
     assert_eq!(a.len(), b.len());
-    (0..a.len())
-      .map(|i| &a[i] * &b[i])
-      .sum()
+    (0..a.len()).map(|i| &a[i] * &b[i]).sum()
   }
 
   pub fn prove(
@@ -438,9 +436,7 @@ impl DotProductProofLog {
 
   pub fn compute_dotproduct(a: &Vec<Scalar>, b: &Vec<Scalar>) -> Scalar {
     assert_eq!(a.len(), b.len());
-    (0..a.len())
-      .map(|i| &a[i] * &b[i])
-      .sum()
+    (0..a.len()).map(|i| &a[i] * &b[i]).sum()
   }
 
   pub fn prove(

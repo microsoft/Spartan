@@ -108,6 +108,18 @@ impl SpartanProof {
       transcript,
     );
 
+    let r1cs_sat_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_sat_proof).unwrap();
+    println!(
+      "Length of r1cs_sat_proof_encoded is: {:?}",
+      r1cs_sat_proof_encoded.len()
+    );
+
+    let r1cs_eval_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_eval_proof).unwrap();
+    println!(
+      "Length of r1cs_eval_proof_encoded is: {:?}",
+      r1cs_eval_proof_encoded.len()
+    );
+
     SpartanProof {
       r1cs_sat_proof,
       inst_evals,

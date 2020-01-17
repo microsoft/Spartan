@@ -8,9 +8,7 @@ pub trait ScalarFromPrimitives {
 impl ScalarFromPrimitives for usize {
   #[inline]
   fn to_scalar(self) -> Scalar {
-    (0..self)
-      .map(|_i| Scalar::one())
-      .sum()
+    (0..self).map(|_i| Scalar::one()).sum()
   }
 }
 

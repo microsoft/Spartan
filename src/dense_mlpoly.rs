@@ -286,11 +286,7 @@ impl DensePolynomial {
     let L_size = left_num_vars.pow2();
     let R_size = right_num_vars.pow2();
     (0..R_size)
-      .map(|i| {
-        (0..L_size)
-          .map(|j| &L[j] * &self.Z[j * R_size + i])
-          .sum()
-      })
+      .map(|i| (0..L_size).map(|j| &L[j] * &self.Z[j * R_size + i]).sum())
       .collect::<Vec<Scalar>>()
   }
 
@@ -425,9 +421,7 @@ impl PolyEvalProof {
     // compute the vector underneath L*Z and the L*blinds
     // compute vector-matrix product between L and Z viewed as a matrix
     let LZ = poly.bound(&L);
-    let LZ_blind: Scalar = (0..L.len())
-      .map(|i| blinds.blinds[i] * L[i])
-      .sum();
+    let LZ_blind: Scalar = (0..L.len()).map(|i| blinds.blinds[i] * L[i]).sum();
 
     let d = Scalar::random(&mut csprng);
     let r_delta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
@@ -575,11 +569,7 @@ mod tests {
 
     // compute vector-matrix product between L and Z viewed as a matrix
     let LZ = (0..m)
-      .map(|i| {
-        (0..m)
-          .map(|j| L[j] * Z[j * m + i])
-          .sum()
-      })
+      .map(|i| (0..m).map(|j| L[j] * Z[j * m + i]).sum())
       .collect::<Vec<Scalar>>();
 
     // compute dot product between LZ and R

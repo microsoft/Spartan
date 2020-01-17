@@ -6,6 +6,7 @@ use super::dense_mlpoly::{
 };
 use super::errors::ProofVerifyError;
 use super::math::Math;
+use super::product_tree::{LayerProof, ProductCircuit, ProductCircuitEvalProofBatched};
 use super::scalar::Scalar;
 use super::sumcheck::SumcheckInstanceProof;
 use super::transcript::{AppendToTranscript, ProofTranscript};
@@ -13,7 +14,6 @@ use super::unipoly::CubicPoly;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
-use super::product_tree::{ProductCircuit, ProductCircuitEvalProof, LayerProof};
 
 #[derive(Debug)]
 pub struct SparseMatEntry {
@@ -958,10 +958,8 @@ struct MemCircuitLayersProof {
   eval_read: Scalar,
   eval_write: Scalar,
   eval_audit: Scalar,
-  proof_prod_layer_init: ProductCircuitEvalProof,
-  proof_prod_layer_read: ProductCircuitEvalProof,
-  proof_prod_layer_write: ProductCircuitEvalProof,
-  proof_prod_layer_audit: ProductCircuitEvalProof,
+  proof_prod_layer_init_audit: ProductCircuitEvalProofBatched,
+  proof_prod_layer_read_write: ProductCircuitEvalProofBatched,
   proof_hash_layer: HashLayerProof,
 }
 
@@ -991,20 +989,29 @@ impl MemCircuitLayersProof {
     eval_write.append_to_transcript(b"claim_eval_write", transcript);
     eval_audit.append_to_transcript(b"claim_eval_audit", transcript);
 
-    let (proof_prod_layer_init, _claim_last_init, rand_init) =
-      ProductCircuitEvalProof::prove(&mut mem_circuit_layers.prod_layer.init, transcript);
+    let (proof_prod_layer_init_audit, rand_init_audit) = ProductCircuitEvalProofBatched::prove(
+      &mut vec![
+        &mut mem_circuit_layers.prod_layer.init,
+        &mut mem_circuit_layers.prod_layer.audit,
+      ],
+      transcript,
+    );
 
-    let (proof_prod_layer_read, _claim_last_read, rand_read) =
-      ProductCircuitEvalProof::prove(&mut mem_circuit_layers.prod_layer.read, transcript);
-
-    let (proof_prod_layer_write, _claim_last_write, rand_write) =
-      ProductCircuitEvalProof::prove(&mut mem_circuit_layers.prod_layer.write, transcript);
-
-    let (proof_prod_layer_audit, _claim_last_audit, rand_audit) =
-      ProductCircuitEvalProof::prove(&mut mem_circuit_layers.prod_layer.audit, transcript);
+    let (proof_prod_layer_read_write, rand_read_write) = ProductCircuitEvalProofBatched::prove(
+      &mut vec![
+        &mut mem_circuit_layers.prod_layer.read,
+        &mut mem_circuit_layers.prod_layer.write,
+      ],
+      transcript,
+    );
 
     let proof_hash_layer = HashLayerProof::prove(
-      (&rand_init, &rand_read, &rand_write, &rand_audit),
+      (
+        &rand_init_audit,
+        &rand_read_write,
+        &rand_read_write,
+        &rand_init_audit,
+      ),
       addr_timestamps,
       comm_addr_timestamps,
       &mem_circuit_layers.hash_layer,
@@ -1023,10 +1030,8 @@ impl MemCircuitLayersProof {
       eval_read,
       eval_write,
       eval_audit,
-      proof_prod_layer_init,
-      proof_prod_layer_read,
-      proof_prod_layer_write,
-      proof_prod_layer_audit,
+      proof_prod_layer_init_audit,
+      proof_prod_layer_read_write,
       proof_hash_layer,
     };
 
@@ -1068,21 +1073,16 @@ impl MemCircuitLayersProof {
     // verify the multiset check
     assert_eq!(eval_init * eval_write, eval_read * eval_audit);
 
-    let (claim_last_init, rand_init) = self
-      .proof_prod_layer_init
-      .verify(eval_init, num_cells, transcript);
+    let (claim_last_init_audit, rand_init_audit) =
+      self
+        .proof_prod_layer_init_audit
+        .verify(&vec![eval_init, eval_audit], num_cells, transcript);
 
-    let (claim_last_read, rand_read) = self
-      .proof_prod_layer_read
-      .verify(eval_read, num_ops, transcript);
+    let (claim_last_read_write, rand_read_write) =
+      self
+        .proof_prod_layer_read_write
+        .verify(&vec![eval_read, eval_write], num_ops, transcript);
 
-    let (claim_last_write, rand_write) = self
-      .proof_prod_layer_write
-      .verify(eval_write, num_ops, transcript);
-
-    let (claim_last_audit, rand_audit) = self
-      .proof_prod_layer_audit
-      .verify(eval_audit, num_cells, transcript);
     let duration = start.elapsed();
     println!("Verifying product proof took {:?}", duration);
 
@@ -1090,12 +1090,17 @@ impl MemCircuitLayersProof {
     assert!(self
       .proof_hash_layer
       .verify(
-        (&rand_init, &rand_read, &rand_write, &rand_audit),
         (
-          &claim_last_init,
-          &claim_last_read,
-          &claim_last_write,
-          &claim_last_audit,
+          &rand_init_audit,
+          &rand_read_write,
+          &rand_read_write,
+          &rand_init_audit
+        ),
+        (
+          &claim_last_init_audit[0],
+          &claim_last_read_write[0],
+          &claim_last_read_write[1],
+          &claim_last_init_audit[1],
         ),
         comm,
         gens,
