@@ -18,9 +18,6 @@ use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::time::Instant;
 
-#[cfg(test)]
-use super::scalar::ScalarFromPrimitives;
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct R1CSProof {
   comm_vars: PolyCommitment,
@@ -72,7 +69,7 @@ impl R1CSProof {
           &eval_point_3 + tau_bound_point * (Az_bound_point * Bz_bound_point - Cz_bound_point);
       }
 
-      let poly = CubicPoly::new(eval_point_0, e - eval_point_0, eval_point_2, eval_point_3);
+      let poly = CubicPoly::new(eval_point_0, eval_point_2, eval_point_3);
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -85,7 +82,7 @@ impl R1CSProof {
       evals_Az.bound_poly_var_top(&r_j);
       evals_Bz.bound_poly_var_top(&r_j);
       evals_Cz.bound_poly_var_top(&r_j);
-      e = poly.evaluate(&r_j);
+      e = poly.evaluate(&r_j, &e);
       cubic_polys.push(poly);
     }
 
@@ -121,9 +118,7 @@ impl R1CSProof {
     transcript: &mut Transcript,
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
     transcript.append_protocol_name(R1CSProof::protocol_name());
-    // verify if the number of variables is a perfect square. TODO: remove this restriction
     let num_vars = vars.len();
-    assert_eq!(num_vars, num_vars.square_root() * num_vars.square_root());
     assert_eq!(num_vars.log2() % 2, 0);
 
     // we require the number of inputs to be at most number of vars
@@ -224,7 +219,7 @@ impl R1CSProof {
       Some(&blinds),
       &ry[1..].to_vec(),
       &eval_vars_at_ry,
-      blind_eval,
+      Some(blind_eval),
       &gens,
       transcript,
     );
@@ -413,27 +408,6 @@ mod tests {
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(1024, 1024 - 10, 10);
     let is_sat = inst.is_sat(&vars, &input);
     assert_eq!(is_sat, true);
-  }
-
-  #[test]
-  fn test_cubic_poly_interpolation() {
-    let mut csprng: OsRng = OsRng;
-
-    // generate a random polynomial in point-value form
-    let poly = CubicPoly::new(
-      Scalar::random(&mut csprng),
-      Scalar::random(&mut csprng),
-      Scalar::random(&mut csprng),
-      Scalar::random(&mut csprng),
-    );
-
-    assert_eq!(poly.evaluate(&Scalar::zero()), poly.eval_at_zero());
-    assert_eq!(poly.evaluate(&Scalar::one()), poly.eval_at_one());
-    assert_eq!(poly.evaluate(&(2 as usize).to_scalar()), poly.eval_at_two());
-    assert_eq!(
-      poly.evaluate(&(3 as usize).to_scalar()),
-      poly.eval_at_three()
-    );
   }
 
   #[test]

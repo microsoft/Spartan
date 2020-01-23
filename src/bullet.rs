@@ -84,7 +84,6 @@ impl BulletReductionProof {
 
       let (blind_L, blind_R) = blinds_iter.next().unwrap();
 
-      // TODO: fix ScalaBytes conversion
       let L = RistrettoPoint::vartime_multiscalar_mul(
         a_L
           .iter()
@@ -221,7 +220,7 @@ impl BulletReductionProof {
     transcript: &mut Transcript,
     Gamma: &RistrettoPoint,
     G: &[RistrettoPoint],
-  ) -> (Result<(RistrettoPoint, RistrettoPoint, Scalar), ProofVerifyError>) {
+  ) -> Result<(RistrettoPoint, RistrettoPoint, Scalar), ProofVerifyError> {
     let (u_sq, u_inv_sq, s) = self.verification_scalars(n, transcript)?;
 
     let Ls = self

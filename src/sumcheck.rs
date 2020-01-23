@@ -4,6 +4,7 @@ use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::SumcheckProofPolyABI;
 use super::unipoly::{CubicPoly, QuadPoly};
+use itertools::izip;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -29,11 +30,11 @@ impl<T: SumcheckProofPolyABI + AppendToTranscript> SumcheckInstanceProof<T> {
       let poly = &self.polys[i];
 
       // check if G_k(0) + G_k(1) = e
-      if poly.eval_at_zero() + poly.eval_at_one() != e {
+      /*if poly.eval_at_zero() + poly.eval_at_one() != e {
         println!("Randomness so far {:?}", r);
         assert_eq!(0, 1);
         return Err(ProofVerifyError);
-      }
+      }*/
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -44,7 +45,7 @@ impl<T: SumcheckProofPolyABI + AppendToTranscript> SumcheckInstanceProof<T> {
       r.push(r_i);
 
       // evaluate the claimed degree-ell polynomial at r_i
-      e = poly.evaluate(&r_i);
+      e = poly.evaluate(&r_i, &e);
     }
 
     Ok((e, r))
@@ -82,7 +83,7 @@ impl SumcheckInstanceProof<QuadPoly> {
         eval_point_2 = &eval_point_2 + comb_func(&poly_A_bound_point, &poly_B_bound_point);
       }
 
-      let poly = QuadPoly::new(eval_point_0, e - eval_point_0, eval_point_2);
+      let poly = QuadPoly::new(eval_point_0, eval_point_2);
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -93,7 +94,7 @@ impl SumcheckInstanceProof<QuadPoly> {
       // bound all tables to the verifier's challenege
       poly_A.bound_poly_var_top(&r_j);
       poly_B.bound_poly_var_top(&r_j);
-      e = poly.evaluate(&r_j);
+      e = poly.evaluate(&r_j, &e);
       quad_polys.push(poly);
     }
 
@@ -156,7 +157,7 @@ impl SumcheckInstanceProof<CubicPoly> {
           );
       }
 
-      let poly = CubicPoly::new(eval_point_0, e - eval_point_0, eval_point_2, eval_point_3);
+      let poly = CubicPoly::new(eval_point_0, eval_point_2, eval_point_3);
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -168,7 +169,7 @@ impl SumcheckInstanceProof<CubicPoly> {
       poly_A.bound_poly_var_top(&r_j);
       poly_B.bound_poly_var_top(&r_j);
       poly_C.bound_poly_var_top(&r_j);
-      e = poly.evaluate(&r_j);
+      e = poly.evaluate(&r_j, &e);
       cubic_polys.push(poly);
     }
 
@@ -182,16 +183,32 @@ impl SumcheckInstanceProof<CubicPoly> {
   pub fn prove_batched<F>(
     claim: &Scalar,
     num_rounds: usize,
-    poly_A_vec: &mut Vec<&mut DensePolynomial>,
-    poly_B_vec: &mut Vec<&mut DensePolynomial>,
-    poly_C: &mut DensePolynomial,
+    poly_vec_par: (
+      &mut Vec<&mut DensePolynomial>,
+      &mut Vec<&mut DensePolynomial>,
+      &mut DensePolynomial,
+    ),
+    poly_vec_seq: (
+      &mut Vec<&mut DensePolynomial>,
+      &mut Vec<&mut DensePolynomial>,
+      &mut Vec<&mut DensePolynomial>,
+    ),
     coeffs: &[Scalar],
     comb_func: F,
     transcript: &mut Transcript,
-  ) -> (Self, Vec<Scalar>, (Vec<Scalar>, Vec<Scalar>, Scalar))
+  ) -> (
+    Self,
+    Vec<Scalar>,
+    (Vec<Scalar>, Vec<Scalar>, Scalar),
+    (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>),
+  )
   where
     F: Fn(&Scalar, &Scalar, &Scalar) -> Scalar,
   {
+    let (poly_A_vec_par, poly_B_vec_par, poly_C_par) = poly_vec_par;
+    let (poly_A_vec_seq, poly_B_vec_seq, poly_C_vec_seq) = poly_vec_seq;
+
+    //let (poly_A_vec_seq, poly_B_vec_seq, poly_C_vec_seq) = poly_vec_seq;
     let mut e = *claim;
     let mut r: Vec<Scalar> = Vec::new();
     let mut cubic_polys: Vec<CubicPoly> = Vec::new();
@@ -199,7 +216,7 @@ impl SumcheckInstanceProof<CubicPoly> {
     for _j in 0..num_rounds {
       let mut evals: Vec<(Scalar, Scalar, Scalar)> = Vec::new();
 
-      for (poly_A, poly_B) in poly_A_vec.iter().zip(poly_B_vec.iter()) {
+      for (poly_A, poly_B) in poly_A_vec_par.iter().zip(poly_B_vec_par.iter()) {
         let mut eval_point_0 = Scalar::zero();
         let mut eval_point_2 = Scalar::zero();
         let mut eval_point_3 = Scalar::zero();
@@ -207,12 +224,12 @@ impl SumcheckInstanceProof<CubicPoly> {
         let len = poly_A.len() / 2;
         for i in 0..len {
           // eval 0: bound_func is A(low)
-          eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
+          eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i], &poly_C_par[i]);
 
           // eval 2: bound_func is -A(low) + 2*A(high)
           let poly_A_bound_point = &poly_A[len + i] + &poly_A[len + i] - &poly_A[i];
           let poly_B_bound_point = &poly_B[len + i] + &poly_B[len + i] - &poly_B[i];
-          let poly_C_bound_point = &poly_C[len + i] + &poly_C[len + i] - &poly_C[i];
+          let poly_C_bound_point = &poly_C_par[len + i] + &poly_C_par[len + i] - &poly_C_par[i];
           eval_point_2 = &eval_point_2
             + comb_func(
               &poly_A_bound_point,
@@ -223,7 +240,7 @@ impl SumcheckInstanceProof<CubicPoly> {
           // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
           let poly_A_bound_point = &poly_A_bound_point + &poly_A[len + i] - &poly_A[i];
           let poly_B_bound_point = &poly_B_bound_point + &poly_B[len + i] - &poly_B[i];
-          let poly_C_bound_point = &poly_C_bound_point + &poly_C[len + i] - &poly_C[i];
+          let poly_C_bound_point = &poly_C_bound_point + &poly_C_par[len + i] - &poly_C_par[i];
 
           eval_point_3 = &eval_point_3
             + comb_func(
@@ -236,17 +253,47 @@ impl SumcheckInstanceProof<CubicPoly> {
         evals.push((eval_point_0, eval_point_2, eval_point_3));
       }
 
+      for (poly_A, poly_B, poly_C) in izip!(
+        poly_A_vec_seq.iter(),
+        poly_B_vec_seq.iter(),
+        poly_C_vec_seq.iter()
+      ) {
+        let mut eval_point_0 = Scalar::zero();
+        let mut eval_point_2 = Scalar::zero();
+        let mut eval_point_3 = Scalar::zero();
+        let len = poly_A.len() / 2;
+        for i in 0..len {
+          // eval 0: bound_func is A(low)
+          eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
+          // eval 2: bound_func is -A(low) + 2*A(high)
+          let poly_A_bound_point = &poly_A[len + i] + &poly_A[len + i] - &poly_A[i];
+          let poly_B_bound_point = &poly_B[len + i] + &poly_B[len + i] - &poly_B[i];
+          let poly_C_bound_point = &poly_C[len + i] + &poly_C[len + i] - &poly_C[i];
+          eval_point_2 = &eval_point_2
+            + comb_func(
+              &poly_A_bound_point,
+              &poly_B_bound_point,
+              &poly_C_bound_point,
+            );
+          // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
+          let poly_A_bound_point = &poly_A_bound_point + &poly_A[len + i] - &poly_A[i];
+          let poly_B_bound_point = &poly_B_bound_point + &poly_B[len + i] - &poly_B[i];
+          let poly_C_bound_point = &poly_C_bound_point + &poly_C[len + i] - &poly_C[i];
+          eval_point_3 = &eval_point_3
+            + comb_func(
+              &poly_A_bound_point,
+              &poly_B_bound_point,
+              &poly_C_bound_point,
+            );
+        }
+        evals.push((eval_point_0, eval_point_2, eval_point_3));
+      }
+
       let evals_combined_0 = (0..evals.len()).map(|i| evals[i].0 * coeffs[i]).sum();
-      let evals_combined_1 = e - evals_combined_0; //(0..evals.len()).map(|i| evals[i].1 * coeffs[i]).sum();
       let evals_combined_2 = (0..evals.len()).map(|i| evals[i].1 * coeffs[i]).sum();
       let evals_combined_3 = (0..evals.len()).map(|i| evals[i].2 * coeffs[i]).sum();
 
-      let poly = CubicPoly::new(
-        evals_combined_0,
-        evals_combined_1,
-        evals_combined_2,
-        evals_combined_3,
-      );
+      let poly = CubicPoly::new(evals_combined_0, evals_combined_2, evals_combined_3);
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -256,23 +303,50 @@ impl SumcheckInstanceProof<CubicPoly> {
       r.push(r_j);
 
       // bound all tables to the verifier's challenege
-      for (poly_A, poly_B) in poly_A_vec.iter_mut().zip(poly_B_vec.iter_mut()) {
+      for (poly_A, poly_B) in poly_A_vec_par.iter_mut().zip(poly_B_vec_par.iter_mut()) {
         poly_A.bound_poly_var_top(&r_j);
         poly_B.bound_poly_var_top(&r_j);
       }
+      poly_C_par.bound_poly_var_top(&r_j);
 
-      poly_C.bound_poly_var_top(&r_j);
-      e = poly.evaluate(&r_j);
+      for (poly_A, poly_B, poly_C) in izip!(
+        poly_A_vec_seq.iter_mut(),
+        poly_B_vec_seq.iter_mut(),
+        poly_C_vec_seq.iter_mut()
+      ) {
+        poly_A.bound_poly_var_top(&r_j);
+        poly_B.bound_poly_var_top(&r_j);
+        poly_C.bound_poly_var_top(&r_j);
+      }
+
+      e = poly.evaluate(&r_j, &e);
       cubic_polys.push(poly);
     }
 
-    let poly_A_final = (0..poly_A_vec.len()).map(|i| poly_A_vec[i][0]).collect();
-    let poly_B_final = (0..poly_B_vec.len()).map(|i| poly_B_vec[i][0]).collect();
+    let poly_A_par_final = (0..poly_A_vec_par.len())
+      .map(|i| poly_A_vec_par[i][0])
+      .collect();
+    let poly_B_par_final = (0..poly_B_vec_par.len())
+      .map(|i| poly_B_vec_par[i][0])
+      .collect();
+    let claims_prod = (poly_A_par_final, poly_B_par_final, poly_C_par[0]);
+
+    let poly_A_seq_final = (0..poly_A_vec_seq.len())
+      .map(|i| poly_A_vec_seq[i][0])
+      .collect();
+    let poly_B_seq_final = (0..poly_B_vec_seq.len())
+      .map(|i| poly_B_vec_seq[i][0])
+      .collect();
+    let poly_C_seq_final = (0..poly_C_vec_seq.len())
+      .map(|i| poly_C_vec_seq[i][0])
+      .collect();
+    let claims_dotp = (poly_A_seq_final, poly_B_seq_final, poly_C_seq_final);
 
     (
       SumcheckInstanceProof::new(cubic_polys),
       r,
-      (poly_A_final, poly_B_final, poly_C[0]),
+      claims_prod,
+      claims_dotp,
     )
   }
 }

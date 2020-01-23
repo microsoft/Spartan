@@ -25,6 +25,12 @@ pub struct DensePolynomialSize {
   num_vars: usize,
 }
 
+impl DensePolynomialSize {
+  pub fn new(num_vars: usize) -> Self {
+    DensePolynomialSize { num_vars }
+  }
+}
+
 pub struct PolyCommitmentGens {
   gens: DotProductProofGens,
 }
@@ -334,7 +340,7 @@ impl DensePolynomial {
     // TODO: allow extension even when some vars are bound
     assert_eq!(self.Z.len(), self.len);
     let other_vec = other.vec();
-    assert_eq!(other_vec.len(), self.Z.len());
+    assert_eq!(other_vec.len(), self.len);
     self.Z.extend(other_vec);
     self.num_vars = self.num_vars + 1;
     self.len = 2 * self.len;
@@ -383,9 +389,9 @@ impl PolyEvalProof {
   pub fn prove(
     poly: &DensePolynomial,
     blinds_opt: Option<&PolyCommitmentBlinds>,
-    r: &Vec<Scalar>,   // point at which the polynomial is evaluated
-    Zr: &Scalar,       // evaluation of \widetilde{Z}(r)
-    blind_Zr: &Scalar, // blind for commitment to \widetilde{Z}(r)
+    r: &Vec<Scalar>,               // point at which the polynomial is evaluated
+    Zr: &Scalar,                   // evaluation of \widetilde{Z}(r)
+    blind_Zr_opt: Option<&Scalar>, // blind for commitment to \widetilde{Z}(r)
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
   ) -> (PolyEvalProof, CompressedRistretto) {
@@ -404,6 +410,12 @@ impl PolyEvalProof {
     let blinds = match blinds_opt {
       Some(p) => p,
       None => &default_blinds,
+    };
+
+    let zero = Scalar::zero();
+    let blind_Zr = match blind_Zr_opt {
+      Some(p) => p,
+      None => &zero,
     };
 
     assert_eq!(blinds.blinds.len(), L_size);
@@ -739,7 +751,7 @@ mod tests {
       Some(&blinds),
       &r,
       &eval,
-      &Scalar::zero(), // blind for commitment is zero
+      None,
       &gens,
       &mut prover_transcript,
     );
