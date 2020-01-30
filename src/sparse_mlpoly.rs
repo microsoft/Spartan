@@ -1363,19 +1363,10 @@ impl PolyEvalNetworkProof {
     let proof_hash_layer =
       HashLayerProof::prove((&rand_mem, &rand_ops), dense, derefs, gens, transcript);
 
-    let poly_eval_network_proof = PolyEvalNetworkProof {
+    PolyEvalNetworkProof {
       proof_prod_layer,
       proof_hash_layer,
-    };
-
-    let poly_eval_network_proof_encoded: Vec<u8> =
-      bincode::serialize(&poly_eval_network_proof).unwrap();
-    println!(
-      "Length of poly_eval_network_proof is: {:?}",
-      poly_eval_network_proof_encoded.len()
-    );
-
-    poly_eval_network_proof
+    }
   }
 
   pub fn verify(
@@ -1499,17 +1490,17 @@ impl SparseMatPolyEvalProof {
     let eval_table_rx = EqPolynomial::new(rx_ext.clone()).evals();
     let eval_table_ry = EqPolynomial::new(ry_ext.clone()).evals();
 
-    let start = Instant::now();
     let derefs = dense.deref(&eval_table_rx, &eval_table_ry);
-    let duration = start.elapsed();
-    println!("Time to deref memory addresses {:?}", duration);
 
     // commit to non-deterministic choices of the prover i.e., eval_cicruit.poly_row_deref and eval_cicruit.poly_col_deref
     let start = Instant::now();
     let comm_derefs = derefs.commit(&gens.gens_derefs);
     comm_derefs.append_to_transcript(b"comm_poly_row_col_ops_val", transcript);
     let duration = start.elapsed();
-    println!("Time to commit to non-det derefs {:?}", duration);
+    println!(
+      "Time to commit to non-det derefs in sparse eval {:?}",
+      duration
+    );
 
     // produce a random element from the transcript for hash function
     let r_mem_check = transcript.challenge_vector(b"challenge_r_hash", 2);
@@ -1550,7 +1541,6 @@ impl SparseMatPolyEvalProof {
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
-    let start = Instant::now();
     transcript.append_protocol_name(SparseMatPolyEvalProof::protocol_name());
 
     // equalize the lengths of rx and ry
@@ -1582,9 +1572,6 @@ impl SparseMatPolyEvalProof {
         transcript,
       )
       .is_ok());
-
-    let duration = start.elapsed();
-    println!("Verifying sparse eval proof took {:?}", duration);
 
     Ok(())
   }
