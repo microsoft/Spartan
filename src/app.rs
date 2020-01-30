@@ -25,10 +25,9 @@ pub fn main() {
   println!("Finished producing a synthetic R1CS");
 
   let poly_vars = DensePolynomial::new(vars.clone());
-  let poly_size = poly_vars.size();
   let r1cs_size = inst.size();
 
-  let gens_z = PolyCommitmentGens::new(&poly_size, b"gens_z");
+  let gens_z = PolyCommitmentGens::new(poly_vars.get_num_vars(), b"gens_z");
   let gens_r1cs = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs");
   let mut csprng: OsRng = OsRng;
   // create a commitment to R1CSInstance
@@ -39,7 +38,7 @@ pub fn main() {
   println!("#### Encoder time is: {:?}", duration);
 
   // produce a proof of satisfiability
-  let blinds_z = PolyCommitmentBlinds::new(&poly_size, &mut csprng);
+  let blinds_z = PolyCommitmentBlinds::new(poly_vars.get_num_vars(), &mut csprng);
   let gens = SpartanGens::new(gens_z, gens_r1cs);
   let blinds = SpartanBlinds::new(blinds_z, Scalar::one());
 

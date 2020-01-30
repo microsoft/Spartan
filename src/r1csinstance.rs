@@ -2,8 +2,9 @@ use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{
-  SparseMatEntry, SparseMatPolyCommitment, SparseMatPolyCommitmentGens, SparseMatPolyEvalProof,
-  SparseMatPolynomial, SparseMatPolynomialAsDense, SparseMatPolynomialSize,
+  MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
+  SparseMatPolyCommitmentGens, SparseMatPolyEvalProof, SparseMatPolynomial,
+  SparseMatPolynomialSize,
 };
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
@@ -27,21 +28,13 @@ pub struct R1CSInstanceSize {
 }
 
 pub struct R1CSCommitmentGens {
-  gens_A: SparseMatPolyCommitmentGens,
-  gens_B: SparseMatPolyCommitmentGens,
-  gens_C: SparseMatPolyCommitmentGens,
+  gens: SparseMatPolyCommitmentGens,
 }
 
 impl R1CSCommitmentGens {
   pub fn new(size: &R1CSInstanceSize, label: &'static [u8]) -> R1CSCommitmentGens {
-    let gens_A = SparseMatPolyCommitmentGens::new(&size.size_A, label);
-    let gens_B = SparseMatPolyCommitmentGens::new(&size.size_B, label);
-    let gens_C = SparseMatPolyCommitmentGens::new(&size.size_C, label);
-    R1CSCommitmentGens {
-      gens_A,
-      gens_B,
-      gens_C,
-    }
+    let gens = SparseMatPolyCommitmentGens::new(&size.size_A, 3, label);
+    R1CSCommitmentGens { gens }
   }
 }
 
@@ -49,18 +42,11 @@ pub struct R1CSCommitment {
   num_cons: usize,
   num_vars: usize,
   num_inputs: usize,
-  comm_A: SparseMatPolyCommitment,
-  comm_B: SparseMatPolyCommitment,
-  comm_C: SparseMatPolyCommitment,
-  nz_A: usize,
-  nz_B: usize,
-  nz_C: usize,
+  comm: SparseMatPolyCommitment,
 }
 
 pub struct R1CSDecommitment {
-  dense_A: SparseMatPolynomialAsDense,
-  dense_B: SparseMatPolynomialAsDense,
-  dense_C: SparseMatPolynomialAsDense,
+  dense: MultiSparseMatPolynomialAsDense,
 }
 
 impl R1CSCommitment {
@@ -267,27 +253,18 @@ impl R1CSInstance {
   }
 
   pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {
-    let (comm_A, dense_A) = self.A.commit(&gens.gens_A);
-    let (comm_B, dense_B) = self.B.commit(&gens.gens_B);
-    let (comm_C, dense_C) = self.C.commit(&gens.gens_C);
-
+    assert_eq!(self.A.get_num_nz_entries(), self.B.get_num_nz_entries());
+    assert_eq!(self.A.get_num_nz_entries(), self.C.get_num_nz_entries());
+    let (comm, dense) =
+      SparseMatPolynomial::multi_commit(&vec![&self.A, &self.B, &self.C], &gens.gens);
     let r1cs_comm = R1CSCommitment {
       num_cons: self.num_cons,
       num_vars: self.num_vars,
       num_inputs: self.num_inputs,
-      comm_A,
-      comm_B,
-      comm_C,
-      nz_A: self.A.get_num_nz_entries(),
-      nz_B: self.B.get_num_nz_entries(),
-      nz_C: self.C.get_num_nz_entries(),
+      comm,
     };
 
-    let r1cs_decomm = R1CSDecommitment {
-      dense_A,
-      dense_B,
-      dense_C,
-    };
+    let r1cs_decomm = R1CSDecommitment { dense };
 
     (r1cs_comm, r1cs_decomm)
   }
@@ -296,9 +273,7 @@ impl R1CSInstance {
 #[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct R1CSEvalProof {
-  proof_A: SparseMatPolyEvalProof,
-  proof_B: SparseMatPolyEvalProof,
-  proof_C: SparseMatPolyEvalProof,
+  proof: SparseMatPolyEvalProof,
 }
 
 impl R1CSEvalProof {
@@ -306,50 +281,20 @@ impl R1CSEvalProof {
     decomm: &R1CSDecommitment,
     rx: &Vec<Scalar>, // point at which the polynomial is evaluated
     ry: &Vec<Scalar>,
-    eval_table_rx: &Vec<Scalar>,
-    eval_table_ry: &Vec<Scalar>,
     evals: &R1CSInstanceEvals,
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
   ) -> R1CSEvalProof {
-    let proof_A = SparseMatPolyEvalProof::prove(
-      &decomm.dense_A,
+    let proof = SparseMatPolyEvalProof::prove(
+      &decomm.dense,
       rx,
       ry,
-      eval_table_rx,
-      eval_table_ry,
-      evals.eval_A_r,
-      &gens.gens_A,
+      &vec![evals.eval_A_r, evals.eval_B_r, evals.eval_C_r],
+      &gens.gens,
       transcript,
     );
 
-    let proof_B = SparseMatPolyEvalProof::prove(
-      &decomm.dense_B,
-      rx,
-      ry,
-      eval_table_rx,
-      eval_table_ry,
-      evals.eval_B_r,
-      &gens.gens_B,
-      transcript,
-    );
-
-    let proof_C = SparseMatPolyEvalProof::prove(
-      &decomm.dense_C,
-      rx,
-      ry,
-      eval_table_rx,
-      eval_table_ry,
-      evals.eval_C_r,
-      &gens.gens_C,
-      transcript,
-    );
-
-    R1CSEvalProof {
-      proof_A,
-      proof_B,
-      proof_C,
-    }
+    R1CSEvalProof { proof }
   }
 
   pub fn verify(
@@ -362,40 +307,13 @@ impl R1CSEvalProof {
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
     assert!(self
-      .proof_A
+      .proof
       .verify(
-        &comm.comm_A,
+        &comm.comm,
         rx,
         ry,
-        eval.eval_A_r,
-        comm.nz_A,
-        &gens.gens_A,
-        transcript
-      )
-      .is_ok());
-
-    assert!(self
-      .proof_B
-      .verify(
-        &comm.comm_B,
-        rx,
-        ry,
-        eval.eval_B_r,
-        comm.nz_B,
-        &gens.gens_B,
-        transcript
-      )
-      .is_ok());
-
-    assert!(self
-      .proof_C
-      .verify(
-        &comm.comm_C,
-        rx,
-        ry,
-        eval.eval_C_r,
-        comm.nz_C,
-        &gens.gens_C,
+        &vec![eval.eval_A_r, eval.eval_B_r, eval.eval_C_r],
+        &gens.gens,
         transcript
       )
       .is_ok());

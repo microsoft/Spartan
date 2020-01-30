@@ -384,14 +384,16 @@ impl ProductCircuitEvalProofBatched {
     claims_dotp_vec: &Vec<Scalar>,
     len: usize,
     transcript: &mut Transcript,
-  ) -> (Vec<Scalar>, Vec<Scalar>) {
-    let mut claims_to_verify = claims_prod_vec.clone();
+  ) -> (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>) {
     let num_layers = len.log2();
     let mut rand: Vec<Scalar> = Vec::new();
     let mut num_rounds = 0;
     assert_eq!(self.proof.len(), num_layers);
+
+    let mut claims_to_verify = claims_prod_vec.clone();
+    let mut claims_to_verify_dotp: Vec<Scalar> = Vec::new();
     for i in 0..num_layers {
-      if i == num_layers - 1 && claims_dotp_vec.len() > 0 {
+      if i == num_layers - 1 {
         claims_to_verify.extend(claims_dotp_vec);
       }
 
@@ -453,7 +455,7 @@ impl ProductCircuitEvalProofBatched {
         .collect::<Vec<Scalar>>();
 
       // add claims to verify for dotp circuit
-      if i == num_layers - 1 && claims_dotp_vec.len() > 0 {
+      if i == num_layers - 1 {
         let (claims_dotp_left, claims_dotp_right, claims_dotp_weight) = &self.claims_dotp;
 
         for i in 0..claims_dotp_vec.len() / 2 {
@@ -466,9 +468,9 @@ impl ProductCircuitEvalProofBatched {
 
           let claim_weight = &claims_dotp_weight[2 * i]
             + &r_layer * (&claims_dotp_weight[2 * i + 1] - &claims_dotp_weight[2 * i]);
-          claims_to_verify.push(claim_left);
-          claims_to_verify.push(claim_right);
-          claims_to_verify.push(claim_weight);
+          claims_to_verify_dotp.push(claim_left);
+          claims_to_verify_dotp.push(claim_right);
+          claims_to_verify_dotp.push(claim_weight);
         }
       }
 
@@ -477,6 +479,6 @@ impl ProductCircuitEvalProofBatched {
       ext.extend(rand_prod);
       rand = ext;
     }
-    (claims_to_verify, rand)
+    (claims_to_verify, claims_to_verify_dotp, rand)
   }
 }

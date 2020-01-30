@@ -46,6 +46,16 @@ impl AppendToTranscript for Scalar {
   }
 }
 
+impl AppendToTranscript for Vec<Scalar> {
+  fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
+    transcript.append_message(label, b"begin_append_vector");
+    for i in 0..self.len() {
+      transcript.append_scalar(label, &self[i]);
+    }
+    transcript.append_message(label, b"end_append_vector");
+  }
+}
+
 impl AppendToTranscript for CompressedRistretto {
   fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
     transcript.append_point(label, self);

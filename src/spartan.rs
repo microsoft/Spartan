@@ -94,16 +94,8 @@ impl SpartanProof {
     // append the claim of evaluation
     inst_evals.append_to_transcript(b"r1cs_inst_evals", transcript);
 
-    let r1cs_eval_proof = R1CSEvalProof::prove(
-      decomm,
-      &rx,
-      &ry,
-      &eval_table_rx,
-      &eval_table_ry,
-      &inst_evals,
-      &gens.gens_r1cs,
-      transcript,
-    );
+    let r1cs_eval_proof =
+      R1CSEvalProof::prove(decomm, &rx, &ry, &inst_evals, &gens.gens_r1cs, transcript);
 
     let r1cs_sat_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_sat_proof).unwrap();
     println!(
@@ -189,10 +181,9 @@ mod tests {
     assert_eq!(n, m * m);
 
     let poly_vars = DensePolynomial::new(vars.clone());
-    let poly_size = poly_vars.size();
     let r1cs_size = inst.size();
 
-    let gens_z = PolyCommitmentGens::new(&poly_size, b"gens_z");
+    let gens_z = PolyCommitmentGens::new(poly_vars.get_num_vars(), b"gens_z");
     let gens_r1cs = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs");
 
     // create a commitment to R1CSInstance
@@ -200,7 +191,7 @@ mod tests {
     let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs);
 
     // produce a proof of satisfiability
-    let blinds_z = PolyCommitmentBlinds::new(&poly_size, &mut csprng);
+    let blinds_z = PolyCommitmentBlinds::new(poly_vars.get_num_vars(), &mut csprng);
     let gens = SpartanGens { gens_z, gens_r1cs };
     let blinds = SpartanBlinds {
       blinds_z,

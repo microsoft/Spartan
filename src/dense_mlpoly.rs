@@ -21,24 +21,14 @@ pub struct DensePolynomial {
   Z: Vec<Scalar>, // a vector that holds the evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
 
-pub struct DensePolynomialSize {
-  num_vars: usize,
-}
-
-impl DensePolynomialSize {
-  pub fn new(num_vars: usize) -> Self {
-    DensePolynomialSize { num_vars }
-  }
-}
-
 pub struct PolyCommitmentGens {
   gens: DotProductProofGens,
 }
 
 impl PolyCommitmentGens {
   // the number of variables in the multilinear polynomial
-  pub fn new(size: &DensePolynomialSize, label: &'static [u8]) -> PolyCommitmentGens {
-    let (_left, right) = EqPolynomial::compute_factored_lens(size.num_vars);
+  pub fn new(num_vars: usize, label: &'static [u8]) -> PolyCommitmentGens {
+    let (_left, right) = EqPolynomial::compute_factored_lens(num_vars);
     let gens = DotProductProofGens::new(right.pow2(), label);
     PolyCommitmentGens { gens }
   }
@@ -50,8 +40,8 @@ pub struct PolyCommitmentBlinds {
 
 impl PolyCommitmentBlinds {
   // the number of variables in the multilinear polynomial
-  pub fn new(size: &DensePolynomialSize, csprng: &mut OsRng) -> PolyCommitmentBlinds {
-    let (left, _right) = EqPolynomial::compute_factored_lens(size.num_vars);
+  pub fn new(num_vars: usize, csprng: &mut OsRng) -> PolyCommitmentBlinds {
+    let (left, _right) = EqPolynomial::compute_factored_lens(num_vars);
     let blinds = (0..left.pow2())
       .map(|_i| Scalar::random(csprng))
       .collect::<Vec<Scalar>>();
@@ -206,12 +196,6 @@ impl DensePolynomial {
     self.num_vars
   }
 
-  pub fn size(&self) -> DensePolynomialSize {
-    DensePolynomialSize {
-      num_vars: self.num_vars,
-    }
-  }
-
   pub fn len(&self) -> usize {
     self.len
   }
@@ -345,6 +329,25 @@ impl DensePolynomial {
     self.num_vars = self.num_vars + 1;
     self.len = 2 * self.len;
     assert_eq!(self.Z.len(), self.len);
+  }
+
+  pub fn merge<'a, I>(polys: I) -> DensePolynomial
+  where
+    I: IntoIterator<Item = &'a DensePolynomial>,
+  {
+    //assert!(polys.len() > 0);
+    //let num_vars = polys[0].num_vars();
+    let mut Z: Vec<Scalar> = Vec::new();
+    for poly in polys.into_iter() {
+      //assert_eq!(poly.get_num_vars(), num_vars); // ensure each polynomial has the same number of variables
+      //assert_eq!(poly.len, poly.vec().len()); // ensure no variable is already bound
+      Z.extend(poly.vec());
+    }
+
+    // pad the polynomial with zero polynomial at the end
+    Z.resize(Z.len().next_power_of_two(), Scalar::zero());
+
+    DensePolynomial::new(Z)
   }
 
   pub fn from_usize(Z: &Vec<usize>) -> Self {
@@ -739,9 +742,9 @@ mod tests {
     let eval = poly.evaluate(&r);
     assert_eq!(eval, (28 as usize).to_scalar());
 
-    let gens = PolyCommitmentGens::new(&poly.size(), b"test-two");
+    let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
     let mut csprng: OsRng = OsRng;
-    let blinds = PolyCommitmentBlinds::new(&poly.size(), &mut csprng);
+    let blinds = PolyCommitmentBlinds::new(poly.get_num_vars(), &mut csprng);
 
     let poly_commitment = poly.commit(Some(&blinds), &gens);
 

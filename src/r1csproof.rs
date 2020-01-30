@@ -421,11 +421,9 @@ mod tests {
     assert_eq!(n, m * m);
 
     let poly_vars = DensePolynomial::new(vars.clone());
-    let poly_vars_size = poly_vars.size();
-
-    let gens = PolyCommitmentGens::new(&poly_vars_size, b"test-m");
+    let gens = PolyCommitmentGens::new(poly_vars.get_num_vars(), b"test-m");
     let mut csprng: OsRng = OsRng;
-    let blinds = PolyCommitmentBlinds::new(&poly_vars_size, &mut csprng);
+    let blinds = PolyCommitmentBlinds::new(poly_vars.get_num_vars(), &mut csprng);
 
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, rx, ry) = R1CSProof::prove(
