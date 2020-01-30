@@ -5,7 +5,6 @@ extern crate merlin;
 extern crate rand;
 
 use libspartan::dense_mlpoly::{DensePolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
-use libspartan::math::Math;
 use libspartan::r1csinstance::{R1CSCommitmentGens, R1CSInstance};
 use libspartan::scalar::Scalar;
 use libspartan::spartan::{SpartanBlinds, SpartanGens, SpartanProof};
@@ -14,14 +13,11 @@ use rand::rngs::OsRng;
 use std::time::Instant;
 
 pub fn main() {
-  let num_vars = 1024 * 1024;
+  let num_vars = 32768;
   let num_cons = num_vars;
   let num_inputs = 10;
   println!("Producing a synthetic R1CS");
   let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-  let n = inst.get_num_vars();
-  let m = n.square_root();
-  assert_eq!(n, m * m);
   println!("Finished producing a synthetic R1CS");
 
   let poly_vars = DensePolynomial::new(vars.clone());

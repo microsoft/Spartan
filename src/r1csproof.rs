@@ -119,7 +119,6 @@ impl R1CSProof {
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
     transcript.append_protocol_name(R1CSProof::protocol_name());
     let num_vars = vars.len();
-    assert_eq!(num_vars.log2() % 2, 0);
 
     // we require the number of inputs to be at most number of vars
     let num_inputs = input.len();
@@ -253,8 +252,6 @@ impl R1CSProof {
     transcript.append_protocol_name(R1CSProof::protocol_name());
 
     let n = num_vars;
-    let m = n.square_root();
-    assert_eq!(n, m * m);
     // add the commitment to the verifier's transcript
     self
       .comm_vars
