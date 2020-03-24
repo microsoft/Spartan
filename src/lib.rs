@@ -24,5 +24,6 @@ mod scalar_25519;
 pub mod sparse_mlpoly;
 pub mod spartan;
 mod sumcheck;
+pub mod timer;
 mod transcript;
 mod unipoly;

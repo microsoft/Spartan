@@ -1,6 +1,5 @@
 use super::bullet::BulletReductionProof;
-use super::commitments::Commitments;
-use super::commitments::MultiCommitGens;
+use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::scalar::{Scalar, ScalarBytesFromScalar};

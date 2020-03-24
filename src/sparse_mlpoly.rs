@@ -7,10 +7,10 @@ use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
 use super::scalar::Scalar;
+use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 
 #[derive(Debug)]
 pub struct SparseMatEntry {
@@ -647,7 +647,8 @@ impl Layers {
       .product();
     let hashed_read_set: Scalar = hashed_reads * prod_audit.evaluate();
 
-    assert_eq!(hashed_read_set, hashed_write_set);
+    //assert_eq!(hashed_read_set, hashed_write_set);
+    debug_assert_eq!(hashed_read_set, hashed_write_set);
 
     Layers {
       prod_layer: ProductLayer {
@@ -912,6 +913,7 @@ impl HashLayerProof {
     r_multiset_check: &Scalar,
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
+    let timer = Timer::new("verify_hash_proof");
     transcript.append_protocol_name(HashLayerProof::protocol_name());
 
     let (rand_mem, rand_ops) = rand;
@@ -1035,6 +1037,7 @@ impl HashLayerProof {
     )
     .is_ok());
 
+    timer.stop();
     Ok(())
   }
 }
@@ -1224,10 +1227,11 @@ impl ProductLayerProof {
     };
 
     let product_layer_proof_encoded: Vec<u8> = bincode::serialize(&product_layer_proof).unwrap();
-    println!(
-      "Length of product_layer_proof is: {:?}",
+    let msg = format!(
+      "len_product_layer_proof {:?}",
       product_layer_proof_encoded.len()
     );
+    Timer::print(&msg);
 
     (product_layer_proof, rand_mem, rand_ops)
   }
@@ -1250,7 +1254,7 @@ impl ProductLayerProof {
   > {
     transcript.append_protocol_name(ProductLayerProof::protocol_name());
 
-    let start = Instant::now();
+    let timer = Timer::new("verify_prod_proof");
     let num_instances = eval.len();
 
     // subset check
@@ -1322,8 +1326,7 @@ impl ProductLayerProof {
       num_cells,
       transcript,
     );
-    let duration = start.elapsed();
-    println!("Verifying product proof took {:?}", duration);
+    timer.stop();
 
     Ok((claims_mem, rand_mem, claims_ops, claims_dotp, rand_ops))
   }
@@ -1381,6 +1384,7 @@ impl PolyEvalNetworkProof {
     nz: usize,
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
+    let timer = Timer::new("verify_polyeval_proof");
     transcript.append_protocol_name(PolyEvalNetworkProof::protocol_name());
 
     let num_instances = evals.len();
@@ -1408,7 +1412,6 @@ impl PolyEvalNetworkProof {
     let (claims_ops_row_read, claims_ops_row_write) = claims_ops_row.split_at_mut(num_instances);
     let (claims_ops_col_read, claims_ops_col_write) = claims_ops_col.split_at_mut(num_instances);
 
-    let start = Instant::now();
     // verify the proof of hash layer
     assert!(self
       .proof_hash_layer
@@ -1437,8 +1440,7 @@ impl PolyEvalNetworkProof {
         transcript
       )
       .is_ok());
-    let duration = start.elapsed();
-    println!("Verifying hash layer proof took {:?}", duration);
+    timer.stop();
 
     Ok(())
   }
@@ -1493,20 +1495,16 @@ impl SparseMatPolyEvalProof {
     let derefs = dense.deref(&eval_table_rx, &eval_table_ry);
 
     // commit to non-deterministic choices of the prover i.e., eval_cicruit.poly_row_deref and eval_cicruit.poly_col_deref
-    let start = Instant::now();
+    let timer_commit = Timer::new("commit_nondet_witness");
     let comm_derefs = derefs.commit(&gens.gens_derefs);
     comm_derefs.append_to_transcript(b"comm_poly_row_col_ops_val", transcript);
-    let duration = start.elapsed();
-    println!(
-      "Time to commit to non-det derefs in sparse eval {:?}",
-      duration
-    );
+    timer_commit.stop();
 
     // produce a random element from the transcript for hash function
     let r_mem_check = transcript.challenge_vector(b"challenge_r_hash", 2);
 
-    let start = Instant::now();
     // build a network to evaluate the sparse polynomial
+    let timer_build_network = Timer::new("build_layered_network");
     let mut net = PolyEvalNetwork::new(
       dense,
       &derefs,
@@ -1516,15 +1514,12 @@ impl SparseMatPolyEvalProof {
       &eval_table_ry,
       &(r_mem_check[0], r_mem_check[1]),
     );
+    timer_build_network.stop();
 
-    let duration = start.elapsed();
-    println!("Time to build the layered network is: {:?}", duration);
-
-    let start = Instant::now();
+    let timer_eval_network = Timer::new("evalproof_layered_network");
     let poly_eval_network_proof =
       PolyEvalNetworkProof::prove(&mut net, &dense, &derefs, evals, gens, transcript);
-    let duration = start.elapsed();
-    println!("Time to produce poly_eval_network_proof {:?}", duration);
+    timer_eval_network.stop();
 
     SparseMatPolyEvalProof {
       comm_derefs,

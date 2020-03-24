@@ -1,128 +1,173 @@
-use super::scalar::Scalar;
-use super::scalar::ScalarFromPrimitives;
+use super::scalar::{Scalar, ScalarFromPrimitives};
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct QuadPoly {
-  eval_0: Scalar,
-  eval_2: Scalar,
+// ax^2 + bx + c stored as vec![a,b,c]
+// ax^3 + bx^2 + cx + d stored as vec![a,b,c,d]
+#[derive(Debug)]
+pub struct UniPoly {
+  coeffs: Vec<Scalar>,
 }
 
-impl QuadPoly {
-  pub fn new(eval_0: Scalar, eval_2: Scalar) -> Self {
-    QuadPoly { eval_0, eval_2 }
+// ax^2 + bx + c stored as vec![a,c]
+// ax^3 + bx^2 + cx + d stored as vec![a,c,d]
+#[derive(Serialize, Deserialize, Debug)]
+pub struct CompressedUniPoly {
+  coeffs_except_linear_term: Vec<Scalar>,
+}
+
+impl UniPoly {
+  pub fn from_evals(evals: &Vec<Scalar>) -> Self {
+    // we only support degree-2 or degree-3 univariate polynomials
+    assert!(evals.len() == 3 || evals.len() == 4);
+    let coeffs = if evals.len() == 3 {
+      // ax^2 + bx + c
+      let two_inv = (2 as usize).to_scalar().invert().unwrap();
+
+      let c = evals[0];
+      let a = two_inv * (evals[2] - evals[1] - evals[1] + c);
+      let b = evals[1] - c - a;
+      vec![c, b, a]
+    } else {
+      // ax^3 + bx^2 + cx + d
+      let two_inv = (2 as usize).to_scalar().invert().unwrap();
+      let six_inv = (6 as usize).to_scalar().invert().unwrap();
+
+      let d = evals[0];
+      let a = six_inv
+        * (evals[3] - evals[2] - evals[2] - evals[2] + evals[1] + evals[1] + evals[1] - evals[0]);
+      let b = two_inv
+        * (evals[0] + evals[0] - evals[1] - evals[1] - evals[1] - evals[1] - evals[1]
+          + evals[2]
+          + evals[2]
+          + evals[2]
+          + evals[2]
+          - evals[3]);
+      let c = evals[1] - d - a - b;
+      vec![d, c, b, a]
+    };
+
+    UniPoly { coeffs }
   }
-}
 
-#[derive(Serialize, Deserialize, Debug)]
-pub struct CubicPoly {
-  eval_0: Scalar,
-  eval_2: Scalar,
-  eval_3: Scalar,
-}
+  pub fn degree(&self) -> usize {
+    self.coeffs.len() - 1
+  }
 
-#[allow(dead_code)]
-impl CubicPoly {
-  pub fn new(eval_0: Scalar, eval_2: Scalar, eval_3: Scalar) -> Self {
-    CubicPoly {
-      eval_0,
-      eval_2,
-      eval_3,
+  pub fn eval_at_zero(&self) -> Scalar {
+    self.coeffs[0]
+  }
+
+  pub fn eval_at_one(&self) -> Scalar {
+    (0..self.coeffs.len()).map(|i| self.coeffs[i]).sum()
+  }
+
+  pub fn evaluate(&self, r: &Scalar) -> Scalar {
+    let mut eval = self.coeffs[0];
+    let mut power = *r;
+    for i in 1..self.coeffs.len() {
+      eval = &eval + &power * &self.coeffs[i];
+      power = &power * r;
+    }
+    eval
+  }
+
+  pub fn compress(&self) -> CompressedUniPoly {
+    let coeffs_except_linear_term = [&self.coeffs[0..1], &self.coeffs[2..]].concat();
+    assert_eq!(coeffs_except_linear_term.len() + 1, self.coeffs.len());
+    CompressedUniPoly {
+      coeffs_except_linear_term,
     }
   }
 }
 
-pub trait SumcheckProofPolyABI {
-  fn eval_at_zero(&self) -> Scalar;
-  //fn eval_at_one(&self) -> Scalar;
-  fn evaluate(&self, r: &Scalar, e: &Scalar) -> Scalar;
-}
+impl CompressedUniPoly {
+  // we require eval(0) + eval(1) = hint, so we can solve for the linear term as:
+  // linear_term = hint - 2 * constant_term - deg2 term - deg3 term
+  pub fn decompress(&self, hint: &Scalar) -> UniPoly {
+    let mut linear_term =
+      hint - self.coeffs_except_linear_term[0] - self.coeffs_except_linear_term[0];
+    for i in 1..self.coeffs_except_linear_term.len() {
+      linear_term = linear_term - self.coeffs_except_linear_term[i];
+    }
 
-impl SumcheckProofPolyABI for QuadPoly {
-  fn eval_at_zero(&self) -> Scalar {
-    self.eval_0
-  }
-
-  /*fn eval_at_one(&self) -> Scalar {
-    self.eval_1
-  }*/
-
-  fn evaluate(&self, r: &Scalar, e: &Scalar) -> Scalar {
-    let eval_1 = e - &self.eval_at_zero();
-
-    // evaluate the claimed degree-2 polynomial at r
-    let two_inv = (2 as usize).to_scalar().invert().unwrap();
-    let rk_1 = r - Scalar::one();
-    let rk_2 = r - (2 as usize).to_scalar();
-
-    two_inv * rk_2 * rk_1 * self.eval_0 - rk_2 * r * eval_1 + two_inv * r * rk_1 * self.eval_2
+    let mut coeffs: Vec<Scalar> = Vec::new();
+    coeffs.extend(vec![&self.coeffs_except_linear_term[0]]);
+    coeffs.extend(vec![&linear_term]);
+    coeffs.extend(self.coeffs_except_linear_term[1..].to_vec());
+    assert_eq!(self.coeffs_except_linear_term.len() + 1, coeffs.len());
+    UniPoly { coeffs }
   }
 }
 
-impl AppendToTranscript for QuadPoly {
+impl AppendToTranscript for UniPoly {
   fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
-    transcript.append_message(label, b"QuadPoly_begin");
-    transcript.append_scalar(b"eval_0", &self.eval_0);
-    //transcript.append_scalar(b"eval_1", &self.eval_1);
-    transcript.append_scalar(b"eval_2", &self.eval_2);
-    transcript.append_message(label, b"QuadPoly_end");
+    transcript.append_message(label, b"UniPoly_begin");
+    for i in 0..self.coeffs.len() {
+      transcript.append_scalar(b"coeff", &self.coeffs[i]);
+    }
+    transcript.append_message(label, b"UniPoly_end");
   }
 }
 
-impl SumcheckProofPolyABI for CubicPoly {
-  fn eval_at_zero(&self) -> Scalar {
-    self.eval_0
+mod tests {
+  #[cfg(test)]
+  use super::*;
+
+  #[test]
+  fn test_from_evals_quad() {
+    // polynomial is 2x^2 + 3x + 1
+    let e0 = Scalar::one();
+    let e1 = (6 as usize).to_scalar();
+    let e2 = (15 as usize).to_scalar();
+    let evals = vec![e0, e1, e2];
+    let poly = UniPoly::from_evals(&evals);
+
+    assert_eq!(poly.eval_at_zero(), e0);
+    assert_eq!(poly.eval_at_one(), e1);
+    assert_eq!(poly.coeffs.len(), 3);
+    assert_eq!(poly.coeffs[0], Scalar::one());
+    assert_eq!(poly.coeffs[1], (3 as usize).to_scalar());
+    assert_eq!(poly.coeffs[2], (2 as usize).to_scalar());
+
+    let hint = e0 + e1;
+    let compressed_poly = poly.compress();
+    let decompressed_poly = compressed_poly.decompress(&hint);
+    for i in 0..decompressed_poly.coeffs.len() {
+      assert_eq!(decompressed_poly.coeffs[i], poly.coeffs[i]);
+    }
+
+    let e3 = (28 as usize).to_scalar();
+    assert_eq!(poly.evaluate(&(3 as usize).to_scalar()), e3);
   }
 
-  /*fn eval_at_one(&self) -> Scalar {
-    self.eval_1
-  }*/
+  #[test]
+  fn test_from_evals_cubic() {
+    // polynomial is x^3 + 2x^2 + 3x + 1
+    let e0 = Scalar::one();
+    let e1 = (7 as usize).to_scalar();
+    let e2 = (23 as usize).to_scalar();
+    let e3 = (55 as usize).to_scalar();
+    let evals = vec![e0, e1, e2, e3];
+    let poly = UniPoly::from_evals(&evals);
 
-  fn evaluate(&self, r: &Scalar, e: &Scalar) -> Scalar {
-    let eval_1 = e - &self.eval_at_zero();
+    assert_eq!(poly.eval_at_zero(), e0);
+    assert_eq!(poly.eval_at_one(), e1);
+    assert_eq!(poly.coeffs.len(), 4);
+    assert_eq!(poly.coeffs[0], Scalar::one());
+    assert_eq!(poly.coeffs[1], (3 as usize).to_scalar());
+    assert_eq!(poly.coeffs[2], (2 as usize).to_scalar());
+    assert_eq!(poly.coeffs[3], (1 as usize).to_scalar());
 
-    // evaluate the claimed degree-3 polynomial at r
-    let inv_6 = (6 as usize).to_scalar().invert().unwrap();
-    let inv_2 = (2 as usize).to_scalar().invert().unwrap();
+    let hint = e0 + e1;
+    let compressed_poly = poly.compress();
+    let decompressed_poly = compressed_poly.decompress(&hint);
+    for i in 0..decompressed_poly.coeffs.len() {
+      assert_eq!(decompressed_poly.coeffs[i], poly.coeffs[i]);
+    }
 
-    let r_minus_1 = r - Scalar::one();
-    let r_minus_2 = r - (2 as usize).to_scalar();
-    let r_minus_3 = r - (3 as usize).to_scalar();
-
-    -(inv_6 * r_minus_1 * r_minus_2 * r_minus_3 * self.eval_0)
-      + (inv_2 * r * r_minus_2 * r_minus_3 * eval_1)
-      - (inv_2 * r * r_minus_1 * r_minus_3 * self.eval_2)
-      + (inv_6 * r * r_minus_1 * r_minus_2 * self.eval_3)
+    let e4 = (109 as usize).to_scalar();
+    assert_eq!(poly.evaluate(&(4 as usize).to_scalar()), e4);
   }
 }
-
-impl AppendToTranscript for CubicPoly {
-  fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
-    transcript.append_message(label, b"CubicPoly_begin");
-    transcript.append_scalar(b"eval_0", &self.eval_0);
-    //transcript.append_scalar(b"eval_1", &self.eval_1);
-    transcript.append_scalar(b"eval_2", &self.eval_2);
-    transcript.append_scalar(b"eval_3", &self.eval_3);
-    transcript.append_message(label, b"CubicPoly_end");
-  }
-}
-
-/*#[test]
-fn test_cubic_poly_interpolation() {
-  let mut csprng: rand::rngs::OsRng = OsRng;
-
-  // generate a random polynomial in point-value form
-  let poly = CubicPoly::new(
-    Scalar::random(&mut csprng),
-    //Scalar::random(&mut csprng),
-    Scalar::random(&mut csprng),
-    Scalar::random(&mut csprng),
-  );
-
-  assert_eq!(poly.evaluate(&Scalar::zero()), poly.eval_at_zero());
-  assert_eq!(poly.evaluate(&Scalar::one()), poly.eval_at_one());
-  assert_eq!(poly.evaluate(&(2 as usize).to_scalar()), poly.eval_2);
-  assert_eq!(poly.evaluate(&(3 as usize).to_scalar()), poly.eval_3);
-}*/

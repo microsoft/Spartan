@@ -10,20 +10,19 @@ use super::sparse_mlpoly::{
   SparseMatEntry, SparseMatPolynomial, SparsePolyEntry, SparsePolynomial,
 };
 use super::sumcheck::SumcheckInstanceProof;
+use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use super::unipoly::{CubicPoly, QuadPoly, SumcheckProofPolyABI};
 use curve25519_dalek::ristretto::CompressedRistretto;
 use merlin::Transcript;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct R1CSProof {
   comm_vars: PolyCommitment,
-  sc_proof_phase1: SumcheckInstanceProof<CubicPoly>,
+  sc_proof_phase1: SumcheckInstanceProof,
   claims_phase2: (Scalar, Scalar, Scalar),
-  sc_proof_phase2: SumcheckInstanceProof<QuadPoly>,
+  sc_proof_phase2: SumcheckInstanceProof,
   eval_vars_at_ry: Scalar,
   comm_vars_at_ry: CompressedRistretto,
   proof_eval_vars_at_ry: PolyEvalProof,
@@ -38,55 +37,24 @@ impl R1CSProof {
     evals_Bz: &mut DensePolynomial,
     evals_Cz: &mut DensePolynomial,
     transcript: &mut Transcript,
-  ) -> (SumcheckInstanceProof<CubicPoly>, Vec<Scalar>) {
-    // in the first set of rounds, we bound x variables to random values
-    let mut e = Scalar::zero();
-    let mut r: Vec<Scalar> = Vec::new();
-    let mut cubic_polys: Vec<CubicPoly> = Vec::new();
-    for _j in 0..num_rounds {
-      let mut eval_point_0 = Scalar::zero();
-      let mut eval_point_2 = Scalar::zero();
-      let mut eval_point_3 = Scalar::zero();
-      let len = evals_tau.len() / 2;
-      for i in 0..len {
-        // eval 0: bound_func is A(low)
-        eval_point_0 = &eval_point_0 + &evals_tau[i] * (&evals_Az[i] * &evals_Bz[i] - &evals_Cz[i]);
+  ) -> (SumcheckInstanceProof, Vec<Scalar>) {
+    let comb_func = |poly_A_comp: &Scalar,
+                     poly_B_comp: &Scalar,
+                     poly_C_comp: &Scalar,
+                     poly_D_comp: &Scalar|
+     -> Scalar { poly_A_comp * (poly_B_comp * poly_C_comp - poly_D_comp) };
+    let (sc_proof_phase_one, r, _claims) = SumcheckInstanceProof::prove_cubic_with_additive_term(
+      &Scalar::zero(),
+      num_rounds,
+      evals_tau,
+      evals_Az,
+      evals_Bz,
+      evals_Cz,
+      comb_func,
+      transcript,
+    );
 
-        // eval 2: bound_func is -A(low) + 2*A(high)
-        let tau_bound_point = &evals_tau[len + i] + &evals_tau[len + i] - &evals_tau[i];
-        let Az_bound_point = &evals_Az[len + i] + &evals_Az[len + i] - &evals_Az[i];
-        let Bz_bound_point = &evals_Bz[len + i] + &evals_Bz[len + i] - &evals_Bz[i];
-        let Cz_bound_point = &evals_Cz[len + i] + &evals_Cz[len + i] - &evals_Cz[i];
-        eval_point_2 =
-          &eval_point_2 + tau_bound_point * (Az_bound_point * Bz_bound_point - Cz_bound_point);
-
-        // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-        let tau_bound_point = &tau_bound_point + &evals_tau[len + i] - &evals_tau[i];
-        let Az_bound_point = &Az_bound_point + &evals_Az[len + i] - &evals_Az[i];
-        let Bz_bound_point = &Bz_bound_point + &evals_Bz[len + i] - &evals_Bz[i];
-        let Cz_bound_point = &Cz_bound_point + &evals_Cz[len + i] - &evals_Cz[i];
-        eval_point_3 =
-          &eval_point_3 + tau_bound_point * (Az_bound_point * Bz_bound_point - Cz_bound_point);
-      }
-
-      let poly = CubicPoly::new(eval_point_0, eval_point_2, eval_point_3);
-
-      // append the prover's message to the transcript
-      poly.append_to_transcript(b"poly", transcript);
-
-      //derive the verifier's challenge for the next round
-      let r_j = transcript.challenge_scalar(b"challenge_nextround");
-      r.push(r_j);
-      // bound all tables to the verifier's challenege
-      evals_tau.bound_poly_var_top(&r_j);
-      evals_Az.bound_poly_var_top(&r_j);
-      evals_Bz.bound_poly_var_top(&r_j);
-      evals_Cz.bound_poly_var_top(&r_j);
-      e = poly.evaluate(&r_j, &e);
-      cubic_polys.push(poly);
-    }
-
-    (SumcheckInstanceProof::new(cubic_polys), r)
+    (sc_proof_phase_one, r)
   }
 
   fn prove_phase_two(
@@ -95,10 +63,10 @@ impl R1CSProof {
     evals_z: &mut DensePolynomial,
     evals_ABC: &mut DensePolynomial,
     transcript: &mut Transcript,
-  ) -> (SumcheckInstanceProof<QuadPoly>, Vec<Scalar>) {
+  ) -> (SumcheckInstanceProof, Vec<Scalar>) {
     let comb_func =
       |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { poly_A_comp * poly_B_comp };
-    let (sc_proof_phase_two, r, _claims) = SumcheckInstanceProof::<QuadPoly>::prove(
+    let (sc_proof_phase_two, r, _claims) = SumcheckInstanceProof::prove_quad(
       claim, num_rounds, evals_z, evals_ABC, comb_func, transcript,
     );
 
@@ -108,6 +76,7 @@ impl R1CSProof {
   fn protocol_name() -> &'static [u8] {
     b"R1CS proof"
   }
+
   pub fn prove(
     inst: &R1CSInstance,
     vars: Vec<Scalar>,
@@ -117,20 +86,19 @@ impl R1CSProof {
     blind_eval: &Scalar,
     transcript: &mut Transcript,
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
+    let timer_prove = Timer::new("R1CSProof::prove");
+    let timer_commit = Timer::new("polycommit");
     transcript.append_protocol_name(R1CSProof::protocol_name());
-    let num_vars = vars.len();
 
-    // we require the number of inputs to be at most number of vars
+    // we currently require the number of inputs to be at most number of vars
     let num_inputs = input.len();
-    assert!(num_inputs <= num_vars);
+    assert!(num_inputs <= vars.len());
 
-    let start = Instant::now();
     // append input to variables to create a single vector z
     let mut z = vars.clone();
     z.extend(input);
-    z.extend(&vec![Scalar::zero(); num_vars - num_inputs]); // we will add zeros to the end
+    z.extend(&vec![Scalar::zero(); vars.len() - num_inputs]); // we will pad with zeros
 
-    println!("Number of variables to commit is {}", vars.len());
     // create a multilinear polynomial using the supplied assignment for variables
     let poly_vars = DensePolynomial::new(vars);
 
@@ -139,10 +107,9 @@ impl R1CSProof {
 
     // add the commitment to the prover's transcript
     comm_vars.append_to_transcript(b"poly_commitment", transcript);
-    let duration = start.elapsed();
-    println!("Time elapsed to commit to vars is: {:?}", duration);
+    timer_commit.stop();
 
-    let start = Instant::now();
+    let timer_sc_proof_phase1 = Timer::new("prove_sc_phase_one");
     let num_rounds_x = inst.get_num_cons().log2();
     let num_rounds_y = z.len().log2();
 
@@ -150,17 +117,11 @@ impl R1CSProof {
     let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
 
     // compute the initial evaluation table for R(\tau, x)
-    let evals_tau = EqPolynomial::new(tau).evals();
-
+    let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
     let num_cols = z.len();
-    let (evals_Az, evals_Bz, evals_Cz) = inst.multiply_vec(inst.get_num_cons(), num_cols, &z);
+    let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
+      inst.multiply_vec(inst.get_num_cons(), num_cols, &z);
 
-    let (mut poly_tau, mut poly_Az, mut poly_Bz, mut poly_Cz) = (
-      DensePolynomial::new(evals_tau),
-      DensePolynomial::new(evals_Az),
-      DensePolynomial::new(evals_Bz),
-      DensePolynomial::new(evals_Cz),
-    );
     let (sc_proof_phase1, rx) = R1CSProof::prove_phase_one(
       num_rounds_x,
       &mut poly_tau,
@@ -173,10 +134,9 @@ impl R1CSProof {
     assert_eq!(poly_Az.len(), 1);
     assert_eq!(poly_Bz.len(), 1);
     assert_eq!(poly_Cz.len(), 1);
-    let duration = start.elapsed();
-    println!("Time elapsed for first sum-check phase is: {:?}", duration);
+    timer_sc_proof_phase1.stop();
 
-    let start = Instant::now();
+    let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
     let (Az_claim, Bz_claim, Cz_claim) = (&poly_Az[0], &poly_Bz[0], &poly_Cz[0]);
     Az_claim.append_to_transcript(b"Az_claim", transcript);
     Bz_claim.append_to_transcript(b"Bz_claim", transcript);
@@ -196,7 +156,7 @@ impl R1CSProof {
     assert_eq!(evals_A.len(), evals_B.len());
     assert_eq!(evals_A.len(), evals_C.len());
     let evals_ABC = (0..evals_A.len())
-      .map(|i| r_A * evals_A[i] + r_B * evals_B[i] + r_C * evals_C[i])
+      .map(|i| &r_A * &evals_A[i] + &r_B * &evals_B[i] + &r_C * &evals_C[i])
       .collect::<Vec<Scalar>>();
 
     // another instance of the sum-check protocol
@@ -207,11 +167,9 @@ impl R1CSProof {
       &mut DensePolynomial::new(evals_ABC),
       transcript,
     );
+    timer_sc_proof_phase2.stop();
 
-    let duration = start.elapsed();
-    println!("Time elapsed for second sum-check phase is: {:?}", duration);
-
-    let start = Instant::now();
+    let timer_polyeval = Timer::new("polyeval");
     let eval_vars_at_ry = poly_vars.evaluate(&ry[1..].to_vec());
     let (proof_eval_vars_at_ry, comm_vars_at_ry) = PolyEvalProof::prove(
       &poly_vars,
@@ -222,9 +180,8 @@ impl R1CSProof {
       &gens,
       transcript,
     );
-    let duration = start.elapsed();
-    println!("Time elapsed for poly decommit is: {:?}", duration);
-
+    timer_polyeval.stop();
+    timer_prove.stop();
     (
       R1CSProof {
         comm_vars,
@@ -265,7 +222,7 @@ impl R1CSProof {
     // verify the first sum-check instance
     let (claim, rx) = self
       .sc_proof_phase1
-      .verify(Scalar::zero(), num_rounds_x, transcript)
+      .verify(Scalar::zero(), num_rounds_x, 3, transcript)
       .unwrap();
 
     // perform the intermediate sum-check test with claimed Az, Bz, and Cz
@@ -288,7 +245,7 @@ impl R1CSProof {
     // verify the joint claim with a sum-check protocol
     let (joint_claim_e, ry) = self
       .sc_proof_phase2
-      .verify(joint_claim, num_rounds_y, transcript)
+      .verify(joint_claim, num_rounds_y, 2, transcript)
       .unwrap();
 
     // verify Z(ry) proof against the initial commitment. TODO: verify c_eval = C(eval)
@@ -306,9 +263,8 @@ impl R1CSProof {
     let input_as_sparse_poly_entries = (0..input.len())
       .map(|i| SparsePolyEntry::new(i, input[i]))
       .collect::<Vec<SparsePolyEntry>>();
-
-    let poly_input = SparsePolynomial::new(n.log2(), input_as_sparse_poly_entries);
-    let poly_input_eval = poly_input.evaluate(&ry[1..].to_vec());
+    let poly_input_eval =
+      SparsePolynomial::new(n.log2(), input_as_sparse_poly_entries).evaluate(&ry[1..].to_vec());
 
     let eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;
 

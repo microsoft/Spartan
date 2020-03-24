@@ -4,9 +4,7 @@ use super::dense_mlpoly::EqPolynomial;
 use super::math::Math;
 use super::scalar::Scalar;
 use super::sumcheck::SumcheckInstanceProof;
-use super::transcript::{AppendToTranscript, ProofTranscript};
-use super::unipoly::CubicPoly;
-use super::unipoly::SumcheckProofPolyABI;
+use super::transcript::ProofTranscript;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -111,51 +109,59 @@ impl DotProductCircuit {
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LayerProof<T: SumcheckProofPolyABI + AppendToTranscript> {
-  pub proof: SumcheckInstanceProof<T>,
+pub struct LayerProof {
+  pub proof: SumcheckInstanceProof,
   pub claims: Vec<Scalar>,
 }
 
 #[allow(dead_code)]
-impl<T: SumcheckProofPolyABI + AppendToTranscript> LayerProof<T> {
+impl LayerProof {
   pub fn verify(
     &self,
     claim: Scalar,
     num_rounds: usize,
+    degree_bound: usize,
     transcript: &mut Transcript,
   ) -> (Scalar, Vec<Scalar>) {
-    self.proof.verify(claim, num_rounds, transcript).unwrap()
+    self
+      .proof
+      .verify(claim, num_rounds, degree_bound, transcript)
+      .unwrap()
   }
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
-pub struct LayerProofBatched<T: SumcheckProofPolyABI + AppendToTranscript> {
-  pub proof: SumcheckInstanceProof<T>,
+pub struct LayerProofBatched {
+  pub proof: SumcheckInstanceProof,
   pub claims_prod_left: Vec<Scalar>,
   pub claims_prod_right: Vec<Scalar>,
 }
 
 #[allow(dead_code)]
-impl<T: SumcheckProofPolyABI + AppendToTranscript> LayerProofBatched<T> {
+impl LayerProofBatched {
   pub fn verify(
     &self,
     claim: Scalar,
     num_rounds: usize,
+    degree_bound: usize,
     transcript: &mut Transcript,
   ) -> (Scalar, Vec<Scalar>) {
-    self.proof.verify(claim, num_rounds, transcript).unwrap()
+    self
+      .proof
+      .verify(claim, num_rounds, degree_bound, transcript)
+      .unwrap()
   }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProductCircuitEvalProof {
-  proof: Vec<LayerProof<CubicPoly>>,
+  proof: Vec<LayerProof>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ProductCircuitEvalProofBatched {
-  proof: Vec<LayerProofBatched<CubicPoly>>,
+  proof: Vec<LayerProofBatched>,
   claims_dotp: (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>),
 }
 
@@ -165,7 +171,7 @@ impl ProductCircuitEvalProof {
     circuit: &mut ProductCircuit,
     transcript: &mut Transcript,
   ) -> (Self, Scalar, Vec<Scalar>) {
-    let mut proof: Vec<LayerProof<CubicPoly>> = Vec::new();
+    let mut proof: Vec<LayerProof> = Vec::new();
     let num_layers = circuit.left_vec.len();
 
     let mut claim = circuit.evaluate();
@@ -181,7 +187,7 @@ impl ProductCircuitEvalProof {
                             poly_B_comp: &Scalar,
                             poly_C_comp: &Scalar|
        -> Scalar { poly_A_comp * poly_B_comp * poly_C_comp };
-      let (proof_prod, rand_prod, claims_prod) = SumcheckInstanceProof::<CubicPoly>::prove(
+      let (proof_prod, rand_prod, claims_prod) = SumcheckInstanceProof::prove_cubic(
         &claim,
         num_rounds_prod,
         &mut circuit.left_vec[layer_id],
@@ -223,7 +229,7 @@ impl ProductCircuitEvalProof {
     let mut num_rounds = 0;
     assert_eq!(self.proof.len(), num_layers);
     for i in 0..num_layers {
-      let (claim_last, rand_prod) = self.proof[i].verify(claim, num_rounds, transcript);
+      let (claim_last, rand_prod) = self.proof[i].verify(claim, num_rounds, 3, transcript);
 
       let claims_prod = &self.proof[i].claims;
       transcript.append_scalar(b"claim_prod_left", &claims_prod[0]);
@@ -260,7 +266,7 @@ impl ProductCircuitEvalProofBatched {
 
     let mut claims_dotp_final = (Vec::new(), Vec::new(), Vec::new());
 
-    let mut proof_layers: Vec<LayerProofBatched<CubicPoly>> = Vec::new();
+    let mut proof_layers: Vec<LayerProofBatched> = Vec::new();
     let num_layers = prod_circuit_vec[0].left_vec.len();
     let mut claims_to_verify = (0..prod_circuit_vec.len())
       .map(|i| prod_circuit_vec[i].evaluate())
@@ -324,16 +330,15 @@ impl ProductCircuitEvalProofBatched {
         .map(|i| claims_to_verify[i] * coeff_vec[i])
         .sum();
 
-      let (proof, rand_prod, claims_prod, claims_dotp) =
-        SumcheckInstanceProof::<CubicPoly>::prove_batched(
-          &claim,
-          num_rounds_prod,
-          poly_vec_par,
-          poly_vec_seq,
-          &coeff_vec,
-          comb_func_prod,
-          transcript,
-        );
+      let (proof, rand_prod, claims_prod, claims_dotp) = SumcheckInstanceProof::prove_cubic_batched(
+        &claim,
+        num_rounds_prod,
+        poly_vec_par,
+        poly_vec_seq,
+        &coeff_vec,
+        comb_func_prod,
+        transcript,
+      );
 
       let (claims_prod_left, claims_prod_right, _claims_eq) = claims_prod;
       for i in 0..prod_circuit_vec.len() {
@@ -406,7 +411,7 @@ impl ProductCircuitEvalProofBatched {
         .map(|i| claims_to_verify[i] * coeff_vec[i])
         .sum();
 
-      let (claim_last, rand_prod) = self.proof[i].verify(claim, num_rounds, transcript);
+      let (claim_last, rand_prod) = self.proof[i].verify(claim, num_rounds, 3, transcript);
 
       let claims_prod_left = &self.proof[i].claims_prod_left;
       let claims_prod_right = &self.proof[i].claims_prod_right;

@@ -8,19 +8,18 @@ extern crate merlin;
 extern crate rand;
 extern crate sha3;
 
-use libspartan::dense_mlpoly::{
-  DensePolynomial, EqPolynomial, PolyCommitmentBlinds, PolyCommitmentGens,
-};
+use libspartan::dense_mlpoly::{EqPolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
 use libspartan::math::Math;
 use libspartan::r1csinstance::R1CSInstance;
 use libspartan::r1csproof::R1CSProof;
+use libspartan::scalar::Scalar;
 use merlin::Transcript;
 use rand::rngs::OsRng;
 
 use criterion::*;
 
 fn prove_benchmark(c: &mut Criterion) {
-  for &s in [10, 12, 16, 20].iter() {
+  for &s in [10, 12, 16].iter() {
     let plot_config = PlotConfiguration::default().summary_scale(AxisScale::Logarithmic);
     let mut group = c.benchmark_group("r1cs_prove_benchmark");
     group.plot_config(plot_config);
@@ -33,12 +32,9 @@ fn prove_benchmark(c: &mut Criterion) {
     let m = n.square_root();
     assert_eq!(n, m * m);
 
-    let poly_vars = DensePolynomial::new(vars.clone());
-    let poly_vars_size = poly_vars.size();
-
-    let gens = PolyCommitmentGens::new(&poly_vars_size, b"test-m");
+    let gens = PolyCommitmentGens::new(vars.len().log2(), b"test-m");
     let mut csprng: OsRng = OsRng;
-    let blinds = PolyCommitmentBlinds::new(&poly_vars_size, &mut csprng);
+    let blinds = PolyCommitmentBlinds::new(vars.len().log2(), &mut csprng);
 
     let name = format!("r1cs_prove_{}", n);
     group.bench_function(&name, move |b| {
@@ -50,6 +46,7 @@ fn prove_benchmark(c: &mut Criterion) {
           black_box(&input),
           black_box(&blinds),
           black_box(&gens),
+          black_box(&Scalar::zero()),
           black_box(&mut prover_transcript),
         )
       });
@@ -72,16 +69,20 @@ fn verify_benchmark(c: &mut Criterion) {
     let m = n.square_root();
     assert_eq!(n, m * m);
 
-    let poly_vars = DensePolynomial::new(vars.clone());
-    let poly_vars_size = poly_vars.size();
-
-    let gens = PolyCommitmentGens::new(&poly_vars_size, b"test-m");
+    let gens = PolyCommitmentGens::new(s, b"test-m");
     let mut csprng: OsRng = OsRng;
-    let blinds = PolyCommitmentBlinds::new(&poly_vars_size, &mut csprng);
+    let blinds = PolyCommitmentBlinds::new(s, &mut csprng);
 
     let mut prover_transcript = Transcript::new(b"example");
-    let (proof, rx, ry) =
-      R1CSProof::prove(&inst, vars, &input, &blinds, &gens, &mut prover_transcript);
+    let (proof, rx, ry) = R1CSProof::prove(
+      &inst,
+      vars,
+      &input,
+      &blinds,
+      &gens,
+      &Scalar::zero(),
+      &mut prover_transcript,
+    );
 
     let eval_table_rx = EqPolynomial::new(rx.clone()).evals();
     let eval_table_ry = EqPolynomial::new(ry.clone()).evals();

@@ -2,39 +2,39 @@ use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use super::unipoly::SumcheckProofPolyABI;
-use super::unipoly::{CubicPoly, QuadPoly};
+use super::unipoly::{CompressedUniPoly, UniPoly};
 use itertools::izip;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct SumcheckInstanceProof<T: SumcheckProofPolyABI + AppendToTranscript> {
-  polys: Vec<T>,
+pub struct SumcheckInstanceProof {
+  compressed_polys: Vec<CompressedUniPoly>,
 }
 
-impl<T: SumcheckProofPolyABI + AppendToTranscript> SumcheckInstanceProof<T> {
-  pub fn new(polys: Vec<T>) -> SumcheckInstanceProof<T> {
-    SumcheckInstanceProof { polys }
+impl SumcheckInstanceProof {
+  pub fn new(compressed_polys: Vec<CompressedUniPoly>) -> SumcheckInstanceProof {
+    SumcheckInstanceProof { compressed_polys }
   }
 
   pub fn verify(
     &self,
     claim: Scalar,
     num_rounds: usize,
+    degree_bound: usize,
     transcript: &mut Transcript,
   ) -> Result<(Scalar, Vec<Scalar>), ProofVerifyError> {
     let mut e = claim;
     let mut r: Vec<Scalar> = Vec::new();
+
     for i in 0..num_rounds {
-      let poly = &self.polys[i];
+      let poly = self.compressed_polys[i].decompress(&e);
+
+      // verify degree bound
+      assert_eq!(poly.degree(), degree_bound);
 
       // check if G_k(0) + G_k(1) = e
-      /*if poly.eval_at_zero() + poly.eval_at_one() != e {
-        println!("Randomness so far {:?}", r);
-        assert_eq!(0, 1);
-        return Err(ProofVerifyError);
-      }*/
+      assert_eq!(poly.eval_at_zero() + poly.eval_at_one(), e);
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -45,7 +45,7 @@ impl<T: SumcheckProofPolyABI + AppendToTranscript> SumcheckInstanceProof<T> {
       r.push(r_i);
 
       // evaluate the claimed degree-ell polynomial at r_i
-      e = poly.evaluate(&r_i, &e);
+      e = poly.evaluate(&r_i);
     }
 
     Ok((e, r))
@@ -53,8 +53,8 @@ impl<T: SumcheckProofPolyABI + AppendToTranscript> SumcheckInstanceProof<T> {
 }
 
 #[allow(dead_code)]
-impl SumcheckInstanceProof<QuadPoly> {
-  pub fn prove<F>(
+impl SumcheckInstanceProof {
+  pub fn prove_quad<F>(
     claim: &Scalar,
     num_rounds: usize,
     poly_A: &mut DensePolynomial,
@@ -67,7 +67,7 @@ impl SumcheckInstanceProof<QuadPoly> {
   {
     let mut e = *claim;
     let mut r: Vec<Scalar> = Vec::new();
-    let mut quad_polys: Vec<QuadPoly> = Vec::new();
+    let mut quad_polys: Vec<CompressedUniPoly> = Vec::new();
     for _j in 0..num_rounds {
       let mut eval_point_0 = Scalar::zero();
       let mut eval_point_2 = Scalar::zero();
@@ -83,7 +83,8 @@ impl SumcheckInstanceProof<QuadPoly> {
         eval_point_2 = &eval_point_2 + comb_func(&poly_A_bound_point, &poly_B_bound_point);
       }
 
-      let poly = QuadPoly::new(eval_point_0, eval_point_2);
+      let evals = vec![eval_point_0, e - eval_point_0, eval_point_2];
+      let poly = UniPoly::from_evals(&evals);
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -94,8 +95,9 @@ impl SumcheckInstanceProof<QuadPoly> {
       // bound all tables to the verifier's challenege
       poly_A.bound_poly_var_top(&r_j);
       poly_B.bound_poly_var_top(&r_j);
-      e = poly.evaluate(&r_j, &e);
-      quad_polys.push(poly);
+
+      e = poly.evaluate(&r_j);
+      quad_polys.push(poly.compress());
     }
 
     (
@@ -104,11 +106,8 @@ impl SumcheckInstanceProof<QuadPoly> {
       vec![poly_A[0], poly_B[0]],
     )
   }
-}
 
-#[allow(dead_code)]
-impl SumcheckInstanceProof<CubicPoly> {
-  pub fn prove<F>(
+  pub fn prove_cubic<F>(
     claim: &Scalar,
     num_rounds: usize,
     poly_A: &mut DensePolynomial,
@@ -122,7 +121,7 @@ impl SumcheckInstanceProof<CubicPoly> {
   {
     let mut e = *claim;
     let mut r: Vec<Scalar> = Vec::new();
-    let mut cubic_polys: Vec<CubicPoly> = Vec::new();
+    let mut cubic_polys: Vec<CompressedUniPoly> = Vec::new();
     for _j in 0..num_rounds {
       let mut eval_point_0 = Scalar::zero();
       let mut eval_point_2 = Scalar::zero();
@@ -157,7 +156,8 @@ impl SumcheckInstanceProof<CubicPoly> {
           );
       }
 
-      let poly = CubicPoly::new(eval_point_0, eval_point_2, eval_point_3);
+      let evals = vec![eval_point_0, e - eval_point_0, eval_point_2, eval_point_3];
+      let poly = UniPoly::from_evals(&evals);
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -169,8 +169,8 @@ impl SumcheckInstanceProof<CubicPoly> {
       poly_A.bound_poly_var_top(&r_j);
       poly_B.bound_poly_var_top(&r_j);
       poly_C.bound_poly_var_top(&r_j);
-      e = poly.evaluate(&r_j, &e);
-      cubic_polys.push(poly);
+      e = poly.evaluate(&r_j);
+      cubic_polys.push(poly.compress());
     }
 
     (
@@ -180,7 +180,85 @@ impl SumcheckInstanceProof<CubicPoly> {
     )
   }
 
-  pub fn prove_batched<F>(
+  pub fn prove_cubic_with_additive_term<F>(
+    claim: &Scalar,
+    num_rounds: usize,
+    poly_A: &mut DensePolynomial,
+    poly_B: &mut DensePolynomial,
+    poly_C: &mut DensePolynomial,
+    poly_D: &mut DensePolynomial,
+    comb_func: F,
+    transcript: &mut Transcript,
+  ) -> (Self, Vec<Scalar>, Vec<Scalar>)
+  where
+    F: Fn(&Scalar, &Scalar, &Scalar, &Scalar) -> Scalar,
+  {
+    let mut e = *claim;
+    let mut r: Vec<Scalar> = Vec::new();
+    let mut cubic_polys: Vec<CompressedUniPoly> = Vec::new();
+    for _j in 0..num_rounds {
+      let mut eval_point_0 = Scalar::zero();
+      let mut eval_point_2 = Scalar::zero();
+      let mut eval_point_3 = Scalar::zero();
+
+      let len = poly_A.len() / 2;
+      for i in 0..len {
+        // eval 0: bound_func is A(low)
+        eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i], &poly_C[i], &poly_D[i]);
+
+        // eval 2: bound_func is -A(low) + 2*A(high)
+        let poly_A_bound_point = &poly_A[len + i] + &poly_A[len + i] - &poly_A[i];
+        let poly_B_bound_point = &poly_B[len + i] + &poly_B[len + i] - &poly_B[i];
+        let poly_C_bound_point = &poly_C[len + i] + &poly_C[len + i] - &poly_C[i];
+        let poly_D_bound_point = &poly_D[len + i] + &poly_D[len + i] - &poly_D[i];
+        eval_point_2 = &eval_point_2
+          + comb_func(
+            &poly_A_bound_point,
+            &poly_B_bound_point,
+            &poly_C_bound_point,
+            &poly_D_bound_point,
+          );
+
+        // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
+        let poly_A_bound_point = &poly_A_bound_point + &poly_A[len + i] - &poly_A[i];
+        let poly_B_bound_point = &poly_B_bound_point + &poly_B[len + i] - &poly_B[i];
+        let poly_C_bound_point = &poly_C_bound_point + &poly_C[len + i] - &poly_C[i];
+        let poly_D_bound_point = &poly_D_bound_point + &poly_D[len + i] - &poly_D[i];
+        eval_point_3 = &eval_point_3
+          + comb_func(
+            &poly_A_bound_point,
+            &poly_B_bound_point,
+            &poly_C_bound_point,
+            &poly_D_bound_point,
+          );
+      }
+
+      let evals = vec![eval_point_0, e - eval_point_0, eval_point_2, eval_point_3];
+      let poly = UniPoly::from_evals(&evals);
+
+      // append the prover's message to the transcript
+      poly.append_to_transcript(b"poly", transcript);
+
+      //derive the verifier's challenge for the next round
+      let r_j = transcript.challenge_scalar(b"challenge_nextround");
+      r.push(r_j);
+      // bound all tables to the verifier's challenege
+      poly_A.bound_poly_var_top(&r_j);
+      poly_B.bound_poly_var_top(&r_j);
+      poly_C.bound_poly_var_top(&r_j);
+      poly_D.bound_poly_var_top(&r_j);
+      e = poly.evaluate(&r_j);
+      cubic_polys.push(poly.compress());
+    }
+
+    (
+      SumcheckInstanceProof::new(cubic_polys),
+      r,
+      vec![poly_A[0], poly_B[0], poly_C[0], poly_D[0]],
+    )
+  }
+
+  pub fn prove_cubic_batched<F>(
     claim: &Scalar,
     num_rounds: usize,
     poly_vec_par: (
@@ -211,7 +289,7 @@ impl SumcheckInstanceProof<CubicPoly> {
     //let (poly_A_vec_seq, poly_B_vec_seq, poly_C_vec_seq) = poly_vec_seq;
     let mut e = *claim;
     let mut r: Vec<Scalar> = Vec::new();
-    let mut cubic_polys: Vec<CubicPoly> = Vec::new();
+    let mut cubic_polys: Vec<CompressedUniPoly> = Vec::new();
 
     for _j in 0..num_rounds {
       let mut evals: Vec<(Scalar, Scalar, Scalar)> = Vec::new();
@@ -293,7 +371,13 @@ impl SumcheckInstanceProof<CubicPoly> {
       let evals_combined_2 = (0..evals.len()).map(|i| evals[i].1 * coeffs[i]).sum();
       let evals_combined_3 = (0..evals.len()).map(|i| evals[i].2 * coeffs[i]).sum();
 
-      let poly = CubicPoly::new(evals_combined_0, evals_combined_2, evals_combined_3);
+      let evals = vec![
+        evals_combined_0,
+        e - evals_combined_0,
+        evals_combined_2,
+        evals_combined_3,
+      ];
+      let poly = UniPoly::from_evals(&evals);
 
       // append the prover's message to the transcript
       poly.append_to_transcript(b"poly", transcript);
@@ -319,8 +403,8 @@ impl SumcheckInstanceProof<CubicPoly> {
         poly_C.bound_poly_var_top(&r_j);
       }
 
-      e = poly.evaluate(&r_j, &e);
-      cubic_polys.push(poly);
+      e = poly.evaluate(&r_j);
+      cubic_polys.push(poly.compress());
     }
 
     let poly_A_par_final = (0..poly_A_vec_par.len())

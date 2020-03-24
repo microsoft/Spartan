@@ -1,3 +1,4 @@
+use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::scalar::Scalar;
@@ -6,6 +7,7 @@ use super::sparse_mlpoly::{
   SparseMatPolyCommitmentGens, SparseMatPolyEvalProof, SparseMatPolynomial,
   SparseMatPolynomialSize,
 };
+use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use rand::rngs::OsRng;
@@ -213,14 +215,14 @@ impl R1CSInstance {
     num_rows: usize,
     num_cols: usize,
     z: &Vec<Scalar>,
-  ) -> (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>) {
+  ) -> (DensePolynomial, DensePolynomial, DensePolynomial) {
     assert_eq!(num_rows, self.num_cons);
     assert_eq!(z.len(), num_cols);
     assert!(num_cols > self.num_vars);
     (
-      self.A.multiply_vec(num_rows, num_cols, z),
-      self.B.multiply_vec(num_rows, num_cols, z),
-      self.C.multiply_vec(num_rows, num_cols, z),
+      DensePolynomial::new(self.A.multiply_vec(num_rows, num_cols, z)),
+      DensePolynomial::new(self.B.multiply_vec(num_rows, num_cols, z)),
+      DensePolynomial::new(self.C.multiply_vec(num_rows, num_cols, z)),
     )
   }
 
@@ -285,6 +287,7 @@ impl R1CSEvalProof {
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
   ) -> R1CSEvalProof {
+    let timer = Timer::new("R1CSEvalProof::prove");
     let proof = SparseMatPolyEvalProof::prove(
       &decomm.dense,
       rx,
@@ -293,6 +296,7 @@ impl R1CSEvalProof {
       &gens.gens,
       transcript,
     );
+    timer.stop();
 
     R1CSEvalProof { proof }
   }

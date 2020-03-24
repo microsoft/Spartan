@@ -34,11 +34,10 @@ fn commit_benchmark(c: &mut Criterion) {
     assert_eq!(m * m, z.len()); // check if Z's size if a perfect square
 
     let poly = DensePolynomial::new(z);
-    let gens = PolyCommitmentGens::new(&poly.size(), b"test-m");
-    let blinds = PolyCommitmentBlinds::new(&poly.size(), &mut csprng);
+    let gens = PolyCommitmentGens::new(s, b"test-m");
     let name = format!("polycommit_commit_{}", n);
     group.bench_function(&name, move |b| {
-      b.iter(|| poly.commit(black_box(&blinds), black_box(&gens)));
+      b.iter(|| poly.commit(black_box(None), black_box(&gens)));
     });
     group.finish();
   }
@@ -93,15 +92,13 @@ fn evalproof_benchmark(c: &mut Criterion) {
 
     let poly = DensePolynomial::new(z);
 
-    let gens = PolyCommitmentGens::new(&poly.size(), b"test-m");
-    let blinds = PolyCommitmentBlinds::new(&poly.size(), &mut csprng);
+    let gens = PolyCommitmentGens::new(s, b"test-m");
 
     let mut r: Vec<Scalar> = Vec::new();
     for _ in 0..s {
       r.push(Scalar::random(&mut csprng));
     }
 
-    let poly_commitment = poly.commit(&blinds, &gens);
     let eval = poly.evaluate(&r);
 
     let name = format!("polycommit_evalproof_{}", n);
@@ -110,9 +107,10 @@ fn evalproof_benchmark(c: &mut Criterion) {
         let mut prover_transcript = Transcript::new(b"example");
         PolyEvalProof::prove(
           black_box(&poly),
-          black_box(&blinds),
+          black_box(None),
           black_box(&r),
-          black_box(eval),
+          black_box(&eval),
+          black_box(None),
           black_box(&gens),
           black_box(&mut prover_transcript),
         )
@@ -139,23 +137,24 @@ fn evalproofverify_benchmark(c: &mut Criterion) {
     assert_eq!(m * m, z.len()); // check if Z's size if a perfect square
 
     let poly = DensePolynomial::new(z);
-    let gens = PolyCommitmentGens::new(&poly.size(), b"test-m");
-    let blinds = PolyCommitmentBlinds::new(&poly.size(), &mut csprng);
+    let gens = PolyCommitmentGens::new(s, b"test-m");
+    let blinds = PolyCommitmentBlinds::new(s, &mut csprng);
 
     let mut r: Vec<Scalar> = Vec::new();
     for _ in 0..s {
       r.push(Scalar::random(&mut csprng));
     }
 
-    let poly_commitment = poly.commit(&blinds, &gens);
+    let poly_commitment = poly.commit(Some(&blinds), &gens);
     let eval = poly.evaluate(&r);
 
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, c_zr) = PolyEvalProof::prove(
       black_box(&poly),
-      black_box(&blinds),
+      black_box(Some(&blinds)),
       black_box(&r),
-      black_box(eval),
+      black_box(&eval),
+      black_box(None),
       black_box(&gens),
       black_box(&mut prover_transcript),
     );
@@ -168,7 +167,7 @@ fn evalproofverify_benchmark(c: &mut Criterion) {
           black_box(&gens),
           black_box(&mut verifier_transcript),
           black_box(&r),
-          black_box(c_zr),
+          black_box(&c_zr),
           black_box(&poly_commitment),
         )
       });

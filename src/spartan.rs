@@ -6,10 +6,10 @@ use super::r1csinstance::{
 };
 use super::r1csproof::R1CSProof;
 use super::scalar::Scalar;
+use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::time::Instant;
 
 #[cfg(test)]
 use super::dense_mlpoly::DensePolynomial;
@@ -79,35 +79,27 @@ impl SpartanProof {
       &blinds.blind_zr,
       transcript,
     );
+    let r1cs_sat_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_sat_proof).unwrap();
+    let msg_len_r1cs_sat_proof = format!("len_r1cs_sat_proof {:?}", r1cs_sat_proof_encoded.len());
+    Timer::print(&msg_len_r1cs_sat_proof);
 
     // We send evaluations of A, B, C at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
-    let start = Instant::now();
+    let timer_eval = Timer::new("eval_sparse_polys");
     let eval_table_rx = EqPolynomial::new(rx.clone()).evals();
     let eval_table_ry = EqPolynomial::new(ry.clone()).evals();
     let inst_evals = inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry);
-    let duration = start.elapsed();
-    println!(
-      "Evaluating with tables the three polynomials took {:?}",
-      duration
-    );
+    timer_eval.stop();
     // append the claim of evaluation
     inst_evals.append_to_transcript(b"r1cs_inst_evals", transcript);
 
     let r1cs_eval_proof =
       R1CSEvalProof::prove(decomm, &rx, &ry, &inst_evals, &gens.gens_r1cs, transcript);
 
-    let r1cs_sat_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_sat_proof).unwrap();
-    println!(
-      "Length of r1cs_sat_proof_encoded is: {:?}",
-      r1cs_sat_proof_encoded.len()
-    );
-
     let r1cs_eval_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_eval_proof).unwrap();
-    println!(
-      "Length of r1cs_eval_proof_encoded is: {:?}",
-      r1cs_eval_proof_encoded.len()
-    );
+    let msg_len_r1cs_eval_proof =
+      format!("len_r1cs_eval_proof {:?}", r1cs_eval_proof_encoded.len());
+    Timer::print(&msg_len_r1cs_eval_proof);
 
     SpartanProof {
       r1cs_sat_proof,
@@ -126,7 +118,7 @@ impl SpartanProof {
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(SpartanProof::protocol_name());
 
-    let start = Instant::now();
+    let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.len(), comm.get_num_inputs());
     let (rx, ry) = self
       .r1cs_sat_proof
@@ -139,10 +131,9 @@ impl SpartanProof {
         &gens.gens_z,
       )
       .unwrap();
-    let duration = start.elapsed();
-    println!("R1CS_sat_proof: Verifier took {:?}", duration);
+    timer_sat_proof.stop();
 
-    let start = Instant::now();
+    let timer_eval_proof = Timer::new("verify_eval_proof");
     self
       .inst_evals
       .append_to_transcript(b"r1cs_inst_evals", transcript);
@@ -157,8 +148,7 @@ impl SpartanProof {
         transcript
       )
       .is_ok());
-    let duration = start.elapsed();
-    println!("R1CS_eval_proof: Verifier took {:?}", duration);
+    timer_eval_proof.stop();
     Ok(())
   }
 }
