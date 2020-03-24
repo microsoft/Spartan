@@ -27,7 +27,9 @@ impl SumcheckInstanceProof {
     let mut e = claim;
     let mut r: Vec<Scalar> = Vec::new();
 
-    for i in 0..num_rounds {
+    // verify that there is a univariate polynomial for each round
+    assert_eq!(self.compressed_polys.len(), num_rounds);
+    for i in 0..self.compressed_polys.len() {
       let poly = self.compressed_polys[i].decompress(&e);
 
       // verify degree bound
