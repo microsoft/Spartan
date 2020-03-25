@@ -24,7 +24,7 @@ impl Timer {
       "{:indent$}{}{}",
       "",
       "* ",
-      label.red().bold(),
+      label.yellow().bold(),
       indent = 2 * CALL_DEPTH.fetch_add(0, Ordering::Relaxed)
     );
     Self {
@@ -51,10 +51,10 @@ impl Timer {
   pub fn print(msg: &str) {
     CALL_DEPTH.fetch_add(1, Ordering::Relaxed);
     println!(
-      "{:indent$}{}{:?}",
+      "{:indent$}{}{}",
       "",
       "* ",
-      msg,
+      msg.to_string().green().bold(),
       indent = 2 * CALL_DEPTH.fetch_add(0, Ordering::Relaxed)
     );
     CALL_DEPTH.fetch_sub(1, Ordering::Relaxed);

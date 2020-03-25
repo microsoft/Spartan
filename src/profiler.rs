@@ -16,7 +16,7 @@ use merlin::Transcript;
 use rand::rngs::OsRng;
 
 pub fn main() {
-  for &s in [10, 12, 16].iter() {
+  for &s in [12, 16].iter() {
     let num_vars = (s as usize).pow2();
     let num_cons = num_vars;
     let num_inputs = 10;
@@ -29,7 +29,7 @@ pub fn main() {
     let gens_r1cs = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs");
     let mut csprng: OsRng = OsRng;
 
-    Timer::print(&format!("Number of constraints {}", num_cons));
+    Timer::print(&format!("number_of_constraints {}", num_cons));
     // create a commitment to R1CSInstance
     let timer_encode = Timer::new("SpartanProof::encode");
     let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs);
@@ -65,5 +65,7 @@ pub fn main() {
       .verify(&comm, &input, &mut verifier_transcript, &gens)
       .is_ok());
     timer_verify.stop();
+
+    println!();
   }
 }
