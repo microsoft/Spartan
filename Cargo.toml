@@ -29,8 +29,8 @@ name = "libspartan"
 path = "src/lib.rs"
 
 [[bin]]
-name = "app"
-path = "src/app.rs"
+name = "profiler"
+path = "src/profiler.rs"
 
 [[bench]]
 name = "commitments"

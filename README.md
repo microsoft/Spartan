@@ -12,6 +12,12 @@ a zero-knowledge succinct non-interactive arguments of knowledge (zkSNARKs), a t
     cargo build --features "simd_backend" --release
 
 ## Performance
+    cargo build
+    # On a machine that supports avx2 or ifma instructions:
+    export RUSTFLAGS="-C target_cpu=native" 
+    cargo build --features "simd_backend,profile" --release
+    ./target/release/profiler
+
     cargo bench
     # On a machine that supports avx2 or ifma instructions:
     export RUSTFLAGS="-C target_cpu=native" 
