@@ -678,17 +678,12 @@ impl PolyEvalNetwork {
   pub fn new(
     dense: &MultiSparseMatPolynomialAsDense,
     derefs: &Derefs,
-    rx: &Vec<Scalar>,
-    ry: &Vec<Scalar>,
-    eval_table_rx: &Vec<Scalar>,
-    eval_table_ry: &Vec<Scalar>,
+    mem_rx: &Vec<Scalar>,
+    mem_ry: &Vec<Scalar>,
     r_mem_check: &(Scalar, Scalar),
   ) -> Self {
-    assert_eq!(rx.len().pow2(), eval_table_rx.len());
-    assert_eq!(ry.len().pow2(), eval_table_ry.len());
-
-    let row_layers = Layers::new(eval_table_rx, &dense.row, &derefs.row_ops_val, r_mem_check);
-    let col_layers = Layers::new(eval_table_ry, &dense.col, &derefs.col_ops_val, r_mem_check);
+    let row_layers = Layers::new(mem_rx, &dense.row, &derefs.row_ops_val, r_mem_check);
+    let col_layers = Layers::new(mem_ry, &dense.col, &derefs.col_ops_val, r_mem_check);
 
     PolyEvalNetwork {
       row_layers,
@@ -1388,16 +1383,11 @@ impl PolyEvalNetworkProof {
     transcript.append_protocol_name(PolyEvalNetworkProof::protocol_name());
 
     let num_instances = evals.len();
-
     let (r_hash, r_multiset_check) = r_mem_check;
 
     let num_ops = nz.next_power_of_two();
-
-    let rx_len = rx.len();
-    let ry_len = ry.len();
-
-    let num_cells = rx_len.pow2();
-    assert_eq!(rx_len, ry_len);
+    let num_cells = rx.len().pow2();
+    assert_eq!(rx.len(), ry.len());
 
     let (claims_mem, rand_mem, mut claims_ops, claims_dotp, rand_ops) = self
       .proof_prod_layer
@@ -1484,42 +1474,50 @@ impl SparseMatPolyEvalProof {
   ) -> SparseMatPolyEvalProof {
     transcript.append_protocol_name(SparseMatPolyEvalProof::protocol_name());
 
-    // ensure there is at least one eval for each polynomial in dense
+    // ensure there is one eval for each polynomial in dense
     assert_eq!(evals.len(), dense.batch_size);
 
-    // equalize the lengths of rx and ry
-    let (rx_ext, ry_ext) = SparseMatPolyEvalProof::equalize(rx, ry);
-    let eval_table_rx = EqPolynomial::new(rx_ext.clone()).evals();
-    let eval_table_ry = EqPolynomial::new(ry_ext.clone()).evals();
+    let (mem_rx, mem_ry) = {
+      // equalize the lengths of rx and ry
+      let (rx_ext, ry_ext) = SparseMatPolyEvalProof::equalize(rx, ry);
+      let poly_rx = EqPolynomial::new(rx_ext).evals();
+      let poly_ry = EqPolynomial::new(ry_ext).evals();
+      (poly_rx, poly_ry)
+    };
 
-    let derefs = dense.deref(&eval_table_rx, &eval_table_ry);
+    let derefs = dense.deref(&mem_rx, &mem_ry);
 
-    // commit to non-deterministic choices of the prover i.e., eval_cicruit.poly_row_deref and eval_cicruit.poly_col_deref
+    // commit to non-deterministic choices of the prover
     let timer_commit = Timer::new("commit_nondet_witness");
-    let comm_derefs = derefs.commit(&gens.gens_derefs);
-    comm_derefs.append_to_transcript(b"comm_poly_row_col_ops_val", transcript);
+    let comm_derefs = {
+      let comm = derefs.commit(&gens.gens_derefs);
+      comm.append_to_transcript(b"comm_poly_row_col_ops_val", transcript);
+      comm
+    };
     timer_commit.stop();
 
-    // produce a random element from the transcript for hash function
-    let r_mem_check = transcript.challenge_vector(b"challenge_r_hash", 2);
+    let poly_eval_network_proof = {
+      // produce a random element from the transcript for hash function
+      let r_mem_check = transcript.challenge_vector(b"challenge_r_hash", 2);
 
-    // build a network to evaluate the sparse polynomial
-    let timer_build_network = Timer::new("build_layered_network");
-    let mut net = PolyEvalNetwork::new(
-      dense,
-      &derefs,
-      &rx_ext,
-      &ry_ext,
-      &eval_table_rx,
-      &eval_table_ry,
-      &(r_mem_check[0], r_mem_check[1]),
-    );
-    timer_build_network.stop();
+      // build a network to evaluate the sparse polynomial
+      let timer_build_network = Timer::new("build_layered_network");
+      let mut net = PolyEvalNetwork::new(
+        dense,
+        &derefs,
+        &mem_rx,
+        &mem_ry,
+        &(r_mem_check[0], r_mem_check[1]),
+      );
+      timer_build_network.stop();
 
-    let timer_eval_network = Timer::new("evalproof_layered_network");
-    let poly_eval_network_proof =
-      PolyEvalNetworkProof::prove(&mut net, &dense, &derefs, evals, gens, transcript);
-    timer_eval_network.stop();
+      let timer_eval_network = Timer::new("evalproof_layered_network");
+      let poly_eval_network_proof =
+        PolyEvalNetworkProof::prove(&mut net, &dense, &derefs, evals, gens, transcript);
+      timer_eval_network.stop();
+
+      poly_eval_network_proof
+    };
 
     SparseMatPolyEvalProof {
       comm_derefs,
@@ -1541,8 +1539,7 @@ impl SparseMatPolyEvalProof {
     // equalize the lengths of rx and ry
     let (rx_ext, ry_ext) = SparseMatPolyEvalProof::equalize(rx, ry);
 
-    let nz = comm.num_ops;
-    let num_mem_cells = comm.num_mem_cells;
+    let (nz, num_mem_cells) = (comm.num_ops, comm.num_mem_cells);
     assert_eq!(rx_ext.len().pow2(), num_mem_cells);
 
     // add claims to transcript and obtain challenges for randomized mem-check circuit

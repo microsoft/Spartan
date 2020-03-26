@@ -7,16 +7,16 @@ extern crate rand;
 
 use flate2::{write::ZlibEncoder, Compression};
 use libspartan::dense_mlpoly::{DensePolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
+use libspartan::math::Math;
 use libspartan::r1csinstance::{R1CSCommitmentGens, R1CSInstance};
 use libspartan::scalar::Scalar;
 use libspartan::spartan::{SpartanBlinds, SpartanGens, SpartanProof};
 use libspartan::timer::Timer;
-use libspartan::math::Math;
 use merlin::Transcript;
 use rand::rngs::OsRng;
 
 pub fn main() {
-  for &s in [12, 16].iter() {
+  for &s in [12, 16, 20].iter() {
     let num_vars = (s as usize).pow2();
     let num_cons = num_vars;
     let num_inputs = 10;
