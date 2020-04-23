@@ -6,14 +6,13 @@ extern crate merlin;
 extern crate rand;
 
 use flate2::{write::ZlibEncoder, Compression};
-use libspartan::dense_mlpoly::{DensePolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
 use libspartan::math::Math;
 use libspartan::r1csinstance::{R1CSCommitmentGens, R1CSInstance};
+use libspartan::r1csproof::{R1CSBlinds, R1CSGens};
 use libspartan::scalar::Scalar;
 use libspartan::spartan::{SpartanBlinds, SpartanGens, SpartanProof};
 use libspartan::timer::Timer;
 use merlin::Transcript;
-use rand::rngs::OsRng;
 
 pub fn main() {
   for &s in [12, 16, 20].iter() {
@@ -22,23 +21,21 @@ pub fn main() {
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
-    let poly_vars = DensePolynomial::new(vars.clone());
     let r1cs_size = inst.size();
-
-    let gens_z = PolyCommitmentGens::new(poly_vars.get_num_vars(), b"gens_z");
-    let gens_r1cs = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs");
-    let mut csprng: OsRng = OsRng;
+    let gens_r1cs_eval = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs_eval");
 
     Timer::print(&format!("number_of_constraints {}", num_cons));
     // create a commitment to R1CSInstance
     let timer_encode = Timer::new("SpartanProof::encode");
-    let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs);
+    let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
     timer_encode.stop();
 
+    let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
+    let gens = SpartanGens::new(gens_r1cs_sat, gens_r1cs_eval);
+
     // produce a proof of satisfiability
-    let blinds_z = PolyCommitmentBlinds::new(poly_vars.get_num_vars(), &mut csprng);
-    let gens = SpartanGens::new(gens_z, gens_r1cs);
-    let blinds = SpartanBlinds::new(blinds_z, Scalar::one());
+    let blinds_r1cs_sat = R1CSBlinds::new(num_cons, num_vars);
+    let blinds = SpartanBlinds::new(blinds_r1cs_sat, Scalar::one());
 
     let timer_prove = Timer::new("SpartanProof::prove");
     let mut prover_transcript = Transcript::new(b"example");

@@ -8,7 +8,7 @@ use curve25519_dalek::ristretto::CompressedRistretto;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct KnowledgeProof {
   alpha: CompressedRistretto,
   z1: Scalar,
@@ -20,14 +20,13 @@ impl KnowledgeProof {
     b"knowledge proof"
   }
 
-  #[allow(dead_code)]
-  fn prove(
+  pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    x: Scalar,
-    r: Scalar,
-    t1: Scalar,
-    t2: Scalar,
+    x: &Scalar,
+    r: &Scalar,
+    t1: &Scalar,
+    t2: &Scalar,
   ) -> (KnowledgeProof, CompressedRistretto) {
     transcript.append_protocol_name(KnowledgeProof::protocol_name());
 
@@ -46,12 +45,11 @@ impl KnowledgeProof {
     (KnowledgeProof { alpha, z1, z2 }, C)
   }
 
-  #[allow(dead_code)]
-  fn verify(
+  pub fn verify(
     &self,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    C: CompressedRistretto,
+    C: &CompressedRistretto,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(KnowledgeProof::protocol_name());
     transcript.append_point(b"C", &C);
@@ -75,8 +73,8 @@ impl KnowledgeProof {
   }
 }
 
-#[derive(Debug)]
-struct EqualityProof {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct EqualityProof {
   alpha: CompressedRistretto,
   z: Scalar,
 }
@@ -86,15 +84,14 @@ impl EqualityProof {
     b"equality proof"
   }
 
-  #[allow(dead_code)]
-  fn prove(
+  pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    v1: Scalar,
-    s1: Scalar,
-    v2: Scalar,
-    s2: Scalar,
-    r: Scalar,
+    v1: &Scalar,
+    s1: &Scalar,
+    v2: &Scalar,
+    s2: &Scalar,
+    r: &Scalar,
   ) -> (EqualityProof, CompressedRistretto, CompressedRistretto) {
     transcript.append_protocol_name(EqualityProof::protocol_name());
 
@@ -114,13 +111,12 @@ impl EqualityProof {
     (EqualityProof { alpha, z }, C1, C2)
   }
 
-  #[allow(dead_code)]
-  fn verify(
+  pub fn verify(
     &self,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    C1: CompressedRistretto,
-    C2: CompressedRistretto,
+    C1: &CompressedRistretto,
+    C2: &CompressedRistretto,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(EqualityProof::protocol_name());
     transcript.append_point(b"C1", &C1);
@@ -142,8 +138,8 @@ impl EqualityProof {
   }
 }
 
-#[derive(Debug)]
-struct ProductProof {
+#[derive(Serialize, Deserialize, Debug)]
+pub struct ProductProof {
   alpha: CompressedRistretto,
   beta: CompressedRistretto,
   delta: CompressedRistretto,
@@ -155,21 +151,20 @@ impl ProductProof {
     b"product proof"
   }
 
-  #[allow(dead_code)]
-  fn prove(
+  pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    x: Scalar,
-    rX: Scalar,
-    y: Scalar,
-    rY: Scalar,
-    z: Scalar,
-    rZ: Scalar,
-    b1: Scalar,
-    b2: Scalar,
-    b3: Scalar,
-    b4: Scalar,
-    b5: Scalar,
+    x: &Scalar,
+    rX: &Scalar,
+    y: &Scalar,
+    rY: &Scalar,
+    z: &Scalar,
+    rZ: &Scalar,
+    b1: &Scalar,
+    b2: &Scalar,
+    b3: &Scalar,
+    b4: &Scalar,
+    b5: &Scalar,
   ) -> (
     ProductProof,
     CompressedRistretto,
@@ -224,12 +219,12 @@ impl ProductProof {
   }
 
   fn check_equality(
-    P: CompressedRistretto,
-    X: CompressedRistretto,
-    c: Scalar,
+    P: &CompressedRistretto,
+    X: &CompressedRistretto,
+    c: &Scalar,
     gens_n: &MultiCommitGens,
-    z1: Scalar,
-    z2: Scalar,
+    z1: &Scalar,
+    z2: &Scalar,
   ) -> bool {
     let lhs = (P.decompress().unwrap() + Scalar::decompress_scalar(&c) * X.decompress().unwrap())
       .compress();
@@ -242,14 +237,13 @@ impl ProductProof {
     }
   }
 
-  #[allow(dead_code)]
-  fn verify(
+  pub fn verify(
     &self,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    X: CompressedRistretto,
-    Y: CompressedRistretto,
-    Z: CompressedRistretto,
+    X: &CompressedRistretto,
+    Y: &CompressedRistretto,
+    Z: &CompressedRistretto,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(ProductProof::protocol_name());
 
@@ -268,19 +262,19 @@ impl ProductProof {
 
     let c = transcript.challenge_scalar(b"c");
 
-    if ProductProof::check_equality(self.alpha, X, c, &gens_n, z1, z2)
-      && ProductProof::check_equality(self.beta, Y, c, &gens_n, z3, z4)
+    if ProductProof::check_equality(&self.alpha, &X, &c, &gens_n, &z1, &z2)
+      && ProductProof::check_equality(&self.beta, &Y, &c, &gens_n, &z3, &z4)
       && ProductProof::check_equality(
-        self.delta,
-        Z,
-        c,
+        &self.delta,
+        &Z,
+        &c,
         &MultiCommitGens {
           n: 1,
           G: vec![X.decompress().unwrap()],
           h: gens_n.h,
         },
-        z3,
-        z5,
+        &z3,
+        &z5,
       )
     {
       Ok(())
@@ -578,11 +572,11 @@ mod tests {
 
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, committed_value) =
-      KnowledgeProof::prove(&gens_1, &mut prover_transcript, x, r, t1, t2);
+      KnowledgeProof::prove(&gens_1, &mut prover_transcript, &x, &r, &t1, &t2);
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
-      .verify(&gens_1, &mut verifier_transcript, committed_value)
+      .verify(&gens_1, &mut verifier_transcript, &committed_value)
       .is_ok());
   }
 
@@ -598,11 +592,12 @@ mod tests {
     let r = Scalar::random(&mut csprng);
 
     let mut prover_transcript = Transcript::new(b"example");
-    let (proof, C1, C2) = EqualityProof::prove(&gens_1, &mut prover_transcript, v1, s1, v2, s2, r);
+    let (proof, C1, C2) =
+      EqualityProof::prove(&gens_1, &mut prover_transcript, &v1, &s1, &v2, &s2, &r);
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
-      .verify(&gens_1, &mut verifier_transcript, C1, C2)
+      .verify(&gens_1, &mut verifier_transcript, &C1, &C2)
       .is_ok());
   }
 
@@ -627,22 +622,22 @@ mod tests {
     let (proof, X, Y, Z) = ProductProof::prove(
       &gens_1,
       &mut prover_transcript,
-      x,
-      rX,
-      y,
-      rY,
-      z,
-      rZ,
-      b1,
-      b2,
-      b3,
-      b4,
-      b5,
+      &x,
+      &rX,
+      &y,
+      &rY,
+      &z,
+      &rZ,
+      &b1,
+      &b2,
+      &b3,
+      &b4,
+      &b5,
     );
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
-      .verify(&gens_1, &mut verifier_transcript, X, Y, Z)
+      .verify(&gens_1, &mut verifier_transcript, &X, &Y, &Z)
       .is_ok());
   }
 

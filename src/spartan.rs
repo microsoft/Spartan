@@ -1,40 +1,41 @@
-use super::dense_mlpoly::{EqPolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
+use super::dense_mlpoly::EqPolynomial;
 use super::errors::ProofVerifyError;
 use super::r1csinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
   R1CSInstanceEvals,
 };
-use super::r1csproof::R1CSProof;
+use super::r1csproof::{R1CSBlinds, R1CSGens, R1CSProof};
 use super::scalar::Scalar;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[cfg(test)]
-use super::dense_mlpoly::DensePolynomial;
-#[cfg(test)]
-use super::math::Math;
-
 pub struct SpartanGens {
-  gens_z: PolyCommitmentGens,
-  gens_r1cs: R1CSCommitmentGens,
+  gens_r1cs_sat: R1CSGens,
+  gens_r1cs_eval: R1CSCommitmentGens,
 }
 
 impl SpartanGens {
-  pub fn new(gens_z: PolyCommitmentGens, gens_r1cs: R1CSCommitmentGens) -> SpartanGens {
-    SpartanGens { gens_z, gens_r1cs }
+  pub fn new(gens_r1cs_sat: R1CSGens, gens_r1cs_eval: R1CSCommitmentGens) -> SpartanGens {
+    SpartanGens {
+      gens_r1cs_sat,
+      gens_r1cs_eval,
+    }
   }
 }
 
 pub struct SpartanBlinds {
-  blinds_z: PolyCommitmentBlinds,
+  blinds_r1cs_sat: R1CSBlinds,
   blind_zr: Scalar,
 }
 
 impl SpartanBlinds {
-  pub fn new(blinds_z: PolyCommitmentBlinds, blind_zr: Scalar) -> SpartanBlinds {
-    SpartanBlinds { blinds_z, blind_zr }
+  pub fn new(blinds_r1cs_sat: R1CSBlinds, blind_zr: Scalar) -> SpartanBlinds {
+    SpartanBlinds {
+      blinds_r1cs_sat,
+      blind_zr,
+    }
   }
 }
 
@@ -74,8 +75,8 @@ impl SpartanProof {
       inst,
       vars,
       input,
-      &blinds.blinds_z,
-      &gens.gens_z,
+      &blinds.blinds_r1cs_sat,
+      &gens.gens_r1cs_sat,
       &blinds.blind_zr,
       transcript,
     );
@@ -93,8 +94,14 @@ impl SpartanProof {
     // append the claim of evaluation
     inst_evals.append_to_transcript(b"r1cs_inst_evals", transcript);
 
-    let r1cs_eval_proof =
-      R1CSEvalProof::prove(decomm, &rx, &ry, &inst_evals, &gens.gens_r1cs, transcript);
+    let r1cs_eval_proof = R1CSEvalProof::prove(
+      decomm,
+      &rx,
+      &ry,
+      &inst_evals,
+      &gens.gens_r1cs_eval,
+      transcript,
+    );
 
     let r1cs_eval_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_eval_proof).unwrap();
     let msg_len_r1cs_eval_proof =
@@ -128,7 +135,7 @@ impl SpartanProof {
         input,
         &self.inst_evals,
         transcript,
-        &gens.gens_z,
+        &gens.gens_r1cs_sat,
       )
       .unwrap();
     timer_sat_proof.stop();
@@ -144,7 +151,7 @@ impl SpartanProof {
         &rx,
         &ry,
         &self.inst_evals,
-        &gens.gens_r1cs,
+        &gens.gens_r1cs_eval,
         transcript
       )
       .is_ok());
@@ -156,8 +163,6 @@ impl SpartanProof {
 mod tests {
   #[cfg(test)]
   use super::*;
-  #[cfg(test)]
-  use rand::rngs::OsRng;
 
   #[allow(dead_code)]
   #[test]
@@ -166,27 +171,19 @@ mod tests {
     let num_cons = num_vars;
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    let n = inst.get_num_vars();
-    let m = n.square_root();
-    assert_eq!(n, m * m);
 
-    let poly_vars = DensePolynomial::new(vars.clone());
     let r1cs_size = inst.size();
-
-    let gens_z = PolyCommitmentGens::new(poly_vars.get_num_vars(), b"gens_z");
-    let gens_r1cs = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs");
+    let gens_r1cs_eval = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs_eval");
 
     // create a commitment to R1CSInstance
-    let mut csprng: OsRng = OsRng;
-    let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs);
+    let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
+
+    let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
+    let gens = SpartanGens::new(gens_r1cs_sat, gens_r1cs_eval);
 
     // produce a proof of satisfiability
-    let blinds_z = PolyCommitmentBlinds::new(poly_vars.get_num_vars(), &mut csprng);
-    let gens = SpartanGens { gens_z, gens_r1cs };
-    let blinds = SpartanBlinds {
-      blinds_z,
-      blind_zr: Scalar::one(),
-    };
+    let blinds_r1cs_sat = R1CSBlinds::new(num_cons, num_vars);
+    let blinds = SpartanBlinds::new(blinds_r1cs_sat, Scalar::one());
 
     let mut prover_transcript = Transcript::new(b"example");
     let proof = SpartanProof::prove(

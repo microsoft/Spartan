@@ -8,13 +8,12 @@ extern crate merlin;
 extern crate rand;
 extern crate sha3;
 
-use libspartan::dense_mlpoly::{PolyCommitmentBlinds, PolyCommitmentGens};
 use libspartan::math::Math;
 use libspartan::r1csinstance::{R1CSCommitmentGens, R1CSInstance};
+use libspartan::r1csproof::{R1CSBlinds, R1CSGens};
 use libspartan::scalar::Scalar;
 use libspartan::spartan::{SpartanBlinds, SpartanGens, SpartanProof};
 use merlin::Transcript;
-use rand::rngs::OsRng;
 
 use criterion::*;
 
@@ -54,19 +53,20 @@ fn prove_benchmark(c: &mut Criterion) {
     let num_vars = s.pow2();
     let num_cons = num_vars;
     let num_inputs = 10;
+
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
     let n = inst.get_num_vars();
-    let m = n.square_root();
-    assert_eq!(n, m * m);
-    let r1cs_size = inst.size();
-    let gens_z = PolyCommitmentGens::new(s, b"gens_z");
-    let gens_r1cs = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs");
-    let mut csprng: OsRng = OsRng;
-    let blinds_z = PolyCommitmentBlinds::new(vars.len().log2(), &mut csprng);
-    let blinds = SpartanBlinds::new(blinds_z, Scalar::one());
 
-    let (_comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs);
-    let gens = SpartanGens::new(gens_z, gens_r1cs);
+    let r1cs_size = inst.size();
+    let gens_r1cs_eval = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs_eval");
+    let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
+
+    // produce a proof of satisfiability
+    let blinds_r1cs_sat = R1CSBlinds::new(num_cons, num_vars);
+    let blinds = SpartanBlinds::new(blinds_r1cs_sat, Scalar::one());
+
+    let (_comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
+    let gens = SpartanGens::new(gens_r1cs_sat, gens_r1cs_eval);
 
     let name = format!("spartan_prove_{}", n);
     group.bench_function(&name, move |b| {
@@ -98,17 +98,21 @@ fn verify_benchmark(c: &mut Criterion) {
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
     let n = inst.get_num_vars();
-    let m = n.square_root();
-    assert_eq!(n, m * m);
-    let r1cs_size = inst.size();
-    let gens_z = PolyCommitmentGens::new(s, b"gens_z");
-    let gens_r1cs = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs");
-    let mut csprng: OsRng = OsRng;
-    let blinds_z = PolyCommitmentBlinds::new(vars.len().log2(), &mut csprng);
-    let blinds = SpartanBlinds::new(blinds_z, Scalar::one());
 
-    let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs);
-    let gens = SpartanGens::new(gens_z, gens_r1cs);
+    let r1cs_size = inst.size();
+    let gens_r1cs_eval = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs_eval");
+
+    // create a commitment to R1CSInstance
+    let (comm, _decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
+
+    let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
+
+    // produce a proof of satisfiability
+    let blinds_r1cs_sat = R1CSBlinds::new(num_cons, num_vars);
+    let blinds = SpartanBlinds::new(blinds_r1cs_sat, Scalar::one());
+
+    let (_comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
+    let gens = SpartanGens::new(gens_r1cs_sat, gens_r1cs_eval);
 
     let mut prover_transcript = Transcript::new(b"example");
     let proof = SpartanProof::prove(

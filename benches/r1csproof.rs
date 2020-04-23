@@ -11,7 +11,7 @@ extern crate sha3;
 use libspartan::dense_mlpoly::{EqPolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
 use libspartan::math::Math;
 use libspartan::r1csinstance::R1CSInstance;
-use libspartan::r1csproof::R1CSProof;
+use libspartan::r1csproof::{R1CSBlinds, R1CSGens, R1CSProof};
 use libspartan::scalar::Scalar;
 use merlin::Transcript;
 use rand::rngs::OsRng;
@@ -32,9 +32,8 @@ fn prove_benchmark(c: &mut Criterion) {
     let m = n.square_root();
     assert_eq!(n, m * m);
 
-    let gens = PolyCommitmentGens::new(vars.len().log2(), b"test-m");
-    let mut csprng: OsRng = OsRng;
-    let blinds = PolyCommitmentBlinds::new(vars.len().log2(), &mut csprng);
+    let gens = R1CSGens::new(num_cons, num_vars, b"test-m");
+    let blinds = R1CSBlinds::new(num_cons, num_vars);
 
     let name = format!("r1cs_prove_{}", n);
     group.bench_function(&name, move |b| {
@@ -69,9 +68,8 @@ fn verify_benchmark(c: &mut Criterion) {
     let m = n.square_root();
     assert_eq!(n, m * m);
 
-    let gens = PolyCommitmentGens::new(s, b"test-m");
-    let mut csprng: OsRng = OsRng;
-    let blinds = PolyCommitmentBlinds::new(s, &mut csprng);
+    let gens = R1CSGens::new(num_cons, num_vars, b"test-m");
+    let blinds = R1CSBlinds::new(num_cons, num_vars);
 
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, rx, ry) = R1CSProof::prove(

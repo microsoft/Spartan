@@ -22,7 +22,7 @@ pub struct DensePolynomial {
 }
 
 pub struct PolyCommitmentGens {
-  gens: DotProductProofGens,
+  pub gens: DotProductProofGens,
 }
 
 impl PolyCommitmentGens {

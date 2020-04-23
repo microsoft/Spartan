@@ -52,6 +52,10 @@ harness = false
 name = "spartan"
 harness = false
 
+[[bench]]
+name = "sumcheck"
+harness = false
+
 [features]
 simd_backend = ["curve25519-dalek/simd_backend"]
 rayon_par = []

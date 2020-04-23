@@ -1,5 +1,7 @@
+use super::commitments::{Commitments, MultiCommitGens};
 use super::scalar::{Scalar, ScalarFromPrimitives};
 use super::transcript::{AppendToTranscript, ProofTranscript};
+use curve25519_dalek::ristretto::RistrettoPoint;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -55,6 +57,10 @@ impl UniPoly {
     self.coeffs.len() - 1
   }
 
+  pub fn as_vec(&self) -> Vec<Scalar> {
+    self.coeffs.clone()
+  }
+
   pub fn eval_at_zero(&self) -> Scalar {
     self.coeffs[0]
   }
@@ -79,6 +85,10 @@ impl UniPoly {
     CompressedUniPoly {
       coeffs_except_linear_term,
     }
+  }
+
+  pub fn commit(&self, gens: &MultiCommitGens, blind: &Scalar) -> RistrettoPoint {
+    self.coeffs.commit(blind, gens)
   }
 }
 
