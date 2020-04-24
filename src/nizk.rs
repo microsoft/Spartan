@@ -293,7 +293,6 @@ pub struct DotProductProof {
   z_beta: Scalar,
 }
 
-#[allow(dead_code)]
 impl DotProductProof {
   fn protocol_name() -> &'static [u8] {
     b"dot product proof"
@@ -421,7 +420,6 @@ pub struct DotProductProofLog {
   z2: Scalar,
 }
 
-#[allow(dead_code)]
 impl DotProductProofLog {
   fn protocol_name() -> &'static [u8] {
     b"dot product proof (log)"

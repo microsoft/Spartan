@@ -1,4 +1,3 @@
-#[allow(dead_code)]
 use super::dense_mlpoly::DensePolynomial;
 use super::dense_mlpoly::{
   EqPolynomial, IdentityPolynomial, PolyCommitment, PolyCommitmentGens, PolyEvalProof,
@@ -1452,7 +1451,6 @@ pub struct SparseMatPolyEvalProof {
   poly_eval_network_proof: PolyEvalNetworkProof,
 }
 
-#[allow(dead_code)]
 impl SparseMatPolyEvalProof {
   fn protocol_name() -> &'static [u8] {
     b"Sparse polynomial evaluation proof"

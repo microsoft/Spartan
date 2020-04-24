@@ -46,7 +46,6 @@ pub struct SpartanProof {
   r1cs_eval_proof: R1CSEvalProof,
 }
 
-#[allow(dead_code)]
 impl SpartanProof {
   fn protocol_name() -> &'static [u8] {
     b"Spartan proof"
@@ -164,7 +163,6 @@ mod tests {
   #[cfg(test)]
   use super::*;
 
-  #[allow(dead_code)]
   #[test]
   pub fn check_spartan_proof() {
     let num_vars = 256;

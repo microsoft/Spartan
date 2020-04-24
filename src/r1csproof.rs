@@ -8,9 +8,7 @@ use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
 use super::r1csinstance::{R1CSInstance, R1CSInstanceEvals};
 use super::scalar::{Scalar, ScalarBytes, ScalarBytesFromScalar};
-use super::sparse_mlpoly::{
-  SparseMatEntry, SparseMatPolynomial, SparsePolyEntry, SparsePolynomial,
-};
+use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::sumcheck::ZKSumcheckInstanceProof;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
@@ -20,6 +18,9 @@ use merlin::Transcript;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::iter;
+
+#[cfg(test)]
+use super::sparse_mlpoly::{SparseMatEntry, SparseMatPolynomial};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct R1CSProof {
@@ -122,7 +123,6 @@ impl R1CSBlinds {
   }
 }
 
-#[allow(dead_code)]
 impl R1CSProof {
   fn prove_phase_one(
     num_rounds: usize,
@@ -580,9 +580,10 @@ impl R1CSProof {
 }
 
 mod tests {
+  #[cfg(test)]
   use super::*;
 
-  #[allow(dead_code)]
+  #[cfg(test)]
   fn produce_tiny_r1cs() -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
     // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
     // rounded to the nearest power of two

@@ -27,7 +27,6 @@ impl BulletReductionProof {
   ///
   /// The lengths of the vectors must all be the same, and must all be
   /// either 0 or a power of 2.
-  #[allow(dead_code)]
   pub fn prove(
     transcript: &mut Transcript,
     Q: &RistrettoPoint,
@@ -212,7 +211,6 @@ impl BulletReductionProof {
   /// but for efficiency the actual protocols would use `verification_scalars`
   /// method to combine inner product verification with other checks
   /// in a single multiscalar multiplication.
-  #[allow(dead_code)]
   pub fn verify(
     &self,
     n: usize,

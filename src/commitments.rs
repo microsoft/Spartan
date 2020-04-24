@@ -12,7 +12,6 @@ pub struct MultiCommitGens {
   pub h: RistrettoPoint,
 }
 
-#[allow(dead_code)]
 impl MultiCommitGens {
   pub fn new(n: usize, label: &[u8]) -> Self {
     let mut shake = Shake256::default();

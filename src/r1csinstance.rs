@@ -90,7 +90,6 @@ impl AppendToTranscript for R1CSInstanceEvals {
   }
 }
 
-#[allow(dead_code)]
 impl R1CSInstance {
   pub fn new(
     num_cons: usize,
@@ -291,7 +290,6 @@ impl R1CSInstance {
   }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Serialize, Deserialize)]
 pub struct R1CSEvalProof {
   proof: SparseMatPolyEvalProof,

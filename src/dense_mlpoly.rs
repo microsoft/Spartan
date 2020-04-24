@@ -184,7 +184,6 @@ impl IdentityPolynomial {
   }
 }
 
-#[allow(dead_code)]
 impl DensePolynomial {
   pub fn new(Z: Vec<Scalar>) -> Self {
     let len = Z.len();
@@ -383,7 +382,6 @@ pub struct PolyEvalProof {
   proof: DotProductProofLog,
 }
 
-#[allow(dead_code)]
 impl PolyEvalProof {
   fn protocol_name() -> &'static [u8] {
     b"polynomial evaluation proof"
