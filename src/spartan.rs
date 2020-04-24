@@ -70,42 +70,47 @@ impl SpartanProof {
     transcript: &mut Transcript,
   ) -> SpartanProof {
     transcript.append_protocol_name(SpartanProof::protocol_name());
-    let (r1cs_sat_proof, rx, ry) = R1CSProof::prove(
-      inst,
-      vars,
-      input,
-      &blinds.blinds_r1cs_sat,
-      &gens.gens_r1cs_sat,
-      &blinds.blind_zr,
-      transcript,
-    );
-    let r1cs_sat_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_sat_proof).unwrap();
-    let msg_len_r1cs_sat_proof = format!("len_r1cs_sat_proof {:?}", r1cs_sat_proof_encoded.len());
-    Timer::print(&msg_len_r1cs_sat_proof);
+    let (r1cs_sat_proof, rx, ry) = {
+      let (proof, rx, ry) = R1CSProof::prove(
+        inst,
+        vars,
+        input,
+        &blinds.blinds_r1cs_sat,
+        &gens.gens_r1cs_sat,
+        &blinds.blind_zr,
+        transcript,
+      );
+      let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
+      Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
+
+      (proof, rx, ry)
+    };
 
     // We send evaluations of A, B, C at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
     let timer_eval = Timer::new("eval_sparse_polys");
-    let eval_table_rx = EqPolynomial::new(rx.clone()).evals();
-    let eval_table_ry = EqPolynomial::new(ry.clone()).evals();
-    let inst_evals = inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry);
-    timer_eval.stop();
-    // append the claim of evaluation
+    let inst_evals = {
+      let eval_table_rx = EqPolynomial::new(rx.clone()).evals();
+      let eval_table_ry = EqPolynomial::new(ry.clone()).evals();
+      inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry)
+    };
     inst_evals.append_to_transcript(b"r1cs_inst_evals", transcript);
+    timer_eval.stop();
 
-    let r1cs_eval_proof = R1CSEvalProof::prove(
-      decomm,
-      &rx,
-      &ry,
-      &inst_evals,
-      &gens.gens_r1cs_eval,
-      transcript,
-    );
+    let r1cs_eval_proof = {
+      let proof = R1CSEvalProof::prove(
+        decomm,
+        &rx,
+        &ry,
+        &inst_evals,
+        &gens.gens_r1cs_eval,
+        transcript,
+      );
 
-    let r1cs_eval_proof_encoded: Vec<u8> = bincode::serialize(&r1cs_eval_proof).unwrap();
-    let msg_len_r1cs_eval_proof =
-      format!("len_r1cs_eval_proof {:?}", r1cs_eval_proof_encoded.len());
-    Timer::print(&msg_len_r1cs_eval_proof);
+      let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
+      Timer::print(&format!("len_r1cs_eval_proof {:?}", proof_encoded.len()));
+      proof
+    };
 
     SpartanProof {
       r1cs_sat_proof,

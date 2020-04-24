@@ -15,8 +15,8 @@ pub struct MultiCommitGens {
 impl MultiCommitGens {
   pub fn new(n: usize, label: &[u8]) -> Self {
     let mut shake = Shake256::default();
-    shake.input(RISTRETTO_BASEPOINT_COMPRESSED.as_bytes());
     shake.input(label);
+    shake.input(RISTRETTO_BASEPOINT_COMPRESSED.as_bytes());
 
     let mut reader = shake.xof_result();
     let mut gens: Vec<RistrettoPoint> = Vec::new();
