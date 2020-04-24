@@ -273,10 +273,20 @@ pub struct MultiSparseMatPolynomialAsDense {
   comb_mem: DensePolynomial,
 }
 
+#[derive(Debug)]
 pub struct SparseMatPolynomialSize {
   size_ops: usize,
   size_mem: usize,
   size_derefs: usize,
+}
+
+impl PartialEq for SparseMatPolynomialSize {
+  #[inline]
+  fn eq(&self, other: &Self) -> bool {
+    self.size_derefs == other.size_derefs
+      && self.size_mem == other.size_mem
+      && self.size_ops == other.size_ops
+  }
 }
 
 pub struct SparseMatPolyCommitmentGens {

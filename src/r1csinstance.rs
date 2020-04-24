@@ -35,6 +35,8 @@ pub struct R1CSCommitmentGens {
 
 impl R1CSCommitmentGens {
   pub fn new(size: &R1CSInstanceSize, label: &'static [u8]) -> R1CSCommitmentGens {
+    assert_eq!(size.size_A, size.size_B);
+    assert_eq!(size.size_A, size.size_C);
     let gens = SparseMatPolyCommitmentGens::new(&size.size_A, 3, label);
     R1CSCommitmentGens { gens }
   }
@@ -189,7 +191,7 @@ impl R1CSInstance {
       true,
     );
 
-    (inst, Z[0..num_vars].to_vec(), Z[num_vars+1..].to_vec())
+    (inst, Z[0..num_vars].to_vec(), Z[num_vars + 1..].to_vec())
   }
 
   pub fn is_sat(&self, vars: &Vec<Scalar>, input: &Vec<Scalar>) -> bool {
