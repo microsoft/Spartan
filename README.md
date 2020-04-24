@@ -1,5 +1,7 @@
 # Spartan: High-speed zkSNARKs without trusted setup
 
+![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)
+
 Spartan is a research project to design high-speed zero-knowledge proof systems, a cryptographic protocol that enables a prover to prove a mathematical statement (e.g., that a given program was executed correctly) without revealing anything besides the validity of the statement. 
 
 The current repository includes a library that implements 
