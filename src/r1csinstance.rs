@@ -129,31 +129,44 @@ impl R1CSInstance {
     num_vars: usize,
     num_inputs: usize,
   ) -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
-    let size_z = num_vars + num_inputs;
-    let size_z_without_const_term = size_z - 1;
     let mut csprng: OsRng = OsRng;
+
+    // assert num_cons and num_vars are power of 2
+    assert_eq!(num_cons.log2().pow2(), num_cons);
+    assert_eq!(num_vars.log2().pow2(), num_vars);
+
+    // num_inputs + 1 <= num_vars
+    assert!(num_inputs + 1 <= num_vars);
+
+    // z is organized as [vars,1,io]
+    let size_z = num_vars + num_inputs + 1;
+
+    // produce a random satisfying assignment
+    let Z = {
+      let mut Z: Vec<Scalar> = (0..size_z)
+        .map(|_i| Scalar::random(&mut csprng))
+        .collect::<Vec<Scalar>>();
+      Z[num_vars] = Scalar::one(); // set the constant term to 1
+      Z
+    };
 
     // three sparse matrices
     let mut A: Vec<SparseMatEntry> = Vec::new();
     let mut B: Vec<SparseMatEntry> = Vec::new();
     let mut C: Vec<SparseMatEntry> = Vec::new();
-    let Z: Vec<Scalar> = (0..size_z)
-      .map(|_i| Scalar::random(&mut csprng))
-      .collect::<Vec<Scalar>>();
-
     let one = Scalar::one();
     for i in 0..num_cons {
-      let A_idx = i % size_z_without_const_term + 1;
-      let B_idx = (i + 2) % size_z_without_const_term + 1;
+      let A_idx = i % size_z;
+      let B_idx = (i + 2) % size_z;
       A.push(SparseMatEntry::new(i, A_idx, one));
       B.push(SparseMatEntry::new(i, B_idx, one));
       let AB_val = Z[A_idx] * Z[B_idx];
 
-      let C_idx = (i + 3) % size_z_without_const_term + 1;
+      let C_idx = (i + 3) % size_z;
       let C_val = Z[C_idx];
 
       if C_val == Scalar::zero() {
-        C.push(SparseMatEntry::new(i, 0, AB_val));
+        C.push(SparseMatEntry::new(i, num_vars, AB_val));
       } else {
         C.push(SparseMatEntry::new(
           i,
@@ -163,39 +176,43 @@ impl R1CSInstance {
       }
     }
 
-    let num_vars_x = num_cons.log2();
-    let num_vars_y = (2 * num_vars).log2();
-    let poly_A = SparseMatPolynomial::new(num_vars_x, num_vars_y, A);
-    let poly_B = SparseMatPolynomial::new(num_vars_x, num_vars_y, B);
-    let poly_C = SparseMatPolynomial::new(num_vars_x, num_vars_y, C);
+    let num_poly_vars_x = num_cons.log2();
+    let num_poly_vars_y = (2 * num_vars).log2();
+    let poly_A = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, A);
+    let poly_B = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, B);
+    let poly_C = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, C);
 
-    // TODO: Verifier needs to check if the constant is always 1
     let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, poly_A, poly_B, poly_C);
 
     assert_eq!(
-      inst.is_sat(&Z[0..num_vars].to_vec(), &Z[num_vars..].to_vec()),
+      inst.is_sat(&Z[0..num_vars].to_vec(), &Z[num_vars + 1..].to_vec()),
       true,
     );
 
-    (inst, Z[0..num_vars].to_vec(), Z[num_vars..].to_vec())
+    (inst, Z[0..num_vars].to_vec(), Z[num_vars+1..].to_vec())
   }
 
   pub fn is_sat(&self, vars: &Vec<Scalar>, input: &Vec<Scalar>) -> bool {
     assert_eq!(vars.len(), self.num_vars);
     assert_eq!(input.len(), self.num_inputs);
 
-    let mut z = vars.clone();
-    z.extend(input);
+    let z = {
+      let mut z = vars.clone();
+      z.extend(&vec![Scalar::one()]);
+      z.extend(input);
+      z
+    };
+
     // verify if Az * Bz - Cz = [0...]
     let Az = self
       .A
-      .multiply_vec(self.num_cons, self.num_vars + self.num_inputs, &z);
+      .multiply_vec(self.num_cons, self.num_vars + self.num_inputs + 1, &z);
     let Bz = self
       .B
-      .multiply_vec(self.num_cons, self.num_vars + self.num_inputs, &z);
+      .multiply_vec(self.num_cons, self.num_vars + self.num_inputs + 1, &z);
     let Cz = self
       .C
-      .multiply_vec(self.num_cons, self.num_vars + self.num_inputs, &z);
+      .multiply_vec(self.num_cons, self.num_vars + self.num_inputs + 1, &z);
 
     assert_eq!(Az.len(), self.num_cons);
     assert_eq!(Bz.len(), self.num_cons);

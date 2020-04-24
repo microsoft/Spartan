@@ -204,16 +204,17 @@ impl R1CSProof {
     let timer_prove = Timer::new("R1CSProof::prove");
     transcript.append_protocol_name(R1CSProof::protocol_name());
 
-    // we currently require the number of inputs to be at most number of vars
-    let num_inputs = input.len();
-    assert!(num_inputs <= vars.len());
+    // we currently require the number of |inputs| + 1 to be at most number of vars
+    assert!(input.len() + 1 <= vars.len());
 
     let timer_commit = Timer::new("polycommit");
     // append input to variables to create a single vector z
     let z = {
+      let num_inputs = input.len();
       let mut z = vars.clone();
+      z.extend(&vec![Scalar::one()]); // add constant term in z
       z.extend(input);
-      z.extend(&vec![Scalar::zero(); vars.len() - num_inputs]); // we will pad with zeros
+      z.extend(&vec![Scalar::zero(); vars.len() - num_inputs - 1]); // we will pad with zeros
       z
     };
 
@@ -534,14 +535,19 @@ impl R1CSProof {
       )
       .is_ok());
 
-    let input_as_sparse_poly_entries = (0..input.len())
-      .map(|i| SparsePolyEntry::new(i, input[i]))
-      .collect::<Vec<SparsePolyEntry>>();
-    let poly_input_eval =
-      SparsePolynomial::new(n.log2(), input_as_sparse_poly_entries).evaluate(&ry[1..].to_vec());
+    let poly_input_eval = {
+      // constant term
+      let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, Scalar::one())];
+      //remaining inputs
+      input_as_sparse_poly_entries.extend(
+        (0..input.len())
+          .map(|i| SparsePolyEntry::new(i + 1, input[i]))
+          .collect::<Vec<SparsePolyEntry>>(),
+      );
+      SparsePolynomial::new(n.log2(), input_as_sparse_poly_entries).evaluate(&ry[1..].to_vec())
+    };
 
     // compute commitment to eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
-    // TODO: ensure the constant term in z is actually 1.
     let comm_eval_Z_at_ry = RistrettoPoint::vartime_multiscalar_mul(
       iter::once(Scalar::one() - &ry[0])
         .chain(iter::once(ry[0]))
@@ -581,7 +587,7 @@ mod tests {
     // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
     // rounded to the nearest power of two
     let num_cons = 128;
-    let num_vars = 256; // includes a slot for constant term; must be a perfect square, so round up.
+    let num_vars = 256;
     let num_inputs = 2;
 
     // encode the above constraints into three matrices
@@ -592,21 +598,21 @@ mod tests {
     let one = Scalar::one();
     // constraint 0 entries
     // (Z1 + Z2) * I0 - Z3 = 0;
+    A.push(SparseMatEntry::new(0, 0, one));
     A.push(SparseMatEntry::new(0, 1, one));
-    A.push(SparseMatEntry::new(0, 2, one));
-    B.push(SparseMatEntry::new(0, num_vars, one));
-    C.push(SparseMatEntry::new(0, 3, one));
+    B.push(SparseMatEntry::new(0, num_vars + 1, one));
+    C.push(SparseMatEntry::new(0, 2, one));
 
     // constraint 1 entries
     // (Z1 + I1) * (Z3) - Z4 = 0
-    A.push(SparseMatEntry::new(1, 1, one));
-    A.push(SparseMatEntry::new(1, num_vars + 1, one));
-    B.push(SparseMatEntry::new(1, 3, one));
-    C.push(SparseMatEntry::new(1, 4, one));
+    A.push(SparseMatEntry::new(1, 0, one));
+    A.push(SparseMatEntry::new(1, num_vars + 2, one));
+    B.push(SparseMatEntry::new(1, 2, one));
+    C.push(SparseMatEntry::new(1, 3, one));
     // constraint 3 entries
     // Z5 * 1 - 0 = 0
-    A.push(SparseMatEntry::new(2, 5, one));
-    B.push(SparseMatEntry::new(2, 0, one));
+    A.push(SparseMatEntry::new(2, 4, one));
+    B.push(SparseMatEntry::new(2, num_vars, one));
 
     let num_vars_x = num_cons.log2();
     let num_vars_y = (2 * num_vars).log2();
@@ -628,12 +634,11 @@ mod tests {
     let z5 = Scalar::zero(); //constraint 3
 
     let mut vars = vec![Scalar::zero(); num_vars];
-    vars[0] = Scalar::one(); // constant always set to 1
-    vars[1] = z1;
-    vars[2] = z2;
-    vars[3] = z3;
-    vars[4] = z4;
-    vars[5] = z5;
+    vars[0] = z1;
+    vars[1] = z2;
+    vars[2] = z3;
+    vars[3] = z4;
+    vars[4] = z5;
 
     let mut input = vec![Scalar::zero(); num_inputs];
     input[0] = i0;
@@ -651,7 +656,7 @@ mod tests {
 
   #[test]
   fn test_synthetic_r1cs() {
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(1024, 1024 - 10, 10);
+    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(1024, 1024, 10);
     let is_sat = inst.is_sat(&vars, &input);
     assert_eq!(is_sat, true);
   }

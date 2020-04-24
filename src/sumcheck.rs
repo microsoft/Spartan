@@ -1,4 +1,4 @@
-//use super::commitments::Commitments;
+use super::commitments::Commitments;
 use super::commitments::MultiCommitGens;
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
@@ -13,7 +13,6 @@ use merlin::Transcript;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::iter;
-use super::commitments::Commitments;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SumcheckInstanceProof {
@@ -670,7 +669,6 @@ impl ZKSumcheckInstanceProof {
         };
         assert_eq!(target.commit(&blind, &gens_1).compress(), comm_target);
 
-
         let a = {
           // the vector to use to decommit for sum-check test
           let a_sc = {
@@ -802,7 +800,12 @@ impl ZKSumcheckInstanceProof {
             );
         }
 
-        let evals = vec![eval_point_0, claim_per_round - eval_point_0, eval_point_2, eval_point_3];
+        let evals = vec![
+          eval_point_0,
+          claim_per_round - eval_point_0,
+          eval_point_2,
+          eval_point_3,
+        ];
         let poly = UniPoly::from_evals(&evals);
         let comm_poly = poly.commit(gens_n, &blinds_poly[j]).compress();
         (poly, comm_poly)
