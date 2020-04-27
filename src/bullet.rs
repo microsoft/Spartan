@@ -170,8 +170,6 @@ impl BulletReductionProof {
       return Err(ProofVerifyError);
     }
 
-    //transcript.innerproduct_domain_sep(n as u64);
-
     // 1. Recompute x_k,...,x_1 based on the proof transcript
     let mut challenges = Vec::with_capacity(lg_n);
     for (L, R) in self.L_vec.iter().zip(self.R_vec.iter()) {

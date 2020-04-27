@@ -16,6 +16,8 @@ use libspartan::math::Math;
 use libspartan::nizk::DotProductProof;
 use libspartan::scalar::Scalar;
 use libspartan::sumcheck::ZKSumcheckInstanceProof;
+use libspartan::commitments::Commitments;
+use libspartan::transcript::ProofTranscript;
 use merlin::Transcript;
 use rand::rngs::OsRng;
 
@@ -49,17 +51,15 @@ fn prove_benchmark(c: &mut Criterion) {
     let comb_func =
       |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { poly_A_comp * poly_B_comp };
 
-    let blinds = (
-      (0..s)
-        .map(|_i| Scalar::random(&mut csprng))
-        .collect::<Vec<Scalar>>(),
-      (0..s)
-        .map(|_i| Scalar::random(&mut csprng))
-        .collect::<Vec<Scalar>>(),
-    );
     let name = format!("zksumcheck_prove_{}", n);
     group.bench_function(&name, move |b| {
       b.iter(|| {
+        let mut random_tape = {
+          let mut csprng: OsRng = OsRng;
+          let mut tape = Transcript::new(b"proof");
+          tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+          tape
+        };
         let mut prover_transcript = Transcript::new(b"example");
         ZKSumcheckInstanceProof::prove_quad(
           black_box(&claim),
@@ -70,8 +70,8 @@ fn prove_benchmark(c: &mut Criterion) {
           black_box(comb_func),
           black_box(&gens_1),
           black_box(&gens_n),
-          black_box(&blinds),
           black_box(&mut prover_transcript),
+          black_box(&mut random_tape),
         )
       });
     });
@@ -106,17 +106,15 @@ fn verify_benchmark(c: &mut Criterion) {
     let comb_func =
       |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { poly_A_comp * poly_B_comp };
 
-    let blinds = (
-      (0..s)
-        .map(|_i| Scalar::random(&mut csprng))
-        .collect::<Vec<Scalar>>(),
-      (0..s)
-        .map(|_i| Scalar::random(&mut csprng))
-        .collect::<Vec<Scalar>>(),
-    );
+      let mut random_tape = {
+        let mut csprng: OsRng = OsRng;
+        let mut tape = Transcript::new(b"proof");
+        tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+        tape
+      };
 
     let mut prover_transcript = Transcript::new(b"example");
-    let (proof, _r, _v, comm_claim) = ZKSumcheckInstanceProof::prove_quad(
+    let (proof, _r, _v, _blind_post_claim) = ZKSumcheckInstanceProof::prove_quad(
       &claim,
       &blind_claim,
       num_rounds,
@@ -125,12 +123,13 @@ fn verify_benchmark(c: &mut Criterion) {
       comb_func,
       &gens_1,
       &gens_n,
-      &blinds,
       &mut prover_transcript,
+      &mut random_tape,
     );
 
     let name = format!("zksumcheck_verify_{}", n);
     let degree_bound = 2;
+    let comm_claim = claim.commit(&blind_claim, &gens_1).compress();
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut verifier_transcript = Transcript::new(b"example");

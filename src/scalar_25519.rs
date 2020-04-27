@@ -780,8 +780,8 @@ impl<'a> From<&'a Scalar> for [u8; 32] {
   }
 }
 
+#[cfg(test)]
 mod tests {
-  #![cfg(test)]
   use super::*;
 
   #[test]
@@ -1023,7 +1023,6 @@ mod tests {
     assert_eq!(Scalar::zero(), Scalar::zero() * Scalar::zero());
   }
 
-  #[cfg(test)]
   const LARGEST: Scalar = Scalar([
     0x5812631a5cf5d3ec,
     0x14def9dea2f79cd6,

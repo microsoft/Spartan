@@ -3,7 +3,7 @@ use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::scalar::{Scalar, ScalarBytesFromScalar};
-use super::transcript::ProofTranscript;
+use super::transcript::{AppendToTranscript, ProofTranscript};
 use curve25519_dalek::ristretto::CompressedRistretto;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
@@ -23,24 +23,26 @@ impl KnowledgeProof {
   pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
     x: &Scalar,
     r: &Scalar,
-    t1: &Scalar,
-    t2: &Scalar,
   ) -> (KnowledgeProof, CompressedRistretto) {
     transcript.append_protocol_name(KnowledgeProof::protocol_name());
 
-    let C = x.commit(&r, gens_n).compress();
+    // produce two random Scalars
+    let t1 = random_tape.challenge_scalar(b"t1");
+    let t2 = random_tape.challenge_scalar(b"t2");
 
-    transcript.append_point(b"C", &C);
+    let C = x.commit(&r, gens_n).compress();
+    C.append_to_transcript(b"C", transcript);
 
     let alpha = t1.commit(&t2, gens_n).compress();
-    transcript.append_point(b"alpha", &alpha);
+    alpha.append_to_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z1 = x * c + t1;
-    let z2 = r * c + t2;
+    let z1 = x * &c + &t1;
+    let z2 = r * &c + &t2;
 
     (KnowledgeProof { alpha, z1, z2 }, C)
   }
@@ -52,8 +54,8 @@ impl KnowledgeProof {
     C: &CompressedRistretto,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(KnowledgeProof::protocol_name());
-    transcript.append_point(b"C", &C);
-    transcript.append_point(b"alpha", &self.alpha);
+    C.append_to_transcript(b"C", transcript);
+    self.alpha.append_to_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -87,26 +89,29 @@ impl EqualityProof {
   pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
     v1: &Scalar,
     s1: &Scalar,
     v2: &Scalar,
     s2: &Scalar,
-    r: &Scalar,
   ) -> (EqualityProof, CompressedRistretto, CompressedRistretto) {
     transcript.append_protocol_name(EqualityProof::protocol_name());
 
+    // produce a random Scalar
+    let r = random_tape.challenge_scalar(b"r");
+
     let C1 = v1.commit(&s1, gens_n).compress();
-    transcript.append_point(b"C1", &C1);
+    C1.append_to_transcript(b"C1", transcript);
 
     let C2 = v2.commit(&s2, gens_n).compress();
-    transcript.append_point(b"C2", &C2);
+    C2.append_to_transcript(b"C2", transcript);
 
     let alpha = (Scalar::decompress_scalar(&r) * gens_n.h).compress();
-    transcript.append_point(b"alpha", &alpha);
+    alpha.append_to_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z = c * (s1 - s2) + r;
+    let z = &c * (s1 - s2) + &r;
 
     (EqualityProof { alpha, z }, C1, C2)
   }
@@ -119,16 +124,17 @@ impl EqualityProof {
     C2: &CompressedRistretto,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(EqualityProof::protocol_name());
-    transcript.append_point(b"C1", &C1);
-    transcript.append_point(b"C2", &C2);
-    transcript.append_point(b"alpha", &self.alpha);
+    C1.append_to_transcript(b"C1", transcript);
+    C2.append_to_transcript(b"C2", transcript);
+    self.alpha.append_to_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
+    let rhs = {
+      let C = &C1.decompress().unwrap() - &C2.decompress().unwrap();
+      (Scalar::decompress_scalar(&c) * C + &self.alpha.decompress().unwrap()).compress()
+    };
 
     let lhs = (Scalar::decompress_scalar(&self.z) * gens_n.h).compress();
-
-    let C = C1.decompress().unwrap() - C2.decompress().unwrap();
-    let rhs = (Scalar::decompress_scalar(&c) * C + self.alpha.decompress().unwrap()).compress();
 
     if lhs == rhs {
       Ok(())
@@ -154,17 +160,13 @@ impl ProductProof {
   pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
     x: &Scalar,
     rX: &Scalar,
     y: &Scalar,
     rY: &Scalar,
     z: &Scalar,
     rZ: &Scalar,
-    b1: &Scalar,
-    b2: &Scalar,
-    b3: &Scalar,
-    b4: &Scalar,
-    b5: &Scalar,
   ) -> (
     ProductProof,
     CompressedRistretto,
@@ -173,36 +175,45 @@ impl ProductProof {
   ) {
     transcript.append_protocol_name(ProductProof::protocol_name());
 
+    // produce five random Scalar
+    let b1 = random_tape.challenge_scalar(b"b1");
+    let b2 = random_tape.challenge_scalar(b"b2");
+    let b3 = random_tape.challenge_scalar(b"b3");
+    let b4 = random_tape.challenge_scalar(b"b4");
+    let b5 = random_tape.challenge_scalar(b"b5");
+
     let X = x.commit(&rX, gens_n).compress();
-    transcript.append_point(b"X", &X);
+    X.append_to_transcript(b"X", transcript);
 
     let Y = y.commit(&rY, gens_n).compress();
-    transcript.append_point(b"Y", &Y);
+    Y.append_to_transcript(b"Y", transcript);
 
     let Z = z.commit(&rZ, gens_n).compress();
-    transcript.append_point(b"Z", &Z);
+    Z.append_to_transcript(b"Z", transcript);
 
     let alpha = b1.commit(&b2, gens_n).compress();
-    transcript.append_point(b"alpha", &alpha);
+    alpha.append_to_transcript(b"alpha", transcript);
 
     let beta = b3.commit(&b4, gens_n).compress();
-    transcript.append_point(b"beta", &beta);
+    beta.append_to_transcript(b"beta", transcript);
 
-    let gens_X = &MultiCommitGens {
-      n: 1,
-      G: vec![X.decompress().unwrap()],
-      h: gens_n.h,
+    let delta = {
+      let gens_X = &MultiCommitGens {
+        n: 1,
+        G: vec![X.decompress().unwrap()],
+        h: gens_n.h,
+      };
+      b3.commit(&b5, gens_X).compress()
     };
-    let delta = b3.commit(&b5, gens_X).compress();
-    transcript.append_point(b"delta", &delta);
+    delta.append_to_transcript(b"delta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z1 = b1 + c * x;
-    let z2 = b2 + c * rX;
-    let z3 = b3 + c * y;
-    let z4 = b4 + c * rY;
-    let z5 = b5 + c * (rZ - rX * y);
+    let z1 = &b1 + &c * x;
+    let z2 = &b2 + &c * rX;
+    let z3 = &b3 + &c * y;
+    let z4 = &b4 + &c * rY;
+    let z5 = &b5 + &c * (rZ - rX * y);
     let z = [z1, z2, z3, z4, z5];
 
     (
@@ -247,12 +258,12 @@ impl ProductProof {
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(ProductProof::protocol_name());
 
-    transcript.append_point(b"X", &X);
-    transcript.append_point(b"Y", &Y);
-    transcript.append_point(b"Z", &Z);
-    transcript.append_point(b"alpha", &self.alpha);
-    transcript.append_point(b"beta", &self.beta);
-    transcript.append_point(b"delta", &self.delta);
+    X.append_to_transcript(b"X", transcript);
+    Y.append_to_transcript(b"Y", transcript);
+    Z.append_to_transcript(b"Z", transcript);
+    self.alpha.append_to_transcript(b"alpha", transcript);
+    self.beta.append_to_transcript(b"beta", transcript);
+    self.delta.append_to_transcript(b"delta", transcript);
 
     let z1 = self.z[0];
     let z2 = self.z[1];
@@ -304,40 +315,41 @@ impl DotProductProof {
   }
 
   pub fn prove(
-    n: usize,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
     x: &Vec<Scalar>,
     r_x: &Scalar,
     a: &Vec<Scalar>,
     y: &Scalar,
     r_y: &Scalar,
-    d: &Vec<Scalar>,
-    r_delta: &Scalar,
-    r_beta: &Scalar,
   ) -> (DotProductProof, CompressedRistretto, CompressedRistretto) {
-    assert_eq!(x.len(), n);
-    assert_eq!(d.len(), n);
+    transcript.append_protocol_name(DotProductProof::protocol_name());
+
+    let n = x.len();
     assert_eq!(x.len(), a.len());
     assert_eq!(gens_n.n, a.len());
     assert_eq!(gens_1.n, 1);
 
-    transcript.append_protocol_name(DotProductProof::protocol_name());
+    // produce randomness for the proofs
+    let d = random_tape.challenge_vector(b"d", n);
+    let r_delta = random_tape.challenge_scalar(b"r_delta");
+    let r_beta = random_tape.challenge_scalar(b"r_beta");
 
     let Cx = x.commit(&r_x, gens_n).compress();
-    transcript.append_point(b"Cx", &Cx);
+    Cx.append_to_transcript(b"Cx", transcript);
 
     let Cy = y.commit(&r_y, gens_1).compress();
-    transcript.append_point(b"Cy", &Cy);
+    Cy.append_to_transcript(b"Cy", transcript);
 
     let delta = d.commit(&r_delta, gens_n).compress();
-    transcript.append_point(b"delta", &delta);
+    delta.append_to_transcript(b"delta", transcript);
 
     let dotproduct_a_d = DotProductProof::compute_dotproduct(&a, &d);
 
     let beta = dotproduct_a_d.commit(&r_beta, gens_1).compress();
-    transcript.append_point(b"beta", &beta);
+    beta.append_to_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -374,10 +386,10 @@ impl DotProductProof {
     assert_eq!(gens_1.n, 1);
 
     transcript.append_protocol_name(DotProductProof::protocol_name());
-    transcript.append_point(b"Cx", &Cx);
-    transcript.append_point(b"Cy", &Cy);
-    transcript.append_point(b"delta", &self.delta);
-    transcript.append_point(b"beta", &self.beta);
+    Cx.append_to_transcript(b"Cx", transcript);
+    Cy.append_to_transcript(b"Cy", transcript);
+    self.delta.append_to_transcript(b"delta", transcript);
+    self.beta.append_to_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -431,37 +443,40 @@ impl DotProductProofLog {
   }
 
   pub fn prove(
-    n: usize,
     gens: &DotProductProofGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
     x: &Vec<Scalar>,
     r_x: &Scalar,
     a: &Vec<Scalar>,
     y: &Scalar,
     r_y: &Scalar,
-    d: &Scalar,
-    r_delta: &Scalar,
-    r_beta: &Scalar,
-    blinds_vec: &Vec<(Scalar, Scalar)>,
   ) -> (DotProductProofLog, CompressedRistretto, CompressedRistretto) {
-    assert_eq!(x.len(), n);
-    assert_eq!(x.len(), a.len());
-    assert_eq!(blinds_vec.len(), 2 * n.log2());
-    assert_eq!(gens.n, n);
-
     transcript.append_protocol_name(DotProductProofLog::protocol_name());
 
-    let Cx = x.commit(&r_x, &gens.gens_n);
-    let Cx_compressed = Cx.compress();
-    transcript.append_point(b"Cx", &Cx_compressed);
+    let n = x.len();
+    assert_eq!(x.len(), a.len());
+    assert_eq!(gens.n, n);
 
-    let Cy = y.commit(&r_y, &gens.gens_1);
-    let Cy_compressed = Cy.compress();
-    transcript.append_point(b"Cy", &Cy_compressed);
+    // produce randomness for generating a proof
+    let d = random_tape.challenge_scalar(b"d");
+    let r_delta = random_tape.challenge_scalar(b"r_delta");
+    let r_beta = random_tape.challenge_scalar(b"r_delta");
+    let blinds_vec = {
+      let v1 = random_tape.challenge_vector(b"blinds_vec_1", 2 * n.log2());
+      let v2 = random_tape.challenge_vector(b"blinds_vec_2", 2 * n.log2());
+      (0..v1.len())
+        .map(|i| (v1[i], v2[i]))
+        .collect::<Vec<(Scalar, Scalar)>>()
+    };
 
-    // let Gamma = Cx + Cy;
+    let Cx = x.commit(&r_x, &gens.gens_n).compress();
+    Cx.append_to_transcript(b"Cx", transcript);
+
+    let Cy = y.commit(&r_y, &gens.gens_1).compress();
+    Cy.append_to_transcript(b"Cy", transcript);
+
     let r_Gamma = r_x + r_y;
-
     let (bullet_reduction_proof, _Gamma_hat, x_hat, a_hat, g_hat, rhat_Gamma) =
       BulletReductionProof::prove(
         transcript,
@@ -471,21 +486,22 @@ impl DotProductProofLog {
         x,
         a,
         &r_Gamma,
-        blinds_vec,
+        &blinds_vec,
       );
     let y_hat = x_hat * a_hat;
 
-    let gens_hat = MultiCommitGens {
-      n: 1,
-      G: vec![g_hat],
-      h: gens.gens_1.h,
+    let delta = {
+      let gens_hat = MultiCommitGens {
+        n: 1,
+        G: vec![g_hat],
+        h: gens.gens_1.h,
+      };
+      d.commit(&r_delta, &gens_hat).compress()
     };
+    delta.append_to_transcript(b"delta", transcript);
 
-    let delta = d.commit(r_delta, &gens_hat).compress();
-    transcript.append_point(b"delta", &delta);
-
-    let beta = d.commit(r_beta, &gens.gens_1).compress();
-    transcript.append_point(b"beta", &beta);
+    let beta = d.commit(&r_beta, &gens.gens_1).compress();
+    beta.append_to_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -500,8 +516,8 @@ impl DotProductProofLog {
         z1,
         z2,
       },
-      Cx_compressed,
-      Cy_compressed,
+      Cx,
+      Cy,
     )
   }
 
@@ -518,8 +534,8 @@ impl DotProductProofLog {
     assert_eq!(a.len(), n);
 
     transcript.append_protocol_name(DotProductProofLog::protocol_name());
-    transcript.append_point(b"Cx", &Cx);
-    transcript.append_point(b"Cy", &Cy);
+    Cx.append_to_transcript(b"Cx", transcript);
+    Cy.append_to_transcript(b"Cy", transcript);
 
     let Gamma = Cx.decompress().unwrap() + Cy.decompress().unwrap();
 
@@ -528,8 +544,8 @@ impl DotProductProofLog {
       .verify(n, a, transcript, &Gamma, &gens.gens_n.G)
       .unwrap();
 
-    transcript.append_point(b"delta", &self.delta);
-    transcript.append_point(b"beta", &self.beta);
+    self.delta.append_to_transcript(b"delta", transcript);
+    self.beta.append_to_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
@@ -565,12 +581,16 @@ mod tests {
 
     let x = Scalar::random(&mut csprng);
     let r = Scalar::random(&mut csprng);
-    let t1 = Scalar::random(&mut csprng);
-    let t2 = Scalar::random(&mut csprng);
 
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, committed_value) =
-      KnowledgeProof::prove(&gens_1, &mut prover_transcript, &x, &r, &t1, &t2);
+      KnowledgeProof::prove(&gens_1, &mut prover_transcript, &mut random_tape, &x, &r);
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
@@ -587,11 +607,23 @@ mod tests {
     let v2 = v1;
     let s1 = Scalar::random(&mut csprng);
     let s2 = Scalar::random(&mut csprng);
-    let r = Scalar::random(&mut csprng);
 
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
     let mut prover_transcript = Transcript::new(b"example");
-    let (proof, C1, C2) =
-      EqualityProof::prove(&gens_1, &mut prover_transcript, &v1, &s1, &v2, &s2, &r);
+    let (proof, C1, C2) = EqualityProof::prove(
+      &gens_1,
+      &mut prover_transcript,
+      &mut random_tape,
+      &v1,
+      &s1,
+      &v2,
+      &s2,
+    );
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
@@ -610,27 +642,24 @@ mod tests {
     let rY = Scalar::random(&mut csprng);
     let z = x * y;
     let rZ = Scalar::random(&mut csprng);
-    let b1 = Scalar::random(&mut csprng);
-    let b2 = Scalar::random(&mut csprng);
-    let b3 = Scalar::random(&mut csprng);
-    let b4 = Scalar::random(&mut csprng);
-    let b5 = Scalar::random(&mut csprng);
 
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, X, Y, Z) = ProductProof::prove(
       &gens_1,
       &mut prover_transcript,
+      &mut random_tape,
       &x,
       &rX,
       &y,
       &rY,
       &z,
       &rZ,
-      &b1,
-      &b2,
-      &b3,
-      &b4,
-      &b5,
     );
 
     let mut verifier_transcript = Transcript::new(b"example");
@@ -650,32 +679,31 @@ mod tests {
 
     let mut x: Vec<Scalar> = Vec::new();
     let mut a: Vec<Scalar> = Vec::new();
-    let mut d: Vec<Scalar> = Vec::new();
     for _ in 0..n {
       x.push(Scalar::random(&mut csprng));
       a.push(Scalar::random(&mut csprng));
-      d.push(Scalar::random(&mut csprng));
     }
     let y = DotProductProofLog::compute_dotproduct(&x, &a);
     let r_x = Scalar::random(&mut csprng);
     let r_y = Scalar::random(&mut csprng);
-    let r_delta = Scalar::random(&mut csprng);
-    let r_beta = Scalar::random(&mut csprng);
 
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, Cx, Cy) = DotProductProof::prove(
-      n,
       &gens_1,
       &gens_1024,
       &mut prover_transcript,
+      &mut random_tape,
       &x,
       &r_x,
       &a,
       &y,
       &r_y,
-      &d,
-      &r_delta,
-      &r_beta,
     );
 
     let mut verifier_transcript = Transcript::new(b"example");
@@ -698,27 +726,23 @@ mod tests {
 
     let r_x = Scalar::random(&mut csprng);
     let r_y = Scalar::random(&mut csprng);
-    let r_delta = Scalar::random(&mut csprng);
-    let r_beta = Scalar::random(&mut csprng);
-    let d = Scalar::random(&mut csprng);
-    let blinds_vec = (0..2 * n.log2())
-      .map(|_i| (Scalar::random(&mut csprng), Scalar::random(&mut csprng)))
-      .collect();
 
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, Cx, Cy) = DotProductProofLog::prove(
-      n,
       &gens,
       &mut prover_transcript,
+      &mut random_tape,
       &x,
       &r_x,
       &a,
       &y,
       &r_y,
-      &d,
-      &r_delta,
-      &r_beta,
-      &blinds_vec,
     );
 
     let mut verifier_transcript = Transcript::new(b"example");

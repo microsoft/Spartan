@@ -4,11 +4,12 @@ use super::r1csinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
   R1CSInstanceEvals,
 };
-use super::r1csproof::{R1CSBlinds, R1CSGens, R1CSProof};
+use super::r1csproof::{R1CSGens, R1CSProof};
 use super::scalar::Scalar;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
+use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 
 pub struct SpartanGens {
@@ -21,20 +22,6 @@ impl SpartanGens {
     SpartanGens {
       gens_r1cs_sat,
       gens_r1cs_eval,
-    }
-  }
-}
-
-pub struct SpartanBlinds {
-  blinds_r1cs_sat: R1CSBlinds,
-  blind_zr: Scalar,
-}
-
-impl SpartanBlinds {
-  pub fn new(blinds_r1cs_sat: R1CSBlinds, blind_zr: Scalar) -> SpartanBlinds {
-    SpartanBlinds {
-      blinds_r1cs_sat,
-      blind_zr,
     }
   }
 }
@@ -65,20 +52,27 @@ impl SpartanProof {
     decomm: &R1CSDecommitment,
     vars: Vec<Scalar>,
     input: &Vec<Scalar>,
-    blinds: &SpartanBlinds,
     gens: &SpartanGens,
     transcript: &mut Transcript,
   ) -> SpartanProof {
+    // we create a Transcript object seeded with a random Scalar
+    // to aid the prover produce its randomness
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"SpartanProof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
+
     transcript.append_protocol_name(SpartanProof::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = R1CSProof::prove(
         inst,
         vars,
         input,
-        &blinds.blinds_r1cs_sat,
         &gens.gens_r1cs_sat,
-        &blinds.blind_zr,
         transcript,
+        &mut random_tape,
       );
       let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
@@ -105,6 +99,7 @@ impl SpartanProof {
         &inst_evals,
         &gens.gens_r1cs_eval,
         transcript,
+        &mut random_tape,
       );
 
       let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
@@ -164,8 +159,8 @@ impl SpartanProof {
   }
 }
 
+#[cfg(test)]
 mod tests {
-  #[cfg(test)]
   use super::*;
 
   #[test]
@@ -184,20 +179,8 @@ mod tests {
     let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
     let gens = SpartanGens::new(gens_r1cs_sat, gens_r1cs_eval);
 
-    // produce a proof of satisfiability
-    let blinds_r1cs_sat = R1CSBlinds::new(num_cons, num_vars);
-    let blinds = SpartanBlinds::new(blinds_r1cs_sat, Scalar::one());
-
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = SpartanProof::prove(
-      &inst,
-      &decomm,
-      vars,
-      &input,
-      &blinds,
-      &gens,
-      &mut prover_transcript,
-    );
+    let proof = SpartanProof::prove(&inst, &decomm, vars, &input, &gens, &mut prover_transcript);
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof

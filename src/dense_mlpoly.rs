@@ -8,7 +8,6 @@ use core::ops::Index;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::traits::VartimeMultiscalarMul;
 use merlin::Transcript;
-use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "rayon_par")]
@@ -36,17 +35,6 @@ impl PolyCommitmentGens {
 
 pub struct PolyCommitmentBlinds {
   blinds: Vec<Scalar>,
-}
-
-impl PolyCommitmentBlinds {
-  // the number of variables in the multilinear polynomial
-  pub fn new(num_vars: usize, csprng: &mut OsRng) -> PolyCommitmentBlinds {
-    let (left, _right) = EqPolynomial::compute_factored_lens(num_vars);
-    let blinds = (0..left.pow2())
-      .map(|_i| Scalar::random(csprng))
-      .collect::<Vec<Scalar>>();
-    PolyCommitmentBlinds { blinds }
-  }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -245,9 +233,10 @@ impl DensePolynomial {
 
   pub fn commit(
     &self,
-    blinds_opt: Option<&PolyCommitmentBlinds>,
+    hiding: bool,
     gens: &PolyCommitmentGens,
-  ) -> PolyCommitment {
+    random_tape: Option<&mut Transcript>,
+  ) -> (PolyCommitment, PolyCommitmentBlinds) {
     let n = self.Z.len();
     let ell = self.get_num_vars();
     assert_eq!(n, ell.pow2());
@@ -257,17 +246,18 @@ impl DensePolynomial {
     let R_size = right_num_vars.pow2();
     assert_eq!(L_size * R_size, n);
 
-    let default_blinds = PolyCommitmentBlinds {
-      blinds: vec![Scalar::zero(); L_size],
-    };
-    let blinds = match blinds_opt {
-      Some(p) => p,
-      None => &default_blinds,
+    let blinds = match hiding {
+      true => PolyCommitmentBlinds {
+        blinds: random_tape
+          .unwrap()
+          .challenge_vector(b"poly_blinds", L_size),
+      },
+      false => PolyCommitmentBlinds {
+        blinds: vec![Scalar::zero(); L_size],
+      },
     };
 
-    assert_eq!(blinds.blinds.len(), L_size);
-
-    self.commit_inner(&blinds.blinds, &gens.gens.gens_n)
+    (self.commit_inner(&blinds.blinds, &gens.gens.gens_n), blinds)
   }
 
   pub fn bound(&self, L: &Vec<Scalar>) -> Vec<Scalar> {
@@ -392,9 +382,10 @@ impl PolyEvalProof {
     blinds_opt: Option<&PolyCommitmentBlinds>,
     r: &Vec<Scalar>,               // point at which the polynomial is evaluated
     Zr: &Scalar,                   // evaluation of \widetilde{Z}(r)
-    blind_Zr_opt: Option<&Scalar>, // blind for commitment to \widetilde{Z}(r)
+    blind_Zr_opt: Option<&Scalar>, // specifies a blind for Zr
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> (PolyEvalProof, CompressedRistretto) {
     transcript.append_protocol_name(PolyEvalProof::protocol_name());
 
@@ -413,15 +404,13 @@ impl PolyEvalProof {
       None => &default_blinds,
     };
 
+    assert_eq!(blinds.blinds.len(), L_size);
+
     let zero = Scalar::zero();
     let blind_Zr = match blind_Zr_opt {
       Some(p) => p,
       None => &zero,
     };
-
-    assert_eq!(blinds.blinds.len(), L_size);
-
-    let mut csprng: OsRng = OsRng;
 
     // compute the L and R vectors
     let eq = EqPolynomial::new(r.to_vec());
@@ -434,25 +423,16 @@ impl PolyEvalProof {
     let LZ = poly.bound(&L);
     let LZ_blind: Scalar = (0..L.len()).map(|i| blinds.blinds[i] * L[i]).sum();
 
-    let d = Scalar::random(&mut csprng);
-    let r_delta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
-    let r_beta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
-    let blinds_vec = (0..2 * R_size.log2())
-      .map(|_i| (Scalar::random(&mut csprng), Scalar::random(&mut csprng)))
-      .collect();
+    // a dot product proof of size R_size
     let (proof, _C_LR, C_Zr_prime) = DotProductProofLog::prove(
-      R_size,
       &gens.gens,
       transcript,
+      random_tape,
       &LZ,
       &LZ_blind,
       &R,
       &Zr,
       blind_Zr,
-      &d,
-      &r_delta,
-      &r_beta,
-      &blinds_vec,
     );
 
     (PolyEvalProof { proof }, C_Zr_prime)
@@ -565,6 +545,7 @@ impl PolyEvalProof {
 mod tests {
   use super::super::scalar::ScalarFromPrimitives;
   use super::*;
+  use rand::rngs::OsRng;
 
   fn evaluate_with_LR(Z: &Vec<Scalar>, r: &Vec<Scalar>) -> Scalar {
     let eq = EqPolynomial::new(r.to_vec());
@@ -741,11 +722,14 @@ mod tests {
     assert_eq!(eval, (28 as usize).to_scalar());
 
     let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
-    let mut csprng: OsRng = OsRng;
-    let blinds = PolyCommitmentBlinds::new(poly.get_num_vars(), &mut csprng);
+    let (poly_commitment, blinds) = poly.commit(false, &gens, None);
 
-    let poly_commitment = poly.commit(Some(&blinds), &gens);
-
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, C_Zr) = PolyEvalProof::prove(
       &poly,
@@ -755,6 +739,7 @@ mod tests {
       None,
       &gens,
       &mut prover_transcript,
+      &mut random_tape,
     );
 
     let mut verifier_transcript = Transcript::new(b"example");

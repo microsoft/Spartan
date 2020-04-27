@@ -9,13 +9,13 @@ extern crate rand;
 extern crate sha3;
 
 use libspartan::dense_mlpoly::{
-  DensePolynomial, PolyCommitmentBlinds, PolyCommitmentGens, PolyEvalProof,
+  DensePolynomial, PolyCommitmentGens, PolyEvalProof,
 };
 use libspartan::math::Math;
 use libspartan::scalar::Scalar;
 use merlin::Transcript;
 use rand::rngs::OsRng;
-
+use libspartan::transcript::ProofTranscript;
 use criterion::*;
 
 fn commit_benchmark(c: &mut Criterion) {
@@ -37,7 +37,7 @@ fn commit_benchmark(c: &mut Criterion) {
     let gens = PolyCommitmentGens::new(s, b"test-m");
     let name = format!("polycommit_commit_{}", n);
     group.bench_function(&name, move |b| {
-      b.iter(|| poly.commit(black_box(None), black_box(&gens)));
+      b.iter(|| poly.commit(black_box(false), black_box(&gens), black_box(None)));
     });
     group.finish();
   }
@@ -104,6 +104,12 @@ fn evalproof_benchmark(c: &mut Criterion) {
     let name = format!("polycommit_evalproof_{}", n);
     group.bench_function(&name, move |b| {
       b.iter(|| {
+        let mut random_tape = {
+          let mut csprng: OsRng = OsRng;
+          let mut tape = Transcript::new(b"proof");
+          tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+          tape
+        };
         let mut prover_transcript = Transcript::new(b"example");
         PolyEvalProof::prove(
           black_box(&poly),
@@ -113,6 +119,7 @@ fn evalproof_benchmark(c: &mut Criterion) {
           black_box(None),
           black_box(&gens),
           black_box(&mut prover_transcript),
+          black_box(&mut random_tape),
         )
       });
     });
@@ -138,16 +145,21 @@ fn evalproofverify_benchmark(c: &mut Criterion) {
 
     let poly = DensePolynomial::new(z);
     let gens = PolyCommitmentGens::new(s, b"test-m");
-    let blinds = PolyCommitmentBlinds::new(s, &mut csprng);
 
     let mut r: Vec<Scalar> = Vec::new();
     for _ in 0..s {
       r.push(Scalar::random(&mut csprng));
     }
 
-    let poly_commitment = poly.commit(Some(&blinds), &gens);
+    let (poly_commitment, blinds) = poly.commit(false, &gens, None);
     let eval = poly.evaluate(&r);
 
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, c_zr) = PolyEvalProof::prove(
       black_box(&poly),
@@ -157,6 +169,7 @@ fn evalproofverify_benchmark(c: &mut Criterion) {
       black_box(None),
       black_box(&gens),
       black_box(&mut prover_transcript),
+      black_box(&mut random_tape),
     );
     let name = format!("polycommit_evalproofverify_{}", n);
     group.bench_function(&name, move |b| {

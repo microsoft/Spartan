@@ -57,8 +57,7 @@ impl Derefs {
   }
 
   pub fn commit(&self, gens: &PolyCommitmentGens) -> DerefsCommitment {
-    let blinds = None;
-    let comm_ops_val = self.comb.commit(blinds, gens);
+    let (comm_ops_val, _blinds) = self.comb.commit(false, gens, None);
     DerefsCommitment { comm_ops_val }
   }
 }
@@ -79,6 +78,7 @@ impl DerefsEvalProof {
     evals: Vec<Scalar>,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> PolyEvalProof {
     assert_eq!(joint_poly.get_num_vars(), r.len() + evals.len().log2());
 
@@ -108,6 +108,7 @@ impl DerefsEvalProof {
       None,
       gens,
       transcript,
+      random_tape,
     );
 
     proof_derefs
@@ -121,6 +122,7 @@ impl DerefsEvalProof {
     r: &Vec<Scalar>,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> Self {
     transcript.append_protocol_name(DerefsEvalProof::protocol_name());
 
@@ -128,7 +130,8 @@ impl DerefsEvalProof {
     evals.extend(eval_col_ops_val_vec);
     evals.resize(evals.len().next_power_of_two(), Scalar::zero());
 
-    let proof_derefs = DerefsEvalProof::prove_single(&derefs.comb, r, evals, gens, transcript);
+    let proof_derefs =
+      DerefsEvalProof::prove_single(&derefs.comb, r, evals, gens, transcript, random_tape);
 
     DerefsEvalProof { proof_derefs }
   }
@@ -495,8 +498,8 @@ impl SparseMatPolynomial {
     let batch_size = sparse_polys.len();
     let dense = SparseMatPolynomial::multi_sparse_to_dense_rep(sparse_polys);
 
-    let comm_comb_ops = dense.comb_ops.commit(None, &gens.gens_ops);
-    let comm_comb_mem = dense.comb_mem.commit(None, &gens.gens_mem);
+    let (comm_comb_ops, _blinds_comb_ops) = dense.comb_ops.commit(false, &gens.gens_ops, None);
+    let (comm_comb_mem, _blinds_comb_mem) = dense.comb_mem.commit(false, &gens.gens_mem, None);
 
     (
       SparseMatPolyCommitment {
@@ -749,6 +752,7 @@ impl HashLayerProof {
     derefs: &Derefs,
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> Self {
     transcript.append_protocol_name(HashLayerProof::protocol_name());
 
@@ -768,6 +772,7 @@ impl HashLayerProof {
       &rand_ops,
       &gens.gens_derefs,
       transcript,
+      random_tape,
     );
     let eval_derefs = (eval_row_ops_val, eval_col_ops_val);
 
@@ -811,6 +816,7 @@ impl HashLayerProof {
       None,
       &gens.gens_ops,
       transcript,
+      random_tape,
     );
 
     // form a single decommitment using comb_comb_mem at rand_mem
@@ -837,6 +843,7 @@ impl HashLayerProof {
       None,
       &gens.gens_mem,
       transcript,
+      random_tape,
     );
 
     HashLayerProof {
@@ -1354,6 +1361,7 @@ impl PolyEvalNetworkProof {
     evals: &Vec<Scalar>,
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> Self {
     transcript.append_protocol_name(PolyEvalNetworkProof::protocol_name());
 
@@ -1367,8 +1375,14 @@ impl PolyEvalNetworkProof {
     );
 
     // proof of hash layer for row and col
-    let proof_hash_layer =
-      HashLayerProof::prove((&rand_mem, &rand_ops), dense, derefs, gens, transcript);
+    let proof_hash_layer = HashLayerProof::prove(
+      (&rand_mem, &rand_ops),
+      dense,
+      derefs,
+      gens,
+      transcript,
+      random_tape,
+    );
 
     PolyEvalNetworkProof {
       proof_prod_layer,
@@ -1479,6 +1493,7 @@ impl SparseMatPolyEvalProof {
     evals: &Vec<Scalar>, // a vector evaluation of \widetilde{M}(r = (rx,ry)) for each M
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> SparseMatPolyEvalProof {
     transcript.append_protocol_name(SparseMatPolyEvalProof::protocol_name());
 
@@ -1520,8 +1535,15 @@ impl SparseMatPolyEvalProof {
       timer_build_network.stop();
 
       let timer_eval_network = Timer::new("evalproof_layered_network");
-      let poly_eval_network_proof =
-        PolyEvalNetworkProof::prove(&mut net, &dense, &derefs, evals, gens, transcript);
+      let poly_eval_network_proof = PolyEvalNetworkProof::prove(
+        &mut net,
+        &dense,
+        &derefs,
+        evals,
+        gens,
+        transcript,
+        random_tape,
+      );
       timer_eval_network.stop();
 
       poly_eval_network_proof
@@ -1624,12 +1646,10 @@ impl SparsePolynomial {
   }
 }
 
+#[cfg(test)]
 mod tests {
-  #[cfg(test)]
   use super::*;
-  #[cfg(test)]
   use rand::rngs::OsRng;
-  #[cfg(test)]
   use rand::RngCore;
   #[test]
   fn check_sparse_polyeval_proof() {
@@ -1668,10 +1688,23 @@ mod tests {
       .collect::<Vec<Scalar>>();
     let eval = poly_M.evaluate(&rx, &ry);
     let evals = vec![eval, eval, eval];
-    let mut prover_transcript = Transcript::new(b"example");
 
-    let proof =
-      SparseMatPolyEvalProof::prove(&dense, &rx, &ry, &evals, &gens, &mut prover_transcript);
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
+    let mut prover_transcript = Transcript::new(b"example");
+    let proof = SparseMatPolyEvalProof::prove(
+      &dense,
+      &rx,
+      &ry,
+      &evals,
+      &gens,
+      &mut prover_transcript,
+      &mut random_tape,
+    );
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof

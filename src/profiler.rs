@@ -8,9 +8,8 @@ extern crate rand;
 use flate2::{write::ZlibEncoder, Compression};
 use libspartan::math::Math;
 use libspartan::r1csinstance::{R1CSCommitmentGens, R1CSInstance};
-use libspartan::r1csproof::{R1CSBlinds, R1CSGens};
-use libspartan::scalar::Scalar;
-use libspartan::spartan::{SpartanBlinds, SpartanGens, SpartanProof};
+use libspartan::r1csproof::R1CSGens;
+use libspartan::spartan::{SpartanGens, SpartanProof};
 use libspartan::timer::Timer;
 use merlin::Transcript;
 
@@ -34,20 +33,9 @@ pub fn main() {
     let gens = SpartanGens::new(gens_r1cs_sat, gens_r1cs_eval);
 
     // produce a proof of satisfiability
-    let blinds_r1cs_sat = R1CSBlinds::new(num_cons, num_vars);
-    let blinds = SpartanBlinds::new(blinds_r1cs_sat, Scalar::one());
-
     let timer_prove = Timer::new("SpartanProof::prove");
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = SpartanProof::prove(
-      &inst,
-      &decomm,
-      vars,
-      &input,
-      &blinds,
-      &gens,
-      &mut prover_transcript,
-    );
+    let proof = SpartanProof::prove(&inst, &decomm, vars, &input, &gens, &mut prover_transcript);
     timer_prove.stop();
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());

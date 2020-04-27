@@ -10,9 +10,8 @@ extern crate sha3;
 
 use libspartan::math::Math;
 use libspartan::r1csinstance::{R1CSCommitmentGens, R1CSInstance};
-use libspartan::r1csproof::{R1CSBlinds, R1CSGens};
-use libspartan::scalar::Scalar;
-use libspartan::spartan::{SpartanBlinds, SpartanGens, SpartanProof};
+use libspartan::r1csproof::{R1CSGens};
+use libspartan::spartan::{SpartanGens, SpartanProof};
 use merlin::Transcript;
 
 use criterion::*;
@@ -62,9 +61,6 @@ fn prove_benchmark(c: &mut Criterion) {
     let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
 
     // produce a proof of satisfiability
-    let blinds_r1cs_sat = R1CSBlinds::new(num_cons, num_vars);
-    let blinds = SpartanBlinds::new(blinds_r1cs_sat, Scalar::one());
-
     let (_comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
     let gens = SpartanGens::new(gens_r1cs_sat, gens_r1cs_eval);
 
@@ -77,7 +73,6 @@ fn prove_benchmark(c: &mut Criterion) {
           black_box(&decomm),
           black_box(vars.clone()),
           black_box(&input),
-          black_box(&blinds),
           black_box(&gens),
           black_box(&mut prover_transcript),
         );
@@ -103,24 +98,18 @@ fn verify_benchmark(c: &mut Criterion) {
     let gens_r1cs_eval = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs_eval");
 
     // create a commitment to R1CSInstance
-    let (comm, _decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
+    let (comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
 
     let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
-
-    // produce a proof of satisfiability
-    let blinds_r1cs_sat = R1CSBlinds::new(num_cons, num_vars);
-    let blinds = SpartanBlinds::new(blinds_r1cs_sat, Scalar::one());
-
-    let (_comm, decomm) = SpartanProof::encode(&inst, &gens_r1cs_eval);
     let gens = SpartanGens::new(gens_r1cs_sat, gens_r1cs_eval);
 
+    // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"example");
     let proof = SpartanProof::prove(
       &inst,
       &decomm,
       vars,
       &input,
-      &blinds,
       &gens,
       &mut prover_transcript,
     );

@@ -1,16 +1,16 @@
-use super::commitments::Commitments;
-use super::commitments::MultiCommitGens;
+use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::nizk::DotProductProof;
 use super::scalar::{Scalar, ScalarBytes, ScalarBytesFromScalar};
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
-use curve25519_dalek::traits::VartimeMultiscalarMul;
+use curve25519_dalek::{
+  ristretto::{CompressedRistretto, RistrettoPoint},
+  traits::VartimeMultiscalarMul,
+};
 use itertools::izip;
 use merlin::Transcript;
-use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use std::iter;
 
@@ -571,16 +571,16 @@ impl ZKSumcheckInstanceProof {
     comb_func: F,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
-    blinds: &(Vec<Scalar>, Vec<Scalar>),
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>, Scalar)
   where
     F: Fn(&Scalar, &Scalar) -> Scalar,
   {
-    let (blinds_poly, blinds_evals) = blinds;
-    assert_eq!(blinds_poly.len(), num_rounds);
-    assert_eq!(blinds_evals.len(), num_rounds);
-
+    let (blinds_poly, blinds_evals) = (
+      random_tape.challenge_vector(b"blinds_poly", num_rounds),
+      random_tape.challenge_vector(b"blinds_evals", num_rounds),
+    );
     let mut claim_per_round = *claim;
     let mut comm_claim_per_round = claim_per_round.commit(&blind_claim, &gens_1).compress();
 
@@ -693,25 +693,16 @@ impl ZKSumcheckInstanceProof {
             .collect::<Vec<Scalar>>()
         };
 
-        let mut csprng: OsRng = OsRng;
-        let d = (0..poly.degree() + 1)
-          .map(|_i| Scalar::random(&mut csprng))
-          .collect();
-        let r_delta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
-        let r_beta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
         let (proof, _comm_poly, _comm_sc_eval) = DotProductProof::prove(
-          poly.degree() + 1,
           gens_1,
           gens_n,
           transcript,
+          random_tape,
           &poly.as_vec(),
           &blinds_poly[j],
           &a,
           &target,
           &blind,
-          &d,
-          &r_delta,
-          &r_beta,
         );
 
         (proof, eval, comm_eval)
@@ -744,15 +735,16 @@ impl ZKSumcheckInstanceProof {
     comb_func: F,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
-    blinds: &(Vec<Scalar>, Vec<Scalar>),
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>, Scalar)
   where
     F: Fn(&Scalar, &Scalar, &Scalar, &Scalar) -> Scalar,
   {
-    let (blinds_poly, blinds_evals) = blinds;
-    assert_eq!(blinds_poly.len(), num_rounds);
-    assert_eq!(blinds_evals.len(), num_rounds);
+    let (blinds_poly, blinds_evals) = (
+      random_tape.challenge_vector(b"blinds_poly", num_rounds),
+      random_tape.challenge_vector(b"blinds_evals", num_rounds),
+    );
 
     let mut claim_per_round = *claim;
     let mut comm_claim_per_round = claim_per_round.commit(&blind_claim, &gens_1).compress();
@@ -896,25 +888,16 @@ impl ZKSumcheckInstanceProof {
             .collect::<Vec<Scalar>>()
         };
 
-        let mut csprng: OsRng = OsRng;
-        let d = (0..poly.degree() + 1)
-          .map(|_i| Scalar::random(&mut csprng))
-          .collect();
-        let r_delta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
-        let r_beta = Scalar::random(&mut csprng); // TODO: take this as input from the caller so prove is deterministc
         let (proof, _comm_poly, _comm_sc_eval) = DotProductProof::prove(
-          poly.degree() + 1,
           gens_1,
           gens_n,
           transcript,
+          random_tape,
           &poly.as_vec(),
           &blinds_poly[j],
           &a,
           &target,
           &blind,
-          &d,
-          &r_delta,
-          &r_beta,
         );
 
         (proof, eval, comm_eval)

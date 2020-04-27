@@ -25,5 +25,5 @@ pub mod sparse_mlpoly;
 pub mod spartan;
 pub mod sumcheck;
 pub mod timer;
-mod transcript;
+pub mod transcript;
 mod unipoly;

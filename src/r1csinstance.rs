@@ -303,6 +303,7 @@ impl R1CSEvalProof {
     evals: &R1CSInstanceEvals,
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
+    random_tape: &mut Transcript,
   ) -> R1CSEvalProof {
     let timer = Timer::new("R1CSEvalProof::prove");
     let proof = SparseMatPolyEvalProof::prove(
@@ -312,6 +313,7 @@ impl R1CSEvalProof {
       &vec![evals.eval_A_r, evals.eval_B_r, evals.eval_C_r],
       &gens.gens,
       transcript,
+      random_tape,
     );
     timer.stop();
 

@@ -8,11 +8,12 @@ extern crate merlin;
 extern crate rand;
 extern crate sha3;
 
-use libspartan::dense_mlpoly::{EqPolynomial, PolyCommitmentBlinds, PolyCommitmentGens};
+use libspartan::dense_mlpoly::{EqPolynomial};
 use libspartan::math::Math;
 use libspartan::r1csinstance::R1CSInstance;
-use libspartan::r1csproof::{R1CSBlinds, R1CSGens, R1CSProof};
+use libspartan::r1csproof::{R1CSGens, R1CSProof};
 use libspartan::scalar::Scalar;
+use libspartan::transcript::ProofTranscript;
 use merlin::Transcript;
 use rand::rngs::OsRng;
 
@@ -29,24 +30,26 @@ fn prove_benchmark(c: &mut Criterion) {
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
     let n = inst.get_num_vars();
-    let m = n.square_root();
-    assert_eq!(n, m * m);
 
     let gens = R1CSGens::new(num_cons, num_vars, b"test-m");
-    let blinds = R1CSBlinds::new(num_cons, num_vars);
 
     let name = format!("r1cs_prove_{}", n);
     group.bench_function(&name, move |b| {
       b.iter(|| {
+        let mut random_tape = {
+          let mut csprng: OsRng = OsRng;
+          let mut tape = Transcript::new(b"proof");
+          tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+          tape
+        };
         let mut prover_transcript = Transcript::new(b"example");
         R1CSProof::prove(
           black_box(&inst),
           black_box(vars.clone()),
           black_box(&input),
-          black_box(&blinds),
           black_box(&gens),
-          black_box(&Scalar::zero()),
           black_box(&mut prover_transcript),
+          black_box(&mut random_tape),
         )
       });
     });
@@ -65,21 +68,22 @@ fn verify_benchmark(c: &mut Criterion) {
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
     let n = inst.get_num_vars();
-    let m = n.square_root();
-    assert_eq!(n, m * m);
-
     let gens = R1CSGens::new(num_cons, num_vars, b"test-m");
-    let blinds = R1CSBlinds::new(num_cons, num_vars);
 
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, rx, ry) = R1CSProof::prove(
       &inst,
       vars,
       &input,
-      &blinds,
       &gens,
-      &Scalar::zero(),
       &mut prover_transcript,
+      &mut random_tape,
     );
 
     let eval_table_rx = EqPolynomial::new(rx.clone()).evals();

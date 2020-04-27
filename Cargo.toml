@@ -12,9 +12,9 @@ digest = "0.8.1"
 sha3 = "0.8.2"
 byteorder = "1.3.4"
 rayon = "1.3.0"
-serde = { version = "1.0.105", features = ["derive"] }
+serde = { version = "1.0.106", features = ["derive"] }
 bincode = "1.2.1"
-subtle = { version = "^2.2.1", default-features = false }
+subtle = { version = "^2.2.2", default-features = false }
 rand_core = { version = "0.5", default-features = false }
 zeroize = { version = "1", default-features = false }
 itertools = "0.9.0"
@@ -22,7 +22,7 @@ colored = "1.9.3"
 flate2 = "1.0.14"
 
 [dev-dependencies]
-criterion = "0.3.0"
+criterion = "0.3.1"
 
 [lib]
 name = "libspartan"
