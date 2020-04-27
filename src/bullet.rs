@@ -1,19 +1,18 @@
 #![allow(non_snake_case)]
 
 use super::errors::ProofVerifyError;
+use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
-use super::scalar::{Scalar, ScalarBytes, ScalarBytesFromScalar};
+use super::scalar::Scalar;
 use super::transcript::ProofTranscript;
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
-use curve25519_dalek::traits::VartimeMultiscalarMul;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::iter;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BulletReductionProof {
-  L_vec: Vec<CompressedRistretto>,
-  R_vec: Vec<CompressedRistretto>,
+  L_vec: Vec<CompressedGroup>,
+  R_vec: Vec<CompressedGroup>,
 }
 
 impl BulletReductionProof {
@@ -29,19 +28,19 @@ impl BulletReductionProof {
   /// either 0 or a power of 2.
   pub fn prove(
     transcript: &mut Transcript,
-    Q: &RistrettoPoint,
-    G_vec: &Vec<RistrettoPoint>,
-    H: &RistrettoPoint,
+    Q: &GroupElement,
+    G_vec: &Vec<GroupElement>,
+    H: &GroupElement,
     a_vec: &Vec<Scalar>,
     b_vec: &Vec<Scalar>,
     blind: &Scalar,
     blinds_vec: &Vec<(Scalar, Scalar)>,
   ) -> (
     BulletReductionProof,
-    RistrettoPoint,
+    GroupElement,
     Scalar,
     Scalar,
-    RistrettoPoint,
+    GroupElement,
     Scalar,
   ) {
     // Create slices G, H, a, b backed by their respective
@@ -83,23 +82,19 @@ impl BulletReductionProof {
 
       let (blind_L, blind_R) = blinds_iter.next().unwrap();
 
-      let L = RistrettoPoint::vartime_multiscalar_mul(
+      let L = GroupElement::vartime_multiscalar_mul(
         a_L
           .iter()
           .chain(iter::once(&c_L))
-          .chain(iter::once(blind_L))
-          .map(|s| Scalar::decompress_scalar(&s))
-          .collect::<Vec<ScalarBytes>>(),
+          .chain(iter::once(blind_L)),
         G_R.iter().chain(iter::once(Q)).chain(iter::once(H)),
       );
 
-      let R = RistrettoPoint::vartime_multiscalar_mul(
+      let R = GroupElement::vartime_multiscalar_mul(
         a_R
           .iter()
           .chain(iter::once(&c_R))
-          .chain(iter::once(blind_R))
-          .map(|s| Scalar::decompress_scalar(&s))
-          .collect::<Vec<ScalarBytes>>(),
+          .chain(iter::once(blind_R)),
         G_L.iter().chain(iter::once(Q)).chain(iter::once(H)),
       );
 
@@ -112,13 +107,7 @@ impl BulletReductionProof {
       for i in 0..n {
         a_L[i] = a_L[i] * u + u_inv * a_R[i];
         b_L[i] = b_L[i] * u_inv + u * b_R[i];
-        G_L[i] = RistrettoPoint::vartime_multiscalar_mul(
-          &[u_inv, u]
-            .iter()
-            .map(|s| Scalar::decompress_scalar(&s))
-            .collect::<Vec<ScalarBytes>>(),
-          &[G_L[i], G_R[i]],
-        );
+        G_L[i] = GroupElement::vartime_multiscalar_mul(&[u_inv, u], &[G_L[i], G_R[i]]);
       }
 
       blind_fin = blind_fin + blind_L * &u * &u + blind_R * &u_inv * &u_inv;
@@ -131,13 +120,8 @@ impl BulletReductionProof {
       G = G_L;
     }
 
-    let Gamma_hat = RistrettoPoint::vartime_multiscalar_mul(
-      &[a[0], a[0] * b[0], blind_fin]
-        .iter()
-        .map(|s| Scalar::decompress_scalar(&s))
-        .collect::<Vec<ScalarBytes>>(),
-      &[G[0], *Q, *H],
-    );
+    let Gamma_hat =
+      GroupElement::vartime_multiscalar_mul(&[a[0], a[0] * b[0], blind_fin], &[G[0], *Q, *H]);
 
     (
       BulletReductionProof {
@@ -214,9 +198,9 @@ impl BulletReductionProof {
     n: usize,
     a: &Vec<Scalar>,
     transcript: &mut Transcript,
-    Gamma: &RistrettoPoint,
-    G: &[RistrettoPoint],
-  ) -> Result<(RistrettoPoint, RistrettoPoint, Scalar), ProofVerifyError> {
+    Gamma: &GroupElement,
+    G: &[GroupElement],
+  ) -> Result<(GroupElement, GroupElement, Scalar), ProofVerifyError> {
     let (u_sq, u_inv_sq, s) = self.verification_scalars(n, transcript)?;
 
     let Ls = self
@@ -231,21 +215,14 @@ impl BulletReductionProof {
       .map(|p| p.decompress().ok_or(ProofVerifyError))
       .collect::<Result<Vec<_>, _>>()?;
 
-    let G_hat = RistrettoPoint::vartime_multiscalar_mul(
-      s.iter()
-        .map(|sc| Scalar::decompress_scalar(&sc))
-        .collect::<Vec<ScalarBytes>>(),
-      G.iter(),
-    );
+    let G_hat = GroupElement::vartime_multiscalar_mul(s.iter(), G.iter());
     let a_hat = inner_product(a, &s);
 
-    let Gamma_hat = RistrettoPoint::vartime_multiscalar_mul(
+    let Gamma_hat = GroupElement::vartime_multiscalar_mul(
       u_sq
         .iter()
         .chain(u_inv_sq.iter())
-        .chain(iter::once(&Scalar::one()))
-        .map(|s| Scalar::decompress_scalar(&s))
-        .collect::<Vec<ScalarBytes>>(),
+        .chain(iter::once(&Scalar::one())),
       Ls.iter().chain(Rs.iter()).chain(iter::once(Gamma)),
     );
 

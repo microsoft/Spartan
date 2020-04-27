@@ -1,22 +1,19 @@
 extern crate byteorder;
 extern crate core;
 extern crate criterion;
-extern crate curve25519_dalek;
 extern crate digest;
 extern crate libspartan;
 extern crate merlin;
 extern crate rand;
 extern crate sha3;
 
-use libspartan::dense_mlpoly::{
-  DensePolynomial, PolyCommitmentGens, PolyEvalProof,
-};
+use criterion::*;
+use libspartan::dense_mlpoly::{DensePolynomial, PolyCommitmentGens, PolyEvalProof};
 use libspartan::math::Math;
 use libspartan::scalar::Scalar;
+use libspartan::transcript::ProofTranscript;
 use merlin::Transcript;
 use rand::rngs::OsRng;
-use libspartan::transcript::ProofTranscript;
-use criterion::*;
 
 fn commit_benchmark(c: &mut Criterion) {
   let mut csprng: OsRng = OsRng;

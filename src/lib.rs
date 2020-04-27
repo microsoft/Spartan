@@ -1,5 +1,7 @@
 #![allow(non_snake_case)]
 #![feature(test)]
+#![feature(trait_alias)]
+
 extern crate byteorder;
 extern crate core;
 extern crate curve25519_dalek;
@@ -14,6 +16,7 @@ mod bullet;
 pub mod commitments;
 pub mod dense_mlpoly;
 mod errors;
+mod group;
 pub mod math;
 pub mod nizk;
 mod product_tree;

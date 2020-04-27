@@ -1,12 +1,11 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
+use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
 use super::nizk::{DotProductProofGens, DotProductProofLog};
-use super::scalar::{Scalar, ScalarBytesFromScalar};
+use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::ops::Index;
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
-use curve25519_dalek::traits::VartimeMultiscalarMul;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -39,31 +38,27 @@ pub struct PolyCommitmentBlinds {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PolyCommitment {
-  C: Vec<CompressedRistretto>,
+  C: Vec<CompressedGroup>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConstPolyCommitment {
-  C: CompressedRistretto,
+  C: CompressedGroup,
 }
 
 impl PolyCommitment {
   pub fn combine(&self, comm: &PolyCommitment, s: &Scalar) -> PolyCommitment {
     assert_eq!(comm.C.len(), self.C.len());
     let C = (0..self.C.len())
-      .map(|i| {
-        (self.C[i].decompress().unwrap()
-          + Scalar::decompress_scalar(s) * comm.C[i].decompress().unwrap())
-        .compress()
-      })
-      .collect::<Vec<CompressedRistretto>>();
+      .map(|i| (self.C[i].decompress().unwrap() + s * comm.C[i].decompress().unwrap()).compress())
+      .collect::<Vec<CompressedGroup>>();
     PolyCommitment { C }
   }
 
   pub fn combine_const(&self, comm: &ConstPolyCommitment) -> PolyCommitment {
     let C = (0..self.C.len())
       .map(|i| (self.C[i].decompress().unwrap() + comm.C.decompress().unwrap()).compress())
-      .collect::<Vec<CompressedRistretto>>();
+      .collect::<Vec<CompressedGroup>>();
     PolyCommitment { C }
   }
 }
@@ -386,7 +381,7 @@ impl PolyEvalProof {
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
     random_tape: &mut Transcript,
-  ) -> (PolyEvalProof, CompressedRistretto) {
+  ) -> (PolyEvalProof, CompressedGroup) {
     transcript.append_protocol_name(PolyEvalProof::protocol_name());
 
     // assert vectors are of the right size
@@ -442,8 +437,8 @@ impl PolyEvalProof {
     &self,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    r: &Vec<Scalar>,            // point at which the polynomial is evaluated
-    C_Zr: &CompressedRistretto, // commitment to \widetilde{Z}(r)
+    r: &Vec<Scalar>,        // point at which the polynomial is evaluated
+    C_Zr: &CompressedGroup, // commitment to \widetilde{Z}(r)
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(PolyEvalProof::protocol_name());
@@ -455,8 +450,7 @@ impl PolyEvalProof {
     // compute a weighted sum of commitments and L
     let C_decompressed = comm.C.iter().map(|pt| pt.decompress().unwrap());
 
-    let C_LZ = RistrettoPoint::vartime_multiscalar_mul(Scalar::decompress_vec(&L), C_decompressed)
-      .compress();
+    let C_LZ = GroupElement::vartime_multiscalar_mul(&L, C_decompressed).compress();
 
     self
       .proof
@@ -467,8 +461,8 @@ impl PolyEvalProof {
     &self,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    r: &Vec<Scalar>,            // point at which the polynomial is evaluated
-    C_Zr: &CompressedRistretto, // commitment to \widetilde{Z}(r)
+    r: &Vec<Scalar>,        // point at which the polynomial is evaluated
+    C_Zr: &CompressedGroup, // commitment to \widetilde{Z}(r)
     comm: &[&PolyCommitment],
     coeff: &[&Scalar],
   ) -> Result<(), ProofVerifyError> {
@@ -479,7 +473,7 @@ impl PolyEvalProof {
     let (L, R) = eq.compute_factored_evals();
 
     // compute a weighted sum of commitments and L
-    let C_decompressed: Vec<Vec<RistrettoPoint>> = (0..comm.len())
+    let C_decompressed: Vec<Vec<GroupElement>> = (0..comm.len())
       .map(|i| {
         comm[i]
           .C
@@ -489,15 +483,11 @@ impl PolyEvalProof {
       })
       .collect();
 
-    let C_LZ: Vec<RistrettoPoint> = (0..comm.len())
-      .map(|i| {
-        RistrettoPoint::vartime_multiscalar_mul(Scalar::decompress_vec(&L), &C_decompressed[i])
-      })
+    let C_LZ: Vec<GroupElement> = (0..comm.len())
+      .map(|i| GroupElement::vartime_multiscalar_mul(&L, &C_decompressed[i]))
       .collect();
 
-    let C_LZ_combined: RistrettoPoint = (0..C_LZ.len())
-      .map(|i| C_LZ[i] * Scalar::decompress_scalar(&coeff[i]))
-      .sum();
+    let C_LZ_combined: GroupElement = (0..C_LZ.len()).map(|i| C_LZ[i] * coeff[i]).sum();
 
     self.proof.verify(
       R.len(),

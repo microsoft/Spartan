@@ -1,11 +1,11 @@
+use super::group::CompressedGroup;
 use super::scalar::Scalar;
-use curve25519_dalek::ristretto::CompressedRistretto;
 use merlin::Transcript;
 
 pub trait ProofTranscript {
   fn append_protocol_name(&mut self, protocol_name: &'static [u8]);
   fn append_scalar(&mut self, label: &'static [u8], scalar: &Scalar);
-  fn append_point(&mut self, label: &'static [u8], point: &CompressedRistretto);
+  fn append_point(&mut self, label: &'static [u8], point: &CompressedGroup);
   fn challenge_scalar(&mut self, label: &'static [u8]) -> Scalar;
   fn challenge_vector(&mut self, label: &'static [u8], len: usize) -> Vec<Scalar>;
 }
@@ -19,7 +19,7 @@ impl ProofTranscript for Transcript {
     self.append_message(label, &scalar.to_bytes());
   }
 
-  fn append_point(&mut self, label: &'static [u8], point: &CompressedRistretto) {
+  fn append_point(&mut self, label: &'static [u8], point: &CompressedGroup) {
     self.append_message(label, point.as_bytes());
   }
 
@@ -56,7 +56,7 @@ impl AppendToTranscript for Vec<Scalar> {
   }
 }
 
-impl AppendToTranscript for CompressedRistretto {
+impl AppendToTranscript for CompressedGroup {
   fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
     transcript.append_point(label, self);
   }

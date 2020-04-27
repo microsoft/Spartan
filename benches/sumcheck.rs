@@ -3,20 +3,19 @@
 extern crate byteorder;
 extern crate core;
 extern crate criterion;
-extern crate curve25519_dalek;
 extern crate digest;
 extern crate libspartan;
 extern crate merlin;
 extern crate rand;
 extern crate sha3;
 
+use libspartan::commitments::Commitments;
 use libspartan::commitments::MultiCommitGens;
 use libspartan::dense_mlpoly::DensePolynomial;
 use libspartan::math::Math;
 use libspartan::nizk::DotProductProof;
 use libspartan::scalar::Scalar;
 use libspartan::sumcheck::ZKSumcheckInstanceProof;
-use libspartan::commitments::Commitments;
 use libspartan::transcript::ProofTranscript;
 use merlin::Transcript;
 use rand::rngs::OsRng;
@@ -106,12 +105,12 @@ fn verify_benchmark(c: &mut Criterion) {
     let comb_func =
       |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { poly_A_comp * poly_B_comp };
 
-      let mut random_tape = {
-        let mut csprng: OsRng = OsRng;
-        let mut tape = Transcript::new(b"proof");
-        tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-        tape
-      };
+    let mut random_tape = {
+      let mut csprng: OsRng = OsRng;
+      let mut tape = Transcript::new(b"proof");
+      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
+      tape
+    };
 
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, _r, _v, _blind_post_claim) = ZKSumcheckInstanceProof::prove_quad(

@@ -3,16 +3,15 @@ use super::dense_mlpoly::{
   DensePolynomial, EqPolynomial, PolyCommitment, PolyCommitmentGens, PolyEvalProof,
 };
 use super::errors::ProofVerifyError;
+use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
 use super::r1csinstance::{R1CSInstance, R1CSInstanceEvals};
-use super::scalar::{Scalar, ScalarBytes, ScalarBytesFromScalar};
+use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::sumcheck::ZKSumcheckInstanceProof;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
-use curve25519_dalek::traits::VartimeMultiscalarMul;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::iter;
@@ -25,15 +24,15 @@ pub struct R1CSProof {
   comm_vars: PolyCommitment,
   sc_proof_phase1: ZKSumcheckInstanceProof,
   claims_phase2: (
-    CompressedRistretto,
-    CompressedRistretto,
-    CompressedRistretto,
-    CompressedRistretto,
+    CompressedGroup,
+    CompressedGroup,
+    CompressedGroup,
+    CompressedGroup,
   ),
   pok_claims_phase2: (KnowledgeProof, ProductProof),
   proof_eq_sc_phase1: EqualityProof,
   sc_proof_phase2: ZKSumcheckInstanceProof,
-  comm_vars_at_ry: CompressedRistretto,
+  comm_vars_at_ry: CompressedGroup,
   proof_eval_vars_at_ry: PolyEvalProof,
   proof_eq_sc_phase2: EqualityProof,
 }
@@ -409,7 +408,7 @@ impl R1CSProof {
     let taus_bound_rx: Scalar = (0..rx.len())
       .map(|i| &rx[i] * &tau[i] + (&Scalar::one() - &rx[i]) * (&Scalar::one() - &tau[i]))
       .product();
-    let expected_claim_post_phase1 = (Scalar::decompress_scalar(&taus_bound_rx)
+    let expected_claim_post_phase1 = (&taus_bound_rx
       * (comm_prod_Az_Bz_claims.decompress().unwrap() - comm_Cz_claim.decompress().unwrap()))
     .compress();
 
@@ -430,17 +429,15 @@ impl R1CSProof {
     let r_C = transcript.challenge_scalar(b"challenege_Cz");
 
     // r_A * comm_Az_claim + r_B * comm_Bz_claim + r_C * comm_Cz_claim;
-    let comm_claim_phase2 = RistrettoPoint::vartime_multiscalar_mul(
+    let comm_claim_phase2 = GroupElement::vartime_multiscalar_mul(
       iter::once(&r_A)
         .chain(iter::once(&r_B))
-        .chain(iter::once(&r_C))
-        .map(|s| Scalar::decompress_scalar(&s))
-        .collect::<Vec<ScalarBytes>>(),
+        .chain(iter::once(&r_C)),
       iter::once(&comm_Az_claim)
         .chain(iter::once(&comm_Bz_claim))
         .chain(iter::once(&comm_Cz_claim))
         .map(|pt| pt.decompress().unwrap())
-        .collect::<Vec<RistrettoPoint>>(),
+        .collect::<Vec<GroupElement>>(),
     )
     .compress();
 
@@ -482,11 +479,8 @@ impl R1CSProof {
     };
 
     // compute commitment to eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
-    let comm_eval_Z_at_ry = RistrettoPoint::vartime_multiscalar_mul(
-      iter::once(Scalar::one() - &ry[0])
-        .chain(iter::once(ry[0]))
-        .map(|s| Scalar::decompress_scalar(&s))
-        .collect::<Vec<ScalarBytes>>(),
+    let comm_eval_Z_at_ry = GroupElement::vartime_multiscalar_mul(
+      iter::once(Scalar::one() - &ry[0]).chain(iter::once(ry[0])),
       iter::once(&self.comm_vars_at_ry.decompress().unwrap()).chain(iter::once(
         &poly_input_eval.commit(&Scalar::zero(), &gens.gens_pc.gens.gens_1),
       )),
@@ -495,9 +489,7 @@ impl R1CSProof {
     // perform the final check in the second sum-check protocol
     let (eval_A_r, eval_B_r, eval_C_r) = evals.get_evaluations();
     let expected_claim_post_phase2 =
-      (Scalar::decompress_scalar(&(&r_A * &eval_A_r + &r_B * &eval_B_r + &r_C * &eval_C_r))
-        * comm_eval_Z_at_ry)
-        .compress();
+      (&(&r_A * &eval_A_r + &r_B * &eval_B_r + &r_C * &eval_C_r) * comm_eval_Z_at_ry).compress();
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
     assert!(self
       .proof_eq_sc_phase2

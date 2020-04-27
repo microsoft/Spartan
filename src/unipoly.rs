@@ -1,7 +1,7 @@
 use super::commitments::{Commitments, MultiCommitGens};
+use super::group::GroupElement;
 use super::scalar::{Scalar, ScalarFromPrimitives};
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use curve25519_dalek::ristretto::RistrettoPoint;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -87,7 +87,7 @@ impl UniPoly {
     }
   }
 
-  pub fn commit(&self, gens: &MultiCommitGens, blind: &Scalar) -> RistrettoPoint {
+  pub fn commit(&self, gens: &MultiCommitGens, blind: &Scalar) -> GroupElement {
     self.coeffs.commit(blind, gens)
   }
 }

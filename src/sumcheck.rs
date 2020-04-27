@@ -1,14 +1,11 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
+use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::nizk::DotProductProof;
-use super::scalar::{Scalar, ScalarBytes, ScalarBytesFromScalar};
+use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
-use curve25519_dalek::{
-  ristretto::{CompressedRistretto, RistrettoPoint},
-  traits::VartimeMultiscalarMul,
-};
 use itertools::izip;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
@@ -63,15 +60,15 @@ impl SumcheckInstanceProof {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ZKSumcheckInstanceProof {
-  comm_polys: Vec<CompressedRistretto>,
-  comm_evals: Vec<CompressedRistretto>,
+  comm_polys: Vec<CompressedGroup>,
+  comm_evals: Vec<CompressedGroup>,
   proofs: Vec<DotProductProof>,
 }
 
 impl ZKSumcheckInstanceProof {
   pub fn new(
-    comm_polys: Vec<CompressedRistretto>,
-    comm_evals: Vec<CompressedRistretto>,
+    comm_polys: Vec<CompressedGroup>,
+    comm_evals: Vec<CompressedGroup>,
     proofs: Vec<DotProductProof>,
   ) -> Self {
     ZKSumcheckInstanceProof {
@@ -83,13 +80,13 @@ impl ZKSumcheckInstanceProof {
 
   pub fn verify(
     &self,
-    comm_claim: &CompressedRistretto,
+    comm_claim: &CompressedGroup,
     num_rounds: usize,
     degree_bound: usize,
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-  ) -> Result<(CompressedRistretto, Vec<Scalar>), ProofVerifyError> {
+  ) -> Result<(CompressedGroup, Vec<Scalar>), ProofVerifyError> {
     // verify degree bound
     assert_eq!(gens_n.n, degree_bound + 1);
 
@@ -124,14 +121,12 @@ impl ZKSumcheckInstanceProof {
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);
 
         // compute a weighted sum of the RHS
-        let comm_target = RistrettoPoint::vartime_multiscalar_mul(
-          w.iter()
-            .map(|s| Scalar::decompress_scalar(&s))
-            .collect::<Vec<ScalarBytes>>(),
+        let comm_target = GroupElement::vartime_multiscalar_mul(
+          w.iter(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
             .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<RistrettoPoint>>(),
+            .collect::<Vec<GroupElement>>(),
         )
         .compress();
 
@@ -585,8 +580,8 @@ impl ZKSumcheckInstanceProof {
     let mut comm_claim_per_round = claim_per_round.commit(&blind_claim, &gens_1).compress();
 
     let mut r: Vec<Scalar> = Vec::new();
-    let mut comm_polys: Vec<CompressedRistretto> = Vec::new();
-    let mut comm_evals: Vec<CompressedRistretto> = Vec::new();
+    let mut comm_polys: Vec<CompressedGroup> = Vec::new();
+    let mut comm_evals: Vec<CompressedGroup> = Vec::new();
     let mut proofs: Vec<DotProductProof> = Vec::new();
 
     for j in 0..num_rounds {
@@ -645,14 +640,12 @@ impl ZKSumcheckInstanceProof {
 
         // compute a weighted sum of the RHS
         let target = &w[0] * &claim_per_round + &w[1] * &eval;
-        let comm_target = RistrettoPoint::vartime_multiscalar_mul(
-          w.iter()
-            .map(|s| Scalar::decompress_scalar(&s))
-            .collect::<Vec<ScalarBytes>>(),
+        let comm_target = GroupElement::vartime_multiscalar_mul(
+          w.iter(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
             .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<RistrettoPoint>>(),
+            .collect::<Vec<GroupElement>>(),
         )
         .compress();
 
@@ -750,8 +743,8 @@ impl ZKSumcheckInstanceProof {
     let mut comm_claim_per_round = claim_per_round.commit(&blind_claim, &gens_1).compress();
 
     let mut r: Vec<Scalar> = Vec::new();
-    let mut comm_polys: Vec<CompressedRistretto> = Vec::new();
-    let mut comm_evals: Vec<CompressedRistretto> = Vec::new();
+    let mut comm_polys: Vec<CompressedGroup> = Vec::new();
+    let mut comm_evals: Vec<CompressedGroup> = Vec::new();
     let mut proofs: Vec<DotProductProof> = Vec::new();
 
     for j in 0..num_rounds {
@@ -839,14 +832,12 @@ impl ZKSumcheckInstanceProof {
 
         // compute a weighted sum of the RHS
         let target = &w[0] * &claim_per_round + &w[1] * &eval;
-        let comm_target = RistrettoPoint::vartime_multiscalar_mul(
-          w.iter()
-            .map(|s| Scalar::decompress_scalar(&s))
-            .collect::<Vec<ScalarBytes>>(),
+        let comm_target = GroupElement::vartime_multiscalar_mul(
+          w.iter(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
             .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<RistrettoPoint>>(),
+            .collect::<Vec<GroupElement>>(),
         )
         .compress();
 
