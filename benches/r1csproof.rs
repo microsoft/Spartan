@@ -1,14 +1,13 @@
 extern crate byteorder;
 extern crate core;
 extern crate criterion;
-extern crate curve25519_dalek;
 extern crate digest;
 extern crate libspartan;
 extern crate merlin;
 extern crate rand;
 extern crate sha3;
 
-use libspartan::dense_mlpoly::{EqPolynomial};
+use libspartan::dense_mlpoly::EqPolynomial;
 use libspartan::math::Math;
 use libspartan::r1csinstance::R1CSInstance;
 use libspartan::r1csproof::{R1CSGens, R1CSProof};

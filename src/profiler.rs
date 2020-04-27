@@ -1,5 +1,4 @@
 #![allow(non_snake_case)]
-extern crate curve25519_dalek;
 extern crate flate2;
 extern crate libspartan;
 extern crate merlin;

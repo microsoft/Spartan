@@ -1,7 +1,6 @@
 extern crate byteorder;
 extern crate core;
 extern crate criterion;
-extern crate curve25519_dalek;
 extern crate digest;
 extern crate libspartan;
 extern crate merlin;
@@ -10,7 +9,7 @@ extern crate sha3;
 
 use libspartan::math::Math;
 use libspartan::r1csinstance::{R1CSCommitmentGens, R1CSInstance};
-use libspartan::r1csproof::{R1CSGens};
+use libspartan::r1csproof::R1CSGens;
 use libspartan::spartan::{SpartanGens, SpartanProof};
 use merlin::Transcript;
 
@@ -105,14 +104,7 @@ fn verify_benchmark(c: &mut Criterion) {
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = SpartanProof::prove(
-      &inst,
-      &decomm,
-      vars,
-      &input,
-      &gens,
-      &mut prover_transcript,
-    );
+    let proof = SpartanProof::prove(&inst, &decomm, vars, &input, &gens, &mut prover_transcript);
 
     let name = format!("spartan_verify_{}", n);
     group.bench_function(&name, move |b| {
