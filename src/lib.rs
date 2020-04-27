@@ -1,6 +1,5 @@
 #![allow(non_snake_case)]
 #![feature(test)]
-#![feature(trait_alias)]
 
 extern crate byteorder;
 extern crate core;
