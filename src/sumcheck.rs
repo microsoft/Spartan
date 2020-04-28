@@ -3,6 +3,7 @@ use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::nizk::DotProductProof;
+use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
@@ -567,14 +568,14 @@ impl ZKSumcheckInstanceProof {
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>, Scalar)
   where
     F: Fn(&Scalar, &Scalar) -> Scalar,
   {
     let (blinds_poly, blinds_evals) = (
-      random_tape.challenge_vector(b"blinds_poly", num_rounds),
-      random_tape.challenge_vector(b"blinds_evals", num_rounds),
+      random_tape.random_vector(b"blinds_poly", num_rounds),
+      random_tape.random_vector(b"blinds_evals", num_rounds),
     );
     let mut claim_per_round = *claim;
     let mut comm_claim_per_round = claim_per_round.commit(&blind_claim, &gens_1).compress();
@@ -729,14 +730,14 @@ impl ZKSumcheckInstanceProof {
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> (Self, Vec<Scalar>, Vec<Scalar>, Scalar)
   where
     F: Fn(&Scalar, &Scalar, &Scalar, &Scalar) -> Scalar,
   {
     let (blinds_poly, blinds_evals) = (
-      random_tape.challenge_vector(b"blinds_poly", num_rounds),
-      random_tape.challenge_vector(b"blinds_evals", num_rounds),
+      random_tape.random_vector(b"blinds_poly", num_rounds),
+      random_tape.random_vector(b"blinds_evals", num_rounds),
     );
 
     let mut claim_per_round = *claim;

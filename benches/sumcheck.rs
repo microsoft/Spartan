@@ -14,6 +14,7 @@ use libspartan::commitments::MultiCommitGens;
 use libspartan::dense_mlpoly::DensePolynomial;
 use libspartan::math::Math;
 use libspartan::nizk::DotProductProof;
+use libspartan::random::RandomTape;
 use libspartan::scalar::Scalar;
 use libspartan::sumcheck::ZKSumcheckInstanceProof;
 use libspartan::transcript::ProofTranscript;
@@ -53,12 +54,7 @@ fn prove_benchmark(c: &mut Criterion) {
     let name = format!("zksumcheck_prove_{}", n);
     group.bench_function(&name, move |b| {
       b.iter(|| {
-        let mut random_tape = {
-          let mut csprng: OsRng = OsRng;
-          let mut tape = Transcript::new(b"proof");
-          tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-          tape
-        };
+        let mut random_tape = RandomTape::new(b"proof");
         let mut prover_transcript = Transcript::new(b"example");
         ZKSumcheckInstanceProof::prove_quad(
           black_box(&claim),
@@ -105,13 +101,7 @@ fn verify_benchmark(c: &mut Criterion) {
     let comb_func =
       |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { poly_A_comp * poly_B_comp };
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
-
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, _r, _v, _blind_post_claim) = ZKSumcheckInstanceProof::prove_quad(
       &claim,

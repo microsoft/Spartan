@@ -1,6 +1,7 @@
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::math::Math;
+use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{
   MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
@@ -307,7 +308,7 @@ impl R1CSEvalProof {
     evals: &R1CSInstanceEvals,
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> R1CSEvalProof {
     let timer = Timer::new("R1CSEvalProof::prove");
     let proof = SparseMatPolyEvalProof::prove(

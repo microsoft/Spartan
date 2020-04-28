@@ -5,11 +5,11 @@ use super::r1csinstance::{
   R1CSInstanceEvals,
 };
 use super::r1csproof::{R1CSGens, R1CSProof};
+use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
-use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 
 pub struct SNARKGens {
@@ -57,13 +57,7 @@ impl SNARK {
   ) -> Self {
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"SpartanSNARKProof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
-
+    let mut random_tape = RandomTape::new(b"proof");
     transcript.append_protocol_name(SNARK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = R1CSProof::prove(
@@ -190,13 +184,7 @@ impl NIZK {
   ) -> Self {
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"SpartanNIZKProof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
-
+    let mut random_tape = RandomTape::new(b"proof");
     transcript.append_protocol_name(NIZK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = R1CSProof::prove(
