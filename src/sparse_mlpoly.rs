@@ -5,6 +5,7 @@ use super::dense_mlpoly::{
 use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalProofBatched};
+use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
@@ -78,7 +79,7 @@ impl DerefsEvalProof {
     evals: Vec<Scalar>,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> PolyEvalProof {
     assert_eq!(joint_poly.get_num_vars(), r.len() + evals.len().log2());
 
@@ -122,7 +123,7 @@ impl DerefsEvalProof {
     r: &Vec<Scalar>,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> Self {
     transcript.append_protocol_name(DerefsEvalProof::protocol_name());
 
@@ -752,7 +753,7 @@ impl HashLayerProof {
     derefs: &Derefs,
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> Self {
     transcript.append_protocol_name(HashLayerProof::protocol_name());
 
@@ -1361,7 +1362,7 @@ impl PolyEvalNetworkProof {
     evals: &Vec<Scalar>,
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> Self {
     transcript.append_protocol_name(PolyEvalNetworkProof::protocol_name());
 
@@ -1493,7 +1494,7 @@ impl SparseMatPolyEvalProof {
     evals: &Vec<Scalar>, // a vector evaluation of \widetilde{M}(r = (rx,ry)) for each M
     gens: &SparseMatPolyCommitmentGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> SparseMatPolyEvalProof {
     transcript.append_protocol_name(SparseMatPolyEvalProof::protocol_name());
 
@@ -1689,12 +1690,7 @@ mod tests {
     let eval = poly_M.evaluate(&rx, &ry);
     let evals = vec![eval, eval, eval];
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let proof = SparseMatPolyEvalProof::prove(
       &dense,

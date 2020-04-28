@@ -7,6 +7,7 @@ use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
 use super::r1csinstance::{R1CSInstance, R1CSInstanceEvals};
+use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::sumcheck::ZKSumcheckInstanceProof;
@@ -81,7 +82,7 @@ impl R1CSProof {
     evals_Cz: &mut DensePolynomial,
     gens: &R1CSSumcheckGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> (ZKSumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>, Scalar) {
     let comb_func = |poly_A_comp: &Scalar,
                      poly_B_comp: &Scalar,
@@ -116,7 +117,7 @@ impl R1CSProof {
     evals_ABC: &mut DensePolynomial,
     gens: &R1CSSumcheckGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> (ZKSumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>, Scalar) {
     let comb_func =
       |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { poly_A_comp * poly_B_comp };
@@ -146,7 +147,7 @@ impl R1CSProof {
     input: &Vec<Scalar>,
     gens: &R1CSGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
     let timer_prove = Timer::new("R1CSProof::prove");
     transcript.append_protocol_name(R1CSProof::protocol_name());
@@ -208,10 +209,10 @@ impl R1CSProof {
     let (tau_claim, Az_claim, Bz_claim, Cz_claim) =
       (&poly_tau[0], &poly_Az[0], &poly_Bz[0], &poly_Cz[0]);
     let (Az_blind, Bz_blind, Cz_blind, prod_Az_Bz_blind) = (
-      random_tape.challenge_scalar(b"Az_blind"),
-      random_tape.challenge_scalar(b"Bz_blind"),
-      random_tape.challenge_scalar(b"Cz_blind"),
-      random_tape.challenge_scalar(b"prod_Az_Bz_blind"),
+      random_tape.random_scalar(b"Az_blind"),
+      random_tape.random_scalar(b"Bz_blind"),
+      random_tape.random_scalar(b"Cz_blind"),
+      random_tape.random_scalar(b"prod_Az_Bz_blind"),
     );
 
     let (pok_Cz_claim, comm_Cz_claim) = {
@@ -294,7 +295,7 @@ impl R1CSProof {
 
     let timer_polyeval = Timer::new("polyeval");
     let eval_vars_at_ry = poly_vars.evaluate(&ry[1..].to_vec());
-    let blind_eval = random_tape.challenge_scalar(b"blind_eval");
+    let blind_eval = random_tape.random_scalar(b"blind_eval");
     let (proof_eval_vars_at_ry, comm_vars_at_ry) = PolyEvalProof::prove(
       &poly_vars,
       Some(&blinds_vars),
@@ -597,12 +598,7 @@ mod tests {
 
     let gens = R1CSGens::new(num_cons, num_vars, b"test-m");
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, rx, ry) = R1CSProof::prove(
       &inst,
