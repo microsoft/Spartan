@@ -1,4 +1,6 @@
-pub type Scalar = super::scalar_25519::Scalar;
+mod ristretto255;
+
+pub type Scalar = ristretto255::Scalar;
 pub type ScalarBytes = curve25519_dalek::scalar::Scalar;
 
 pub trait ScalarFromPrimitives {

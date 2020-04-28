@@ -200,7 +200,7 @@ fn set_duration() -> Criterion {
 criterion_group! {
 name = benches_spartan;
 config = set_duration();
-targets = snark_encode_benchmark, snark_prove_benchmark, snark_verify_benchmark
+targets = snark_encode_benchmark, snark_prove_benchmark, snark_verify_benchmark, nizk_prove_benchmark, nizk_verify_benchmark
 }
 
 criterion_main!(benches_spartan);

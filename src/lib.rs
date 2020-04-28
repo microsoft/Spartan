@@ -11,7 +11,6 @@ extern crate rayon;
 extern crate sha3;
 extern crate test;
 
-mod bullet;
 pub mod commitments;
 pub mod dense_mlpoly;
 mod errors;
@@ -23,7 +22,6 @@ pub mod r1csinstance;
 pub mod r1csproof;
 pub mod random;
 pub mod scalar;
-mod scalar_25519;
 pub mod sparse_mlpoly;
 pub mod spartan;
 pub mod sumcheck;

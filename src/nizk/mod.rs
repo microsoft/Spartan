@@ -1,4 +1,3 @@
-use super::bullet::BulletReductionProof;
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::CompressedGroup;
@@ -8,6 +7,9 @@ use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
+
+mod bullet;
+use bullet::BulletReductionProof;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct KnowledgeProof {
