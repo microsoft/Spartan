@@ -1,6 +1,6 @@
 This repository includes the following third-party open-source code.
 
-* The code in scalar_25519.rs is derived from [bls12-381](https://github.com/zkcrypto/bls12_381). 
+* The code in src/scalar/ristretto255.rs is derived from [bls12-381](https://github.com/zkcrypto/bls12_381). 
 Specifically, from [src/bls12_381/scalar.rs](https://github.com/zkcrypto/bls12_381/blob/master/src/scalar.rs) and [src/bls12_381/util.rs](https://github.com/zkcrypto/bls12_381/blob/master/src/util.rs), which has the following copyright and license.
 
 Permission is hereby granted, free of charge, to any
@@ -28,7 +28,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 
-* The invert and batch_invert methods in src/scalar_25519.rs is from [curve25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek), which has the following copyright and license.
+* The invert and batch_invert methods in src/scalar/ristretto255.rs is from [curve25519-dalek](https://github.com/dalek-cryptography/curve25519-dalek), which has the following copyright and license.
 
 Copyright (c) 2016-2019 Isis Agora Lovecruft, Henry de Valence. All rights reserved.
 
@@ -96,7 +96,7 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
-* The bullet.rs is derived from [bulletproofs](https://github.com/dalek-cryptography/bulletproofs/), which has the following license:
+* The src/nizk/bullet.rs is derived from [bulletproofs](https://github.com/dalek-cryptography/bulletproofs/), which has the following license:
 
 MIT License
 
