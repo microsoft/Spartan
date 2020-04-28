@@ -2,7 +2,7 @@ use super::dense_mlpoly::EqPolynomial;
 use super::errors::ProofVerifyError;
 use super::r1csinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
-  R1CSInstanceEvals,
+  R1CSInstanceEvals, R1CSInstanceSize,
 };
 use super::r1csproof::{R1CSGens, R1CSProof};
 use super::random::RandomTape;
@@ -18,7 +18,9 @@ pub struct SNARKGens {
 }
 
 impl SNARKGens {
-  pub fn new(gens_r1cs_sat: R1CSGens, gens_r1cs_eval: R1CSCommitmentGens) -> Self {
+  pub fn new(size: &R1CSInstanceSize) -> Self {
+    let gens_r1cs_sat = R1CSGens::new(size.get_num_cons(), size.get_num_vars(), b"gens_r1cs_sat");
+    let gens_r1cs_eval = R1CSCommitmentGens::new(size, b"gens_r1cs_eval");
     SNARKGens {
       gens_r1cs_sat,
       gens_r1cs_eval,
@@ -41,9 +43,9 @@ impl SNARK {
   /// A public computation to create a commitment to an R1CS instance
   pub fn encode(
     inst: &R1CSInstance,
-    gens: &R1CSCommitmentGens,
+    gens: &SNARKGens,
   ) -> (R1CSCommitment, R1CSDecommitment) {
-    inst.commit(gens)
+    inst.commit(&gens.gens_r1cs_eval)
   }
 
   /// A method to produce a proof of the satisfiability of an R1CS instance
@@ -158,7 +160,8 @@ pub struct NIZKGens {
 }
 
 impl NIZKGens {
-  pub fn new(gens_r1cs_sat: R1CSGens) -> Self {
+  pub fn new(num_cons: usize, num_vars: usize) -> Self {
+    let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
     NIZKGens { gens_r1cs_sat }
   }
 }
@@ -261,19 +264,19 @@ mod tests {
     let num_cons = num_vars;
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-
     let r1cs_size = inst.size();
-    let gens_r1cs_eval = R1CSCommitmentGens::new(&r1cs_size, b"gens_r1cs_eval");
+
+    // produce public generators
+    let gens = SNARKGens::new(&r1cs_size);
 
     // create a commitment to R1CSInstance
-    let (comm, decomm) = SNARK::encode(&inst, &gens_r1cs_eval);
+    let (comm, decomm) = SNARK::encode(&inst, &gens);
 
-    let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
-    let gens = SNARKGens::new(gens_r1cs_sat, gens_r1cs_eval);
-
+    // produce a proof
     let mut prover_transcript = Transcript::new(b"example");
     let proof = SNARK::prove(&inst, &decomm, vars, &input, &gens, &mut prover_transcript);
 
+    // verify the proof
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
       .verify(&comm, &input, &mut verifier_transcript, &gens)
