@@ -25,9 +25,26 @@ pub struct R1CSInstance {
 }
 
 pub struct R1CSInstanceSize {
+  num_cons: usize,
+  num_vars: usize,
+  num_inputs: usize,
   size_A: SparseMatPolynomialSize,
   size_B: SparseMatPolynomialSize,
   size_C: SparseMatPolynomialSize,
+}
+
+impl R1CSInstanceSize {
+  pub fn get_num_cons(&self) -> usize {
+    self.num_cons
+  }
+
+  pub fn get_num_vars(&self) -> usize {
+    self.num_vars
+  }
+
+  pub fn get_num_inputs(&self) -> usize {
+    self.num_inputs
+  }
 }
 
 pub struct R1CSCommitmentGens {
@@ -124,6 +141,9 @@ impl R1CSInstance {
 
   pub fn size(&self) -> R1CSInstanceSize {
     R1CSInstanceSize {
+      num_cons: self.num_cons,
+      num_vars: self.num_vars,
+      num_inputs: self.num_inputs,
       size_A: self.A.size(),
       size_B: self.B.size(),
       size_C: self.C.size(),

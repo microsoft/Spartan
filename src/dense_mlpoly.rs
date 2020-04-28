@@ -115,41 +115,6 @@ impl EqPolynomial {
   }
 }
 
-pub struct ConstPolynomial {
-  num_vars: usize,
-  c: Scalar,
-}
-
-impl ConstPolynomial {
-  pub fn new(num_vars: usize, c: Scalar) -> Self {
-    ConstPolynomial { num_vars, c }
-  }
-
-  pub fn evaluate(&self, rx: &Vec<Scalar>) -> Scalar {
-    assert_eq!(self.num_vars, rx.len());
-    self.c
-  }
-
-  pub fn get_num_vars(&self) -> usize {
-    self.num_vars
-  }
-
-  /// produces a binding commitment
-  pub fn commit(&self, gens: &PolyCommitmentGens) -> PolyCommitment {
-    let ell = self.get_num_vars();
-
-    let (left_num_vars, right_num_vars) = EqPolynomial::compute_factored_lens(ell);
-    let L_size = left_num_vars.pow2();
-    let R_size = right_num_vars.pow2();
-    assert_eq!(L_size * R_size, ell.pow2());
-
-    let vec = vec![self.c; R_size];
-
-    let c = vec.commit(&Scalar::zero(), &gens.gens.gens_n).compress();
-    PolyCommitment { C: vec![c; L_size] }
-  }
-}
-
 pub struct IdentityPolynomial {
   size_point: usize,
 }
@@ -456,48 +421,6 @@ impl PolyEvalProof {
       .verify(R.len(), &gens.gens, transcript, &R, &C_LZ, C_Zr)
   }
 
-  pub fn verify_batched(
-    &self,
-    gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
-    r: &Vec<Scalar>,        // point at which the polynomial is evaluated
-    C_Zr: &CompressedGroup, // commitment to \widetilde{Z}(r)
-    comm: &[&PolyCommitment],
-    coeff: &[&Scalar],
-  ) -> Result<(), ProofVerifyError> {
-    transcript.append_protocol_name(PolyEvalProof::protocol_name());
-
-    // compute L and R
-    let eq = EqPolynomial::new(r.to_vec());
-    let (L, R) = eq.compute_factored_evals();
-
-    // compute a weighted sum of commitments and L
-    let C_decompressed: Vec<Vec<GroupElement>> = (0..comm.len())
-      .map(|i| {
-        comm[i]
-          .C
-          .iter()
-          .map(|pt| pt.decompress().unwrap())
-          .collect()
-      })
-      .collect();
-
-    let C_LZ: Vec<GroupElement> = (0..comm.len())
-      .map(|i| GroupElement::vartime_multiscalar_mul(&L, &C_decompressed[i]))
-      .collect();
-
-    let C_LZ_combined: GroupElement = (0..C_LZ.len()).map(|i| C_LZ[i] * coeff[i]).sum();
-
-    self.proof.verify(
-      R.len(),
-      &gens.gens,
-      transcript,
-      &R,
-      &C_LZ_combined.compress(),
-      C_Zr,
-    )
-  }
-
   pub fn verify_plain(
     &self,
     gens: &PolyCommitmentGens,
@@ -510,23 +433,6 @@ impl PolyEvalProof {
     let C_Zr = Zr.commit(&Scalar::zero(), &gens.gens.gens_1).compress();
 
     self.verify(gens, transcript, r, &C_Zr, comm)
-  }
-
-  pub fn verify_plain_batched(
-    &self,
-    gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
-    r: &Vec<Scalar>, // point at which the polynomial is evaluated
-    Zr: &Scalar,     // evaluation \widetilde{Z}(r)
-    comm: &[&PolyCommitment],
-    coeff: &[&Scalar],
-  ) -> Result<(), ProofVerifyError> {
-    // compute a commitment to Zr with a blind of zero
-    let C_Zr = Zr.commit(&Scalar::zero(), &gens.gens.gens_1).compress();
-
-    assert_eq!(comm.len(), coeff.len());
-
-    self.verify_batched(gens, transcript, r, &C_Zr, comm, coeff)
   }
 }
 
