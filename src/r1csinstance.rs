@@ -247,7 +247,7 @@ impl R1CSInstance {
       .map(|i| if Az[i] * Bz[i] == Cz[i] { 0 } else { 1 })
       .sum();
 
-    !(res > 0)
+    res == 0
   }
 
   pub fn multiply_vec(
@@ -270,7 +270,7 @@ impl R1CSInstance {
     &self,
     num_rows: usize,
     num_cols: usize,
-    evals: &Vec<Scalar>,
+    evals: &[Scalar],
   ) -> (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>) {
     assert_eq!(num_rows, self.num_cons);
     assert!(num_cols > self.num_vars);
@@ -284,8 +284,8 @@ impl R1CSInstance {
 
   pub fn evaluate_with_tables(
     &self,
-    evals_rx: &Vec<Scalar>,
-    evals_ry: &Vec<Scalar>,
+    evals_rx: &[Scalar],
+    evals_ry: &[Scalar],
   ) -> R1CSInstanceEvals {
     R1CSInstanceEvals {
       eval_A_r: self.A.evaluate_with_tables(evals_rx, evals_ry),
@@ -298,7 +298,7 @@ impl R1CSInstance {
     assert_eq!(self.A.get_num_nz_entries(), self.B.get_num_nz_entries());
     assert_eq!(self.A.get_num_nz_entries(), self.C.get_num_nz_entries());
     let (comm, dense) =
-      SparseMatPolynomial::multi_commit(&vec![&self.A, &self.B, &self.C], &gens.gens);
+      SparseMatPolynomial::multi_commit(&[&self.A, &self.B, &self.C], &gens.gens);
     let r1cs_comm = R1CSCommitment {
       num_cons: self.num_cons,
       num_vars: self.num_vars,
@@ -320,8 +320,8 @@ pub struct R1CSEvalProof {
 impl R1CSEvalProof {
   pub fn prove(
     decomm: &R1CSDecommitment,
-    rx: &Vec<Scalar>, // point at which the polynomial is evaluated
-    ry: &Vec<Scalar>,
+    rx: &[Scalar], // point at which the polynomial is evaluated
+    ry: &[Scalar],
     evals: &R1CSInstanceEvals,
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
@@ -332,7 +332,7 @@ impl R1CSEvalProof {
       &decomm.dense,
       rx,
       ry,
-      &vec![evals.eval_A_r, evals.eval_B_r, evals.eval_C_r],
+      &[evals.eval_A_r, evals.eval_B_r, evals.eval_C_r],
       &gens.gens,
       transcript,
       random_tape,
@@ -345,8 +345,8 @@ impl R1CSEvalProof {
   pub fn verify(
     &self,
     comm: &R1CSCommitment,
-    rx: &Vec<Scalar>, // point at which the R1CS matrix polynomials are evaluated
-    ry: &Vec<Scalar>,
+    rx: &[Scalar], // point at which the R1CS matrix polynomials are evaluated
+    ry: &[Scalar],
     eval: &R1CSInstanceEvals,
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
@@ -357,7 +357,7 @@ impl R1CSEvalProof {
         &comm.comm,
         rx,
         ry,
-        &vec![eval.eval_A_r, eval.eval_B_r, eval.eval_C_r],
+        &[eval.eval_A_r, eval.eval_B_r, eval.eval_C_r],
         &gens.gens,
         transcript
       )

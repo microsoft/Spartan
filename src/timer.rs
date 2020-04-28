@@ -20,10 +20,11 @@ impl Timer {
   pub fn new(label: &str) -> Self {
     let timer = Instant::now();
     CALL_DEPTH.fetch_add(1, Ordering::Relaxed);
+    let star = "* ";
     println!(
       "{:indent$}{}{}",
       "",
-      "* ",
+      star,
       label.yellow().bold(),
       indent = 2 * CALL_DEPTH.fetch_add(0, Ordering::Relaxed)
     );
@@ -36,10 +37,11 @@ impl Timer {
   #[inline(always)]
   pub fn stop(&self) {
     let duration = self.timer.elapsed();
+    let star = "* ";
     println!(
       "{:indent$}{}{} {:?}",
       "",
-      "* ",
+      star,
       self.label.blue().bold(),
       duration,
       indent = 2 * CALL_DEPTH.fetch_add(0, Ordering::Relaxed)
@@ -50,10 +52,11 @@ impl Timer {
   #[inline(always)]
   pub fn print(msg: &str) {
     CALL_DEPTH.fetch_add(1, Ordering::Relaxed);
+    let star = "* ";
     println!(
       "{:indent$}{}{}",
       "",
-      "* ",
+      star,
       msg.to_string().green().bold(),
       indent = 2 * CALL_DEPTH.fetch_add(0, Ordering::Relaxed)
     );

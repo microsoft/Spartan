@@ -186,7 +186,7 @@ impl R1CSProof {
     let (num_rounds_x, num_rounds_y) = (inst.get_num_cons().log2(), z.len().log2());
     let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
     // compute the initial evaluation table for R(\tau, x)
-    let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau.clone()).evals());
+    let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
     let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
       inst.multiply_vec(inst.get_num_cons(), z.len(), &z);
 
@@ -407,9 +407,9 @@ impl R1CSProof {
     comm_prod_Az_Bz_claims.append_to_transcript(b"comm_prod_Az_Bz_claims", transcript);
 
     let taus_bound_rx: Scalar = (0..rx.len())
-      .map(|i| &rx[i] * &tau[i] + (&Scalar::one() - &rx[i]) * (&Scalar::one() - &tau[i]))
+      .map(|i| rx[i] * tau[i] + (Scalar::one() - rx[i]) * (Scalar::one() - tau[i]))
       .product();
-    let expected_claim_post_phase1 = (&taus_bound_rx
+    let expected_claim_post_phase1 = (taus_bound_rx
       * (comm_prod_Az_Bz_claims.decompress().unwrap() - comm_Cz_claim.decompress().unwrap()))
     .compress();
 
@@ -481,7 +481,7 @@ impl R1CSProof {
 
     // compute commitment to eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
     let comm_eval_Z_at_ry = GroupElement::vartime_multiscalar_mul(
-      iter::once(Scalar::one() - &ry[0]).chain(iter::once(ry[0])),
+      iter::once(Scalar::one() - ry[0]).chain(iter::once(ry[0])),
       iter::once(&self.comm_vars_at_ry.decompress().unwrap()).chain(iter::once(
         &poly_input_eval.commit(&Scalar::zero(), &gens.gens_pc.gens.gens_1),
       )),
@@ -490,7 +490,7 @@ impl R1CSProof {
     // perform the final check in the second sum-check protocol
     let (eval_A_r, eval_B_r, eval_C_r) = evals.get_evaluations();
     let expected_claim_post_phase2 =
-      (&(&r_A * &eval_A_r + &r_B * &eval_B_r + &r_C * &eval_C_r) * comm_eval_Z_at_ry).compress();
+      ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r) * comm_eval_Z_at_ry).compress();
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
     assert!(self
       .proof_eq_sc_phase2

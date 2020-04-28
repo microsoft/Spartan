@@ -3,7 +3,7 @@
 //! The entire file is an adaptation from bls12-381 crate. We modify various constants (MODULUS, R, R2, etc.) to appropriate values for Curve25519 and update tests
 //! We borrow the `invert` method from curve25519-dalek crate
 //! See NOTICE.md for more details
-
+#[allow(clippy::all)]
 use core::borrow::Borrow;
 use core::convert::TryFrom;
 use core::fmt;

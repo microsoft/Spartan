@@ -71,24 +71,24 @@ impl Commitments for Scalar {
 impl Commitments for Vec<Scalar> {
   fn commit(&self, blind: &Scalar, gens_n: &MultiCommitGens) -> GroupElement {
     assert!(gens_n.n == self.len());
-    GroupElement::vartime_multiscalar_mul(self, &gens_n.G) + blind * &gens_n.h
+    GroupElement::vartime_multiscalar_mul(self, &gens_n.G) + blind * gens_n.h
   }
 }
 
 impl Commitments for [Scalar] {
   fn commit(&self, blind: &Scalar, gens_n: &MultiCommitGens) -> GroupElement {
     assert_eq!(gens_n.n, self.len());
-    GroupElement::vartime_multiscalar_mul(self, &gens_n.G) + blind * &gens_n.h
+    GroupElement::vartime_multiscalar_mul(self, &gens_n.G) + blind * gens_n.h
   }
 }
 
 impl Commitments for Vec<bool> {
   fn commit(&self, blind: &Scalar, gens_n: &MultiCommitGens) -> GroupElement {
     assert!(gens_n.n == self.len());
-    let mut comm = blind * &gens_n.h;
+    let mut comm = blind * gens_n.h;
     for i in 0..self.len() {
       if self[i] {
-        comm = comm + gens_n.G[i];
+        comm += gens_n.G[i];
       }
     }
     comm
@@ -98,10 +98,10 @@ impl Commitments for Vec<bool> {
 impl Commitments for [bool] {
   fn commit(&self, blind: &Scalar, gens_n: &MultiCommitGens) -> GroupElement {
     assert!(gens_n.n == self.len());
-    let mut comm = blind * &gens_n.h;
+    let mut comm = blind * gens_n.h;
     for i in 0..self.len() {
       if self[i] {
-        comm = comm + gens_n.G[i];
+        comm += gens_n.G[i];
       }
     }
     comm
