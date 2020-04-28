@@ -49,8 +49,8 @@ impl AppendToTranscript for Scalar {
 impl AppendToTranscript for Vec<Scalar> {
   fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
     transcript.append_message(label, b"begin_append_vector");
-    for i in 0..self.len() {
-      transcript.append_scalar(label, &self[i]);
+    for item in self {
+      transcript.append_scalar(label, item);
     }
     transcript.append_message(label, b"end_append_vector");
   }

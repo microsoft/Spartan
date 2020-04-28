@@ -3,7 +3,7 @@
 //! The entire file is an adaptation from bls12-381 crate. We modify various constants (MODULUS, R, R2, etc.) to appropriate values for Curve25519 and update tests
 //! We borrow the `invert` method from curve25519-dalek crate
 //! See NOTICE.md for more details
-
+#![allow(clippy::all)]
 use core::borrow::Borrow;
 use core::convert::TryFrom;
 use core::fmt;
@@ -246,10 +246,10 @@ impl ConditionallySelectable for Scalar {
 /// q = 2^252 + 27742317777372353535851937790883648493
 /// 0x1000000000000000 0000000000000000 14def9dea2f79cd6 5812631a5cf5d3ed
 const MODULUS: Scalar = Scalar([
-  0x5812631a5cf5d3ed,
-  0x14def9dea2f79cd6,
-  0x0000000000000000,
-  0x1000000000000000,
+  0x5812_631a_5cf5_d3ed,
+  0x14de_f9de_a2f7_9cd6,
+  0x0000_0000_0000_0000,
+  0x1000_0000_0000_0000,
 ]);
 
 impl<'a> Neg for &'a Scalar {
@@ -301,30 +301,30 @@ impl_binops_additive!(Scalar, Scalar);
 impl_binops_multiplicative!(Scalar, Scalar);
 
 /// INV = -(q^{-1} mod 2^64) mod 2^64
-const INV: u64 = 0xd2b51da312547e1b;
+const INV: u64 = 0xd2b5_1da3_1254_7e1b;
 
 /// R = 2^256 mod q
 const R: Scalar = Scalar([
-  0xd6ec31748d98951d,
-  0xc6ef5bf4737dcf70,
-  0xfffffffffffffffe,
-  0x0fffffffffffffff,
+  0xd6ec_3174_8d98_951d,
+  0xc6ef_5bf4_737d_cf70,
+  0xffff_ffff_ffff_fffe,
+  0x0fff_ffff_ffff_ffff,
 ]);
 
 /// R^2 = 2^512 mod q
 const R2: Scalar = Scalar([
-  0xa40611e3449c0f01,
-  0xd00e1ba768859347,
-  0xceec73d217f5be65,
-  0x0399411b7c309a3d,
+  0xa406_11e3_449c_0f01,
+  0xd00e_1ba7_6885_9347,
+  0xceec_73d2_17f5_be65,
+  0x0399_411b_7c30_9a3d,
 ]);
 
 /// R^3 = 2^768 mod q
 const R3: Scalar = Scalar([
-  0x2a9e49687b83a2db,
-  0x278324e6aef7f3ec,
-  0x8065dc6c04ec5b65,
-  0xe530b773599cec7,
+  0x2a9e_4968_7b83_a2db,
+  0x2783_24e6_aef7_f3ec,
+  0x8065_dc6c_04ec_5b65,
+  0x0e53_0b77_3599_cec7,
 ]);
 
 impl Default for Scalar {

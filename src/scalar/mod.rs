@@ -27,8 +27,7 @@ impl ScalarFromPrimitives for bool {
 
 pub trait ScalarBytesFromScalar {
   fn decompress_scalar(s: &Scalar) -> ScalarBytes;
-  fn decompress_vec(v: &Vec<Scalar>) -> Vec<ScalarBytes>;
-  fn decompress_seq(s: &[Scalar]) -> Vec<ScalarBytes>;
+  fn decompress_vector(s: &[Scalar]) -> Vec<ScalarBytes>;
 }
 
 impl ScalarBytesFromScalar for Scalar {
@@ -36,13 +35,7 @@ impl ScalarBytesFromScalar for Scalar {
     ScalarBytes::from_bytes_mod_order(s.to_bytes())
   }
 
-  fn decompress_vec(v: &Vec<Scalar>) -> Vec<ScalarBytes> {
-    (0..v.len())
-      .map(|i| Scalar::decompress_scalar(&v[i]))
-      .collect::<Vec<ScalarBytes>>()
-  }
-
-  fn decompress_seq(s: &[Scalar]) -> Vec<ScalarBytes> {
+  fn decompress_vector(s: &[Scalar]) -> Vec<ScalarBytes> {
     (0..s.len())
       .map(|i| Scalar::decompress_scalar(&s[i]))
       .collect::<Vec<ScalarBytes>>()

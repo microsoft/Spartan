@@ -50,7 +50,7 @@ impl SNARK {
     inst: &R1CSInstance,
     decomm: &R1CSDecommitment,
     vars: Vec<Scalar>,
-    input: &Vec<Scalar>,
+    input: &[Scalar],
     gens: &SNARKGens,
     transcript: &mut Transcript,
   ) -> Self {
@@ -111,7 +111,7 @@ impl SNARK {
   pub fn verify(
     &self,
     comm: &R1CSCommitment,
-    input: &Vec<Scalar>,
+    input: &[Scalar],
     transcript: &mut Transcript,
     gens: &SNARKGens,
   ) -> Result<(), ProofVerifyError> {
@@ -178,7 +178,7 @@ impl NIZK {
   pub fn prove(
     inst: &R1CSInstance,
     vars: Vec<Scalar>,
-    input: &Vec<Scalar>,
+    input: &[Scalar],
     gens: &NIZKGens,
     transcript: &mut Transcript,
   ) -> Self {
@@ -211,7 +211,7 @@ impl NIZK {
   pub fn verify(
     &self,
     inst: &R1CSInstance,
-    input: &Vec<Scalar>,
+    input: &[Scalar],
     transcript: &mut Transcript,
     gens: &NIZKGens,
   ) -> Result<(), ProofVerifyError> {

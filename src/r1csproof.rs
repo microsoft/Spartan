@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::{
   DensePolynomial, EqPolynomial, PolyCommitment, PolyCommitmentGens, PolyEvalProof,
@@ -13,9 +14,9 @@ use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::sumcheck::ZKSumcheckInstanceProof;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
+use core::iter;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::iter;
 
 #[cfg(test)]
 use super::sparse_mlpoly::{SparseMatEntry, SparseMatPolynomial};
@@ -144,7 +145,7 @@ impl R1CSProof {
   pub fn prove(
     inst: &R1CSInstance,
     vars: Vec<Scalar>,
-    input: &Vec<Scalar>,
+    input: &[Scalar],
     gens: &R1CSGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
@@ -153,7 +154,7 @@ impl R1CSProof {
     transcript.append_protocol_name(R1CSProof::protocol_name());
 
     // we currently require the number of |inputs| + 1 to be at most number of vars
-    assert!(input.len() + 1 <= vars.len());
+    assert!(input.len() < vars.len());
 
     let timer_commit = Timer::new("polycommit");
     let (poly_vars, comm_vars, blinds_vars) = {
@@ -186,7 +187,7 @@ impl R1CSProof {
     let (num_rounds_x, num_rounds_y) = (inst.get_num_cons().log2(), z.len().log2());
     let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
     // compute the initial evaluation table for R(\tau, x)
-    let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau.clone()).evals());
+    let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
     let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
       inst.multiply_vec(inst.get_num_cons(), z.len(), &z);
 
@@ -247,7 +248,7 @@ impl R1CSProof {
 
     // prove the final step of sum-check #1
     let taus_bound_rx = tau_claim;
-    let blind_expected_claim_postsc1 = taus_bound_rx * (&prod_Az_Bz_blind - &Cz_blind);
+    let blind_expected_claim_postsc1 = taus_bound_rx * (prod_Az_Bz_blind - Cz_blind);
     let claim_post_phase1 = (Az_claim * Bz_claim - Cz_claim) * taus_bound_rx;
     let (proof_eq_sc_phase1, _C1, _C2) = EqualityProof::prove(
       &gens.gens_sc.gens_1,
@@ -264,8 +265,8 @@ impl R1CSProof {
     let r_A = transcript.challenge_scalar(b"challenege_Az");
     let r_B = transcript.challenge_scalar(b"challenege_Bz");
     let r_C = transcript.challenge_scalar(b"challenege_Cz");
-    let claim_phase2 = &r_A * Az_claim + &r_B * Bz_claim + &r_C * Cz_claim;
-    let blind_claim_phase2 = &r_A * Az_blind + &r_B * Bz_blind + &r_C * Cz_blind;
+    let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
+    let blind_claim_phase2 = r_A * Az_blind + r_B * Bz_blind + r_C * Cz_blind;
 
     let evals_ABC = {
       // compute the initial evaluation table for R(\tau, x)
@@ -276,7 +277,7 @@ impl R1CSProof {
       assert_eq!(evals_A.len(), evals_B.len());
       assert_eq!(evals_A.len(), evals_C.len());
       (0..evals_A.len())
-        .map(|i| &r_A * &evals_A[i] + &r_B * &evals_B[i] + &r_C * &evals_C[i])
+        .map(|i| r_A * evals_A[i] + r_B * evals_B[i] + r_C * evals_C[i])
         .collect::<Vec<Scalar>>()
     };
 
@@ -309,9 +310,9 @@ impl R1CSProof {
     timer_polyeval.stop();
 
     // prove the final step of sum-check #2
-    let blind_eval_Z_at_ry = (Scalar::one() - &ry[0]) * blind_eval;
-    let blind_expected_claim_postsc2 = &claims_phase2[1] * &blind_eval_Z_at_ry;
-    let claim_post_phase2 = &claims_phase2[0] * &claims_phase2[1];
+    let blind_eval_Z_at_ry = (Scalar::one() - ry[0]) * blind_eval;
+    let blind_expected_claim_postsc2 = claims_phase2[1] * blind_eval_Z_at_ry;
+    let claim_post_phase2 = claims_phase2[0] * claims_phase2[1];
     let (proof_eq_sc_phase2, _C1, _C2) = EqualityProof::prove(
       &gens.gens_pc.gens.gens_1,
       transcript,
@@ -350,7 +351,7 @@ impl R1CSProof {
     &self,
     num_vars: usize,
     num_cons: usize,
-    input: &Vec<Scalar>,
+    input: &[Scalar],
     evals: &R1CSInstanceEvals,
     transcript: &mut Transcript,
     gens: &R1CSGens,
@@ -407,9 +408,9 @@ impl R1CSProof {
     comm_prod_Az_Bz_claims.append_to_transcript(b"comm_prod_Az_Bz_claims", transcript);
 
     let taus_bound_rx: Scalar = (0..rx.len())
-      .map(|i| &rx[i] * &tau[i] + (&Scalar::one() - &rx[i]) * (&Scalar::one() - &tau[i]))
+      .map(|i| rx[i] * tau[i] + (Scalar::one() - rx[i]) * (Scalar::one() - tau[i]))
       .product();
-    let expected_claim_post_phase1 = (&taus_bound_rx
+    let expected_claim_post_phase1 = (taus_bound_rx
       * (comm_prod_Az_Bz_claims.decompress().unwrap() - comm_Cz_claim.decompress().unwrap()))
     .compress();
 
@@ -481,7 +482,7 @@ impl R1CSProof {
 
     // compute commitment to eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
     let comm_eval_Z_at_ry = GroupElement::vartime_multiscalar_mul(
-      iter::once(Scalar::one() - &ry[0]).chain(iter::once(ry[0])),
+      iter::once(Scalar::one() - ry[0]).chain(iter::once(ry[0])),
       iter::once(&self.comm_vars_at_ry.decompress().unwrap()).chain(iter::once(
         &poly_input_eval.commit(&Scalar::zero(), &gens.gens_pc.gens.gens_1),
       )),
@@ -490,7 +491,7 @@ impl R1CSProof {
     // perform the final check in the second sum-check protocol
     let (eval_A_r, eval_B_r, eval_C_r) = evals.get_evaluations();
     let expected_claim_post_phase2 =
-      (&(&r_A * &eval_A_r + &r_B * &eval_B_r + &r_C * &eval_C_r) * comm_eval_Z_at_ry).compress();
+      ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r) * comm_eval_Z_at_ry).compress();
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
     assert!(self
       .proof_eq_sc_phase2

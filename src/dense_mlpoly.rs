@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
@@ -17,7 +18,7 @@ use rayon::prelude::*;
 pub struct DensePolynomial {
   num_vars: usize, //the number of variables in the multilinear polynomial
   len: usize,
-  Z: Vec<Scalar>, // a vector that holds the evaluations of the polynomial in all the 2^num_vars Boolean inputs
+  Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
 
 pub struct PolyCommitmentGens {
@@ -73,7 +74,7 @@ impl EqPolynomial {
     EqPolynomial { r }
   }
 
-  pub fn evaluate(&self, rx: &Vec<Scalar>) -> Scalar {
+  pub fn evaluate(&self, rx: &[Scalar]) -> Scalar {
     assert_eq!(self.r.len(), rx.len());
     (0..rx.len())
       .map(|i| self.r[i] * rx[i] + (Scalar::one() - self.r[i]) * (Scalar::one() - rx[i]))
@@ -87,12 +88,10 @@ impl EqPolynomial {
     let mut size = 1;
     for j in 0..ell {
       // in each iteration, we double the size of chis
-      size = size * 2;
+      size *= 2;
       for i in (0..size).rev().step_by(2) {
         // copy each element from the prior iteration twice
         let scalar = evals[i / 2];
-        //                evals[i - 1] = scalar * (Scalar::one() - tau[j]);
-        //                evals[i] = scalar * tau[j];
         evals[i] = scalar * self.r[j];
         evals[i - 1] = scalar - evals[i];
       }
@@ -124,7 +123,7 @@ impl IdentityPolynomial {
     IdentityPolynomial { size_point }
   }
 
-  pub fn evaluate(&self, r: &Vec<Scalar>) -> Scalar {
+  pub fn evaluate(&self, r: &[Scalar]) -> Scalar {
     let len = r.len();
     assert_eq!(len, self.size_point);
     (0..len)
@@ -178,7 +177,7 @@ impl DensePolynomial {
   }
 
   #[cfg(not(feature = "rayon_par"))]
-  fn commit_inner(&self, blinds: &Vec<Scalar>, gens: &MultiCommitGens) -> PolyCommitment {
+  fn commit_inner(&self, blinds: &[Scalar], gens: &MultiCommitGens) -> PolyCommitment {
     let L_size = blinds.len();
     let R_size = self.Z.len() / L_size;
     assert_eq!(L_size * R_size, self.Z.len());
@@ -207,42 +206,43 @@ impl DensePolynomial {
     let R_size = right_num_vars.pow2();
     assert_eq!(L_size * R_size, n);
 
-    let blinds = match hiding {
-      true => PolyCommitmentBlinds {
+    let blinds = if hiding {
+      PolyCommitmentBlinds {
         blinds: random_tape.unwrap().random_vector(b"poly_blinds", L_size),
-      },
-      false => PolyCommitmentBlinds {
+      }
+    } else {
+      PolyCommitmentBlinds {
         blinds: vec![Scalar::zero(); L_size],
-      },
+      }
     };
 
     (self.commit_inner(&blinds.blinds, &gens.gens.gens_n), blinds)
   }
 
-  pub fn bound(&self, L: &Vec<Scalar>) -> Vec<Scalar> {
+  pub fn bound(&self, L: &[Scalar]) -> Vec<Scalar> {
     let (left_num_vars, right_num_vars) = EqPolynomial::compute_factored_lens(self.get_num_vars());
     let L_size = left_num_vars.pow2();
     let R_size = right_num_vars.pow2();
     (0..R_size)
-      .map(|i| (0..L_size).map(|j| &L[j] * &self.Z[j * R_size + i]).sum())
+      .map(|i| (0..L_size).map(|j| L[j] * self.Z[j * R_size + i]).sum())
       .collect::<Vec<Scalar>>()
   }
 
   pub fn bound_poly_var_top(&mut self, r: &Scalar) {
     let n = self.len() / 2;
     for i in 0..n {
-      self.Z[i] = &self.Z[i] + r * (&self.Z[i + n] - &self.Z[i]);
+      self.Z[i] = self.Z[i] + r * (self.Z[i + n] - self.Z[i]);
     }
-    self.num_vars = self.num_vars - 1;
+    self.num_vars -= 1;
     self.len = n;
   }
 
   pub fn bound_poly_var_bot(&mut self, r: &Scalar) {
     let n = self.len() / 2;
     for i in 0..n {
-      self.Z[i] = &self.Z[2 * i] + r * (&self.Z[2 * i + 1] - &self.Z[2 * i]);
+      self.Z[i] = self.Z[2 * i] + r * (self.Z[2 * i + 1] - self.Z[2 * i]);
     }
-    self.num_vars = self.num_vars - 1;
+    self.num_vars -= 1;
     self.len = n;
   }
 
@@ -250,13 +250,13 @@ impl DensePolynomial {
     assert_eq!(self.len(), other.len());
     let mut res = Scalar::zero();
     for i in 0..self.len() {
-      res = &res + &self.Z[i] * &other[i];
+      res += self.Z[i] * other[i];
     }
     res
   }
 
   // returns Z(r) in O(n) time
-  pub fn evaluate(&self, r: &Vec<Scalar>) -> Scalar {
+  pub fn evaluate(&self, r: &[Scalar]) -> Scalar {
     // r must have a value for each variable
     assert_eq!(r.len(), self.get_num_vars());
     let chis = EqPolynomial::new(r.to_vec()).evals();
@@ -274,8 +274,8 @@ impl DensePolynomial {
     let other_vec = other.vec();
     assert_eq!(other_vec.len(), self.len);
     self.Z.extend(other_vec);
-    self.num_vars = self.num_vars + 1;
-    self.len = 2 * self.len;
+    self.num_vars += 1;
+    self.len *= 2;
     assert_eq!(self.Z.len(), self.len);
   }
 
@@ -283,12 +283,8 @@ impl DensePolynomial {
   where
     I: IntoIterator<Item = &'a DensePolynomial>,
   {
-    //assert!(polys.len() > 0);
-    //let num_vars = polys[0].num_vars();
     let mut Z: Vec<Scalar> = Vec::new();
     for poly in polys.into_iter() {
-      //assert_eq!(poly.get_num_vars(), num_vars); // ensure each polynomial has the same number of variables
-      //assert_eq!(poly.len, poly.vec().len()); // ensure no variable is already bound
       Z.extend(poly.vec());
     }
 
@@ -298,7 +294,7 @@ impl DensePolynomial {
     DensePolynomial::new(Z)
   }
 
-  pub fn from_usize(Z: &Vec<usize>) -> Self {
+  pub fn from_usize(Z: &[usize]) -> Self {
     DensePolynomial::new(
       (0..Z.len())
         .map(|i| Scalar::from(Z[i] as u64))
@@ -339,7 +335,7 @@ impl PolyEvalProof {
   pub fn prove(
     poly: &DensePolynomial,
     blinds_opt: Option<&PolyCommitmentBlinds>,
-    r: &Vec<Scalar>,               // point at which the polynomial is evaluated
+    r: &[Scalar],                  // point at which the polynomial is evaluated
     Zr: &Scalar,                   // evaluation of \widetilde{Z}(r)
     blind_Zr_opt: Option<&Scalar>, // specifies a blind for Zr
     gens: &PolyCommitmentGens,
@@ -401,7 +397,7 @@ impl PolyEvalProof {
     &self,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    r: &Vec<Scalar>,        // point at which the polynomial is evaluated
+    r: &[Scalar],           // point at which the polynomial is evaluated
     C_Zr: &CompressedGroup, // commitment to \widetilde{Z}(r)
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
@@ -425,8 +421,8 @@ impl PolyEvalProof {
     &self,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    r: &Vec<Scalar>, // point at which the polynomial is evaluated
-    Zr: &Scalar,     // evaluation \widetilde{Z}(r)
+    r: &[Scalar], // point at which the polynomial is evaluated
+    Zr: &Scalar,  // evaluation \widetilde{Z}(r)
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
     // compute a commitment to Zr with a blind of zero
