@@ -1,10 +1,10 @@
 #![allow(non_snake_case)]
 
-use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
-use super::math::Math;
-use super::scalar::Scalar;
-use super::transcript::ProofTranscript;
+use super::super::errors::ProofVerifyError;
+use super::super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
+use super::super::math::Math;
+use super::super::scalar::Scalar;
+use super::super::transcript::ProofTranscript;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 use std::iter;
