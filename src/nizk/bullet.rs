@@ -1,13 +1,14 @@
 #![allow(non_snake_case)]
-
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 use super::super::errors::ProofVerifyError;
 use super::super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::super::math::Math;
 use super::super::scalar::Scalar;
 use super::super::transcript::ProofTranscript;
+use core::iter;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::iter;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BulletReductionProof {
@@ -29,12 +30,12 @@ impl BulletReductionProof {
   pub fn prove(
     transcript: &mut Transcript,
     Q: &GroupElement,
-    G_vec: &Vec<GroupElement>,
+    G_vec: &[GroupElement],
     H: &GroupElement,
-    a_vec: &Vec<Scalar>,
-    b_vec: &Vec<Scalar>,
+    a_vec: &[Scalar],
+    b_vec: &[Scalar],
     blind: &Scalar,
-    blinds_vec: &Vec<(Scalar, Scalar)>,
+    blinds_vec: &[(Scalar, Scalar)],
   ) -> (
     BulletReductionProof,
     GroupElement,
@@ -46,9 +47,9 @@ impl BulletReductionProof {
     // Create slices G, H, a, b backed by their respective
     // vectors.  This lets us reslice as we compress the lengths
     // of the vectors in the main loop below.
-    let mut G = &mut G_vec.clone()[..];
-    let mut a = &mut a_vec.clone()[..];
-    let mut b = &mut b_vec.clone()[..];
+    let mut G = &mut G_vec.to_owned()[..];
+    let mut a = &mut a_vec.to_owned()[..];
+    let mut b = &mut b_vec.to_owned()[..];
 
     // All of the input vectors must have a length that is a power of two.
     let mut n = G.len();
@@ -72,7 +73,7 @@ impl BulletReductionProof {
     let mut blind_fin = *blind;
 
     while n != 1 {
-      n = n / 2;
+      n /= 2;
       let (a_L, a_R) = a.split_at_mut(n);
       let (b_L, b_R) = b.split_at_mut(n);
       let (G_L, G_R) = G.split_at_mut(n);
@@ -110,7 +111,7 @@ impl BulletReductionProof {
         G_L[i] = GroupElement::vartime_multiscalar_mul(&[u_inv, u], &[G_L[i], G_R[i]]);
       }
 
-      blind_fin = blind_fin + blind_L * &u * &u + blind_R * &u_inv * &u_inv;
+      blind_fin = blind_fin + blind_L * u * u + blind_R * u_inv * u_inv;
 
       L_vec.push(L.compress());
       R_vec.push(R.compress());
@@ -124,10 +125,7 @@ impl BulletReductionProof {
       GroupElement::vartime_multiscalar_mul(&[a[0], a[0] * b[0], blind_fin], &[G[0], *Q, *H]);
 
     (
-      BulletReductionProof {
-        L_vec: L_vec,
-        R_vec: R_vec,
-      },
+      BulletReductionProof { L_vec, R_vec },
       Gamma_hat,
       a[0],
       b[0],
@@ -196,7 +194,7 @@ impl BulletReductionProof {
   pub fn verify(
     &self,
     n: usize,
-    a: &Vec<Scalar>,
+    a: &[Scalar],
     transcript: &mut Transcript,
     Gamma: &GroupElement,
     G: &[GroupElement],

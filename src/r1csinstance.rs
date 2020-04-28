@@ -162,7 +162,7 @@ impl R1CSInstance {
     assert_eq!(num_vars.log2().pow2(), num_vars);
 
     // num_inputs + 1 <= num_vars
-    assert!(num_inputs + 1 <= num_vars);
+    assert!(num_inputs < num_vars);
 
     // z is organized as [vars,1,io]
     let size_z = num_vars + num_inputs + 1;
@@ -218,12 +218,12 @@ impl R1CSInstance {
     (inst, Z[0..num_vars].to_vec(), Z[num_vars + 1..].to_vec())
   }
 
-  pub fn is_sat(&self, vars: &Vec<Scalar>, input: &Vec<Scalar>) -> bool {
+  pub fn is_sat(&self, vars: &[Scalar], input: &[Scalar]) -> bool {
     assert_eq!(vars.len(), self.num_vars);
     assert_eq!(input.len(), self.num_inputs);
 
     let z = {
-      let mut z = vars.clone();
+      let mut z = vars.to_vec();
       z.extend(&vec![Scalar::one()]);
       z.extend(input);
       z
@@ -246,18 +246,15 @@ impl R1CSInstance {
     let res: usize = (0..self.num_cons)
       .map(|i| if Az[i] * Bz[i] == Cz[i] { 0 } else { 1 })
       .sum();
-    if res > 0 {
-      false
-    } else {
-      true
-    }
+
+    res == 0
   }
 
   pub fn multiply_vec(
     &self,
     num_rows: usize,
     num_cols: usize,
-    z: &Vec<Scalar>,
+    z: &[Scalar],
   ) -> (DensePolynomial, DensePolynomial, DensePolynomial) {
     assert_eq!(num_rows, self.num_cons);
     assert_eq!(z.len(), num_cols);
@@ -273,7 +270,7 @@ impl R1CSInstance {
     &self,
     num_rows: usize,
     num_cols: usize,
-    evals: &Vec<Scalar>,
+    evals: &[Scalar],
   ) -> (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>) {
     assert_eq!(num_rows, self.num_cons);
     assert!(num_cols > self.num_vars);
@@ -287,8 +284,8 @@ impl R1CSInstance {
 
   pub fn evaluate_with_tables(
     &self,
-    evals_rx: &Vec<Scalar>,
-    evals_ry: &Vec<Scalar>,
+    evals_rx: &[Scalar],
+    evals_ry: &[Scalar],
   ) -> R1CSInstanceEvals {
     R1CSInstanceEvals {
       eval_A_r: self.A.evaluate_with_tables(evals_rx, evals_ry),
@@ -300,8 +297,7 @@ impl R1CSInstance {
   pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {
     assert_eq!(self.A.get_num_nz_entries(), self.B.get_num_nz_entries());
     assert_eq!(self.A.get_num_nz_entries(), self.C.get_num_nz_entries());
-    let (comm, dense) =
-      SparseMatPolynomial::multi_commit(&vec![&self.A, &self.B, &self.C], &gens.gens);
+    let (comm, dense) = SparseMatPolynomial::multi_commit(&[&self.A, &self.B, &self.C], &gens.gens);
     let r1cs_comm = R1CSCommitment {
       num_cons: self.num_cons,
       num_vars: self.num_vars,
@@ -323,8 +319,8 @@ pub struct R1CSEvalProof {
 impl R1CSEvalProof {
   pub fn prove(
     decomm: &R1CSDecommitment,
-    rx: &Vec<Scalar>, // point at which the polynomial is evaluated
-    ry: &Vec<Scalar>,
+    rx: &[Scalar], // point at which the polynomial is evaluated
+    ry: &[Scalar],
     evals: &R1CSInstanceEvals,
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
@@ -335,7 +331,7 @@ impl R1CSEvalProof {
       &decomm.dense,
       rx,
       ry,
-      &vec![evals.eval_A_r, evals.eval_B_r, evals.eval_C_r],
+      &[evals.eval_A_r, evals.eval_B_r, evals.eval_C_r],
       &gens.gens,
       transcript,
       random_tape,
@@ -348,8 +344,8 @@ impl R1CSEvalProof {
   pub fn verify(
     &self,
     comm: &R1CSCommitment,
-    rx: &Vec<Scalar>, // point at which the R1CS matrix polynomials are evaluated
-    ry: &Vec<Scalar>,
+    rx: &[Scalar], // point at which the R1CS matrix polynomials are evaluated
+    ry: &[Scalar],
     eval: &R1CSInstanceEvals,
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
@@ -360,7 +356,7 @@ impl R1CSEvalProof {
         &comm.comm,
         rx,
         ry,
-        &vec![eval.eval_A_r, eval.eval_B_r, eval.eval_C_r],
+        &[eval.eval_A_r, eval.eval_B_r, eval.eval_C_r],
         &gens.gens,
         transcript
       )

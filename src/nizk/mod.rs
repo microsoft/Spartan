@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::CompressedGroup;
@@ -44,8 +45,8 @@ impl KnowledgeProof {
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z1 = x * &c + &t1;
-    let z2 = r * &c + &t2;
+    let z1 = x * c + t1;
+    let z2 = r * c + t2;
 
     (KnowledgeProof { alpha, z1, z2 }, C)
   }
@@ -63,7 +64,7 @@ impl KnowledgeProof {
     let c = transcript.challenge_scalar(b"c");
 
     let lhs = self.z1.commit(&self.z2, gens_n).compress();
-    let rhs = (&c * C.decompress().expect("Could not decompress C")
+    let rhs = (c * C.decompress().expect("Could not decompress C")
       + self
         .alpha
         .decompress()
@@ -109,12 +110,12 @@ impl EqualityProof {
     let C2 = v2.commit(&s2, gens_n).compress();
     C2.append_to_transcript(b"C2", transcript);
 
-    let alpha = (&r * gens_n.h).compress();
+    let alpha = (r * gens_n.h).compress();
     alpha.append_to_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z = &c * (s1 - s2) + &r;
+    let z = c * (s1 - s2) + r;
 
     (EqualityProof { alpha, z }, C1, C2)
   }
@@ -133,11 +134,11 @@ impl EqualityProof {
 
     let c = transcript.challenge_scalar(b"c");
     let rhs = {
-      let C = &C1.decompress().unwrap() - &C2.decompress().unwrap();
-      (&c * C + &self.alpha.decompress().unwrap()).compress()
+      let C = C1.decompress().unwrap() - C2.decompress().unwrap();
+      (c * C + self.alpha.decompress().unwrap()).compress()
     };
 
-    let lhs = (&self.z * gens_n.h).compress();
+    let lhs = (self.z * gens_n.h).compress();
 
     if lhs == rhs {
       Ok(())
@@ -212,11 +213,11 @@ impl ProductProof {
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z1 = &b1 + &c * x;
-    let z2 = &b2 + &c * rX;
-    let z3 = &b3 + &c * y;
-    let z4 = &b4 + &c * rY;
-    let z5 = &b5 + &c * (rZ - rX * y);
+    let z1 = b1 + c * x;
+    let z2 = b2 + c * rX;
+    let z3 = b3 + c * y;
+    let z4 = b4 + c * rY;
+    let z5 = b5 + c * (rZ - rX * y);
     let z = [z1, z2, z3, z4, z5];
 
     (
@@ -243,11 +244,7 @@ impl ProductProof {
     let lhs = (P.decompress().unwrap() + c * X.decompress().unwrap()).compress();
     let rhs = z1.commit(&z2, gens_n).compress();
 
-    if lhs == rhs {
-      true
-    } else {
-      false
-    }
+    lhs == rhs
   }
 
   pub fn verify(
@@ -311,9 +308,9 @@ impl DotProductProof {
     b"dot product proof"
   }
 
-  pub fn compute_dotproduct(a: &Vec<Scalar>, b: &Vec<Scalar>) -> Scalar {
+  pub fn compute_dotproduct(a: &[Scalar], b: &[Scalar]) -> Scalar {
     assert_eq!(a.len(), b.len());
-    (0..a.len()).map(|i| &a[i] * &b[i]).sum()
+    (0..a.len()).map(|i| a[i] * b[i]).sum()
   }
 
   pub fn prove(
@@ -321,46 +318,46 @@ impl DotProductProof {
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
-    x: &Vec<Scalar>,
-    r_x: &Scalar,
-    a: &Vec<Scalar>,
+    x_vec: &[Scalar],
+    blind_x: &Scalar,
+    a_vec: &[Scalar],
     y: &Scalar,
-    r_y: &Scalar,
+    blind_y: &Scalar,
   ) -> (DotProductProof, CompressedGroup, CompressedGroup) {
     transcript.append_protocol_name(DotProductProof::protocol_name());
 
-    let n = x.len();
-    assert_eq!(x.len(), a.len());
-    assert_eq!(gens_n.n, a.len());
+    let n = x_vec.len();
+    assert_eq!(x_vec.len(), a_vec.len());
+    assert_eq!(gens_n.n, a_vec.len());
     assert_eq!(gens_1.n, 1);
 
     // produce randomness for the proofs
-    let d = random_tape.random_vector(b"d", n);
+    let d_vec = random_tape.random_vector(b"d_vec", n);
     let r_delta = random_tape.random_scalar(b"r_delta");
     let r_beta = random_tape.random_scalar(b"r_beta");
 
-    let Cx = x.commit(&r_x, gens_n).compress();
+    let Cx = x_vec.commit(&blind_x, gens_n).compress();
     Cx.append_to_transcript(b"Cx", transcript);
 
-    let Cy = y.commit(&r_y, gens_1).compress();
+    let Cy = y.commit(&blind_y, gens_1).compress();
     Cy.append_to_transcript(b"Cy", transcript);
 
-    let delta = d.commit(&r_delta, gens_n).compress();
+    let delta = d_vec.commit(&r_delta, gens_n).compress();
     delta.append_to_transcript(b"delta", transcript);
 
-    let dotproduct_a_d = DotProductProof::compute_dotproduct(&a, &d);
+    let dotproduct_a_d = DotProductProof::compute_dotproduct(&a_vec, &d_vec);
 
     let beta = dotproduct_a_d.commit(&r_beta, gens_1).compress();
     beta.append_to_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z = (0..d.len())
-      .map(|i| c * x[i] + d[i])
+    let z = (0..d_vec.len())
+      .map(|i| c * x_vec[i] + d_vec[i])
       .collect::<Vec<Scalar>>();
 
-    let z_delta = c * r_x + r_delta;
-    let z_beta = c * r_y + r_beta;
+    let z_delta = c * blind_x + r_delta;
+    let z_beta = c * blind_y + r_beta;
 
     (
       DotProductProof {
@@ -380,7 +377,7 @@ impl DotProductProof {
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    a: &Vec<Scalar>,
+    a: &[Scalar],
     Cx: &CompressedGroup,
     Cy: &CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
@@ -395,11 +392,11 @@ impl DotProductProof {
 
     let c = transcript.challenge_scalar(b"c");
 
-    let mut result = &c * Cx.decompress().unwrap() + self.delta.decompress().unwrap()
+    let mut result = c * Cx.decompress().unwrap() + self.delta.decompress().unwrap()
       == self.z.commit(&self.z_delta, gens_n);
 
     let dotproduct_z_a = DotProductProof::compute_dotproduct(&self.z, &a);
-    result &= &c * Cy.decompress().unwrap() + self.beta.decompress().unwrap()
+    result &= c * Cy.decompress().unwrap() + self.beta.decompress().unwrap()
       == dotproduct_z_a.commit(&self.z_beta, gens_1);
 
     if result {
@@ -437,25 +434,25 @@ impl DotProductProofLog {
     b"dot product proof (log)"
   }
 
-  pub fn compute_dotproduct(a: &Vec<Scalar>, b: &Vec<Scalar>) -> Scalar {
+  pub fn compute_dotproduct(a: &[Scalar], b: &[Scalar]) -> Scalar {
     assert_eq!(a.len(), b.len());
-    (0..a.len()).map(|i| &a[i] * &b[i]).sum()
+    (0..a.len()).map(|i| a[i] * b[i]).sum()
   }
 
   pub fn prove(
     gens: &DotProductProofGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
-    x: &Vec<Scalar>,
-    r_x: &Scalar,
-    a: &Vec<Scalar>,
+    x_vec: &[Scalar],
+    blind_x: &Scalar,
+    a_vec: &[Scalar],
     y: &Scalar,
-    r_y: &Scalar,
+    blind_y: &Scalar,
   ) -> (DotProductProofLog, CompressedGroup, CompressedGroup) {
     transcript.append_protocol_name(DotProductProofLog::protocol_name());
 
-    let n = x.len();
-    assert_eq!(x.len(), a.len());
+    let n = x_vec.len();
+    assert_eq!(x_vec.len(), a_vec.len());
     assert_eq!(gens.n, n);
 
     // produce randomness for generating a proof
@@ -470,22 +467,22 @@ impl DotProductProofLog {
         .collect::<Vec<(Scalar, Scalar)>>()
     };
 
-    let Cx = x.commit(&r_x, &gens.gens_n).compress();
+    let Cx = x_vec.commit(&blind_x, &gens.gens_n).compress();
     Cx.append_to_transcript(b"Cx", transcript);
 
-    let Cy = y.commit(&r_y, &gens.gens_1).compress();
+    let Cy = y.commit(&blind_y, &gens.gens_1).compress();
     Cy.append_to_transcript(b"Cy", transcript);
 
-    let r_Gamma = r_x + r_y;
+    let blind_Gamma = blind_x + blind_y;
     let (bullet_reduction_proof, _Gamma_hat, x_hat, a_hat, g_hat, rhat_Gamma) =
       BulletReductionProof::prove(
         transcript,
         &gens.gens_1.G[0],
         &gens.gens_n.G,
         &gens.gens_n.h,
-        x,
-        a,
-        &r_Gamma,
+        x_vec,
+        a_vec,
+        &blind_Gamma,
         &blinds_vec,
       );
     let y_hat = x_hat * a_hat;
@@ -526,7 +523,7 @@ impl DotProductProofLog {
     n: usize,
     gens: &DotProductProofGens,
     transcript: &mut Transcript,
-    a: &Vec<Scalar>,
+    a: &[Scalar],
     Cx: &CompressedGroup,
     Cy: &CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
@@ -557,7 +554,7 @@ impl DotProductProofLog {
     let z2_s = &self.z2;
 
     let lhs = ((Gamma_hat * c_s + beta_s) * a_hat_s + delta_s).compress();
-    let rhs = ((g_hat + &gens.gens_1.G[0] * a_hat_s) * z1_s + gens.gens_1.h * z2_s).compress();
+    let rhs = ((g_hat + gens.gens_1.G[0] * a_hat_s) * z1_s + gens.gens_1.h * z2_s).compress();
 
     assert_eq!(lhs, rhs);
 
