@@ -17,7 +17,7 @@ use rayon::prelude::*;
 pub struct DensePolynomial {
   num_vars: usize, //the number of variables in the multilinear polynomial
   len: usize,
-  Z: Vec<Scalar>, // a vector that holds the evaluations of the polynomial in all the 2^num_vars Boolean inputs
+  Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
 
 pub struct PolyCommitmentGens {
@@ -91,8 +91,6 @@ impl EqPolynomial {
       for i in (0..size).rev().step_by(2) {
         // copy each element from the prior iteration twice
         let scalar = evals[i / 2];
-        //                evals[i - 1] = scalar * (Scalar::one() - tau[j]);
-        //                evals[i] = scalar * tau[j];
         evals[i] = scalar * self.r[j];
         evals[i - 1] = scalar - evals[i];
       }
@@ -283,12 +281,8 @@ impl DensePolynomial {
   where
     I: IntoIterator<Item = &'a DensePolynomial>,
   {
-    //assert!(polys.len() > 0);
-    //let num_vars = polys[0].num_vars();
     let mut Z: Vec<Scalar> = Vec::new();
     for poly in polys.into_iter() {
-      //assert_eq!(poly.get_num_vars(), num_vars); // ensure each polynomial has the same number of variables
-      //assert_eq!(poly.len, poly.vec().len()); // ensure no variable is already bound
       Z.extend(poly.vec());
     }
 

@@ -124,10 +124,7 @@ impl BulletReductionProof {
       GroupElement::vartime_multiscalar_mul(&[a[0], a[0] * b[0], blind_fin], &[G[0], *Q, *H]);
 
     (
-      BulletReductionProof {
-        L_vec: L_vec,
-        R_vec: R_vec,
-      },
+      BulletReductionProof { L_vec, R_vec },
       Gamma_hat,
       a[0],
       b[0],

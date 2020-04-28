@@ -20,7 +20,7 @@ pub struct CompressedUniPoly {
 }
 
 impl UniPoly {
-  pub fn from_evals(evals: &Vec<Scalar>) -> Self {
+  pub fn from_evals(evals: &[Scalar]) -> Self {
     // we only support degree-2 or degree-3 univariate polynomials
     assert!(evals.len() == 3 || evals.len() == 4);
     let coeffs = if evals.len() == 3 {
@@ -73,8 +73,8 @@ impl UniPoly {
     let mut eval = self.coeffs[0];
     let mut power = *r;
     for i in 1..self.coeffs.len() {
-      eval = &eval + &power * &self.coeffs[i];
-      power = &power * r;
+      eval += power * self.coeffs[i];
+      power *= r;
     }
     eval
   }
@@ -99,7 +99,7 @@ impl CompressedUniPoly {
     let mut linear_term =
       hint - self.coeffs_except_linear_term[0] - self.coeffs_except_linear_term[0];
     for i in 1..self.coeffs_except_linear_term.len() {
-      linear_term = linear_term - self.coeffs_except_linear_term[i];
+      linear_term -= self.coeffs_except_linear_term[i];
     }
 
     let mut coeffs: Vec<Scalar> = Vec::new();

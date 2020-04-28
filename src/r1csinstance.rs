@@ -162,7 +162,7 @@ impl R1CSInstance {
     assert_eq!(num_vars.log2().pow2(), num_vars);
 
     // num_inputs + 1 <= num_vars
-    assert!(num_inputs + 1 <= num_vars);
+    assert!(num_inputs < num_vars);
 
     // z is organized as [vars,1,io]
     let size_z = num_vars + num_inputs + 1;
@@ -218,12 +218,12 @@ impl R1CSInstance {
     (inst, Z[0..num_vars].to_vec(), Z[num_vars + 1..].to_vec())
   }
 
-  pub fn is_sat(&self, vars: &Vec<Scalar>, input: &Vec<Scalar>) -> bool {
+  pub fn is_sat(&self, vars: &[Scalar], input: &[Scalar]) -> bool {
     assert_eq!(vars.len(), self.num_vars);
     assert_eq!(input.len(), self.num_inputs);
 
     let z = {
-      let mut z = vars.clone();
+      let mut z = vars.to_vec();
       z.extend(&vec![Scalar::one()]);
       z.extend(input);
       z
@@ -246,18 +246,15 @@ impl R1CSInstance {
     let res: usize = (0..self.num_cons)
       .map(|i| if Az[i] * Bz[i] == Cz[i] { 0 } else { 1 })
       .sum();
-    if res > 0 {
-      false
-    } else {
-      true
-    }
+
+    !(res > 0)
   }
 
   pub fn multiply_vec(
     &self,
     num_rows: usize,
     num_cols: usize,
-    z: &Vec<Scalar>,
+    z: &[Scalar],
   ) -> (DensePolynomial, DensePolynomial, DensePolynomial) {
     assert_eq!(num_rows, self.num_cons);
     assert_eq!(z.len(), num_cols);

@@ -135,7 +135,7 @@ impl ZKSumcheckInstanceProof {
           // the vector to use to decommit for sum-check test
           let a_sc = {
             let mut a = vec![Scalar::one(); degree_bound + 1];
-            a[0] = a[0] + Scalar::one();
+            a[0] += Scalar::one();
             a
           };
 
@@ -143,7 +143,7 @@ impl ZKSumcheckInstanceProof {
           let a_eval = {
             let mut a = vec![Scalar::one(); degree_bound + 1];
             for j in 1..a.len() {
-              a[j] = &a[j - 1] * &r_i;
+              a[j] = a[j - 1] * r_i;
             }
             a
           };
@@ -151,7 +151,7 @@ impl ZKSumcheckInstanceProof {
           // take weighted sum of the two vectors using w
           assert_eq!(a_sc.len(), a_eval.len());
           (0..a_sc.len())
-            .map(|i| &w[0] * &a_sc[i] + &w[1] * &a_eval[i])
+            .map(|i| w[0] * a_sc[i] + w[1] * a_eval[i])
             .collect::<Vec<Scalar>>()
         };
 
@@ -199,30 +199,28 @@ impl SumcheckInstanceProof {
       let len = poly_A.len() / 2;
       for i in 0..len {
         // eval 0: bound_func is A(low)
-        eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
+        eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
 
         // eval 2: bound_func is -A(low) + 2*A(high)
-        let poly_A_bound_point = &poly_A[len + i] + &poly_A[len + i] - &poly_A[i];
-        let poly_B_bound_point = &poly_B[len + i] + &poly_B[len + i] - &poly_B[i];
-        let poly_C_bound_point = &poly_C[len + i] + &poly_C[len + i] - &poly_C[i];
-        eval_point_2 = &eval_point_2
-          + comb_func(
-            &poly_A_bound_point,
-            &poly_B_bound_point,
-            &poly_C_bound_point,
-          );
+        let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
+        let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
+        let poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
+        eval_point_2 += comb_func(
+          &poly_A_bound_point,
+          &poly_B_bound_point,
+          &poly_C_bound_point,
+        );
 
         // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-        let poly_A_bound_point = &poly_A_bound_point + &poly_A[len + i] - &poly_A[i];
-        let poly_B_bound_point = &poly_B_bound_point + &poly_B[len + i] - &poly_B[i];
-        let poly_C_bound_point = &poly_C_bound_point + &poly_C[len + i] - &poly_C[i];
+        let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
+        let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
+        let poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
 
-        eval_point_3 = &eval_point_3
-          + comb_func(
-            &poly_A_bound_point,
-            &poly_B_bound_point,
-            &poly_C_bound_point,
-          );
+        eval_point_3 += comb_func(
+          &poly_A_bound_point,
+          &poly_B_bound_point,
+          &poly_C_bound_point,
+        );
       }
 
       let evals = vec![eval_point_0, e - eval_point_0, eval_point_2, eval_point_3];
@@ -293,30 +291,28 @@ impl SumcheckInstanceProof {
         let len = poly_A.len() / 2;
         for i in 0..len {
           // eval 0: bound_func is A(low)
-          eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i], &poly_C_par[i]);
+          eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C_par[i]);
 
           // eval 2: bound_func is -A(low) + 2*A(high)
-          let poly_A_bound_point = &poly_A[len + i] + &poly_A[len + i] - &poly_A[i];
-          let poly_B_bound_point = &poly_B[len + i] + &poly_B[len + i] - &poly_B[i];
-          let poly_C_bound_point = &poly_C_par[len + i] + &poly_C_par[len + i] - &poly_C_par[i];
-          eval_point_2 = &eval_point_2
-            + comb_func(
-              &poly_A_bound_point,
-              &poly_B_bound_point,
-              &poly_C_bound_point,
-            );
+          let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
+          let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
+          let poly_C_bound_point = poly_C_par[len + i] + poly_C_par[len + i] - poly_C_par[i];
+          eval_point_2 += comb_func(
+            &poly_A_bound_point,
+            &poly_B_bound_point,
+            &poly_C_bound_point,
+          );
 
           // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-          let poly_A_bound_point = &poly_A_bound_point + &poly_A[len + i] - &poly_A[i];
-          let poly_B_bound_point = &poly_B_bound_point + &poly_B[len + i] - &poly_B[i];
-          let poly_C_bound_point = &poly_C_bound_point + &poly_C_par[len + i] - &poly_C_par[i];
+          let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
+          let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
+          let poly_C_bound_point = poly_C_bound_point + poly_C_par[len + i] - poly_C_par[i];
 
-          eval_point_3 = &eval_point_3
-            + comb_func(
-              &poly_A_bound_point,
-              &poly_B_bound_point,
-              &poly_C_bound_point,
-            );
+          eval_point_3 += comb_func(
+            &poly_A_bound_point,
+            &poly_B_bound_point,
+            &poly_C_bound_point,
+          );
         }
 
         evals.push((eval_point_0, eval_point_2, eval_point_3));
@@ -333,27 +329,25 @@ impl SumcheckInstanceProof {
         let len = poly_A.len() / 2;
         for i in 0..len {
           // eval 0: bound_func is A(low)
-          eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
+          eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i]);
           // eval 2: bound_func is -A(low) + 2*A(high)
-          let poly_A_bound_point = &poly_A[len + i] + &poly_A[len + i] - &poly_A[i];
-          let poly_B_bound_point = &poly_B[len + i] + &poly_B[len + i] - &poly_B[i];
-          let poly_C_bound_point = &poly_C[len + i] + &poly_C[len + i] - &poly_C[i];
-          eval_point_2 = &eval_point_2
-            + comb_func(
-              &poly_A_bound_point,
-              &poly_B_bound_point,
-              &poly_C_bound_point,
-            );
+          let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
+          let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
+          let poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
+          eval_point_2 += comb_func(
+            &poly_A_bound_point,
+            &poly_B_bound_point,
+            &poly_C_bound_point,
+          );
           // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-          let poly_A_bound_point = &poly_A_bound_point + &poly_A[len + i] - &poly_A[i];
-          let poly_B_bound_point = &poly_B_bound_point + &poly_B[len + i] - &poly_B[i];
-          let poly_C_bound_point = &poly_C_bound_point + &poly_C[len + i] - &poly_C[i];
-          eval_point_3 = &eval_point_3
-            + comb_func(
-              &poly_A_bound_point,
-              &poly_B_bound_point,
-              &poly_C_bound_point,
-            );
+          let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
+          let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
+          let poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
+          eval_point_3 += comb_func(
+            &poly_A_bound_point,
+            &poly_B_bound_point,
+            &poly_C_bound_point,
+          );
         }
         evals.push((eval_point_0, eval_point_2, eval_point_3));
       }
@@ -462,12 +456,12 @@ impl ZKSumcheckInstanceProof {
         let len = poly_A.len() / 2;
         for i in 0..len {
           // eval 0: bound_func is A(low)
-          eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i]);
+          eval_point_0 += comb_func(&poly_A[i], &poly_B[i]);
 
           // eval 2: bound_func is -A(low) + 2*A(high)
-          let poly_A_bound_point = &poly_A[len + i] + &poly_A[len + i] - &poly_A[i];
-          let poly_B_bound_point = &poly_B[len + i] + &poly_B[len + i] - &poly_B[i];
-          eval_point_2 = &eval_point_2 + comb_func(&poly_A_bound_point, &poly_B_bound_point);
+          let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
+          let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
+          eval_point_2 += comb_func(&poly_A_bound_point, &poly_B_bound_point);
         }
 
         let evals = vec![eval_point_0, claim_per_round - eval_point_0, eval_point_2];
@@ -509,7 +503,7 @@ impl ZKSumcheckInstanceProof {
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);
 
         // compute a weighted sum of the RHS
-        let target = &w[0] * &claim_per_round + &w[1] * &eval;
+        let target = w[0] * claim_per_round + w[1] * eval;
         let comm_target = GroupElement::vartime_multiscalar_mul(
           w.iter(),
           iter::once(&comm_claim_per_round)
@@ -528,7 +522,7 @@ impl ZKSumcheckInstanceProof {
 
           let blind_eval = &blinds_evals[j];
 
-          &w[0] * blind_sc + &w[1] * blind_eval
+          w[0] * blind_sc + w[1] * blind_eval
         };
         assert_eq!(target.commit(&blind, &gens_1).compress(), comm_target);
 
@@ -536,7 +530,7 @@ impl ZKSumcheckInstanceProof {
           // the vector to use to decommit for sum-check test
           let a_sc = {
             let mut a = vec![Scalar::one(); poly.degree() + 1];
-            a[0] = a[0] + Scalar::one();
+            a[0] += Scalar::one();
             a
           };
 
@@ -544,7 +538,7 @@ impl ZKSumcheckInstanceProof {
           let a_eval = {
             let mut a = vec![Scalar::one(); poly.degree() + 1];
             for j in 1..a.len() {
-              a[j] = &a[j - 1] * &r_j;
+              a[j] = a[j - 1] * r_j;
             }
             a
           };
@@ -552,7 +546,7 @@ impl ZKSumcheckInstanceProof {
           // take weighted sum of the two vectors using w
           assert_eq!(a_sc.len(), a_eval.len());
           (0..a_sc.len())
-            .map(|i| &w[0] * &a_sc[i] + &w[1] * &a_eval[i])
+            .map(|i| w[0] * a_sc[i] + w[1] * a_eval[i])
             .collect::<Vec<Scalar>>()
         };
 
@@ -626,33 +620,31 @@ impl ZKSumcheckInstanceProof {
         let len = poly_A.len() / 2;
         for i in 0..len {
           // eval 0: bound_func is A(low)
-          eval_point_0 = &eval_point_0 + comb_func(&poly_A[i], &poly_B[i], &poly_C[i], &poly_D[i]);
+          eval_point_0 += comb_func(&poly_A[i], &poly_B[i], &poly_C[i], &poly_D[i]);
 
           // eval 2: bound_func is -A(low) + 2*A(high)
-          let poly_A_bound_point = &poly_A[len + i] + &poly_A[len + i] - &poly_A[i];
-          let poly_B_bound_point = &poly_B[len + i] + &poly_B[len + i] - &poly_B[i];
-          let poly_C_bound_point = &poly_C[len + i] + &poly_C[len + i] - &poly_C[i];
-          let poly_D_bound_point = &poly_D[len + i] + &poly_D[len + i] - &poly_D[i];
-          eval_point_2 = &eval_point_2
-            + comb_func(
-              &poly_A_bound_point,
-              &poly_B_bound_point,
-              &poly_C_bound_point,
-              &poly_D_bound_point,
-            );
+          let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
+          let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
+          let poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
+          let poly_D_bound_point = poly_D[len + i] + poly_D[len + i] - poly_D[i];
+          eval_point_2 += comb_func(
+            &poly_A_bound_point,
+            &poly_B_bound_point,
+            &poly_C_bound_point,
+            &poly_D_bound_point,
+          );
 
           // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
-          let poly_A_bound_point = &poly_A_bound_point + &poly_A[len + i] - &poly_A[i];
-          let poly_B_bound_point = &poly_B_bound_point + &poly_B[len + i] - &poly_B[i];
-          let poly_C_bound_point = &poly_C_bound_point + &poly_C[len + i] - &poly_C[i];
-          let poly_D_bound_point = &poly_D_bound_point + &poly_D[len + i] - &poly_D[i];
-          eval_point_3 = &eval_point_3
-            + comb_func(
-              &poly_A_bound_point,
-              &poly_B_bound_point,
-              &poly_C_bound_point,
-              &poly_D_bound_point,
-            );
+          let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
+          let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
+          let poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
+          let poly_D_bound_point = poly_D_bound_point + poly_D[len + i] - poly_D[i];
+          eval_point_3 += comb_func(
+            &poly_A_bound_point,
+            &poly_B_bound_point,
+            &poly_C_bound_point,
+            &poly_D_bound_point,
+          );
         }
 
         let evals = vec![
@@ -701,7 +693,7 @@ impl ZKSumcheckInstanceProof {
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);
 
         // compute a weighted sum of the RHS
-        let target = &w[0] * &claim_per_round + &w[1] * &eval;
+        let target = w[0] * claim_per_round + w[1] * eval;
         let comm_target = GroupElement::vartime_multiscalar_mul(
           w.iter(),
           iter::once(&comm_claim_per_round)
@@ -720,7 +712,7 @@ impl ZKSumcheckInstanceProof {
 
           let blind_eval = &blinds_evals[j];
 
-          &w[0] * blind_sc + &w[1] * blind_eval
+          w[0] * blind_sc + w[1] * blind_eval
         };
 
         assert_eq!(target.commit(&blind, &gens_1).compress(), comm_target);
@@ -729,7 +721,7 @@ impl ZKSumcheckInstanceProof {
           // the vector to use to decommit for sum-check test
           let a_sc = {
             let mut a = vec![Scalar::one(); poly.degree() + 1];
-            a[0] = a[0] + Scalar::one();
+            a[0] += Scalar::one();
             a
           };
 
@@ -737,7 +729,7 @@ impl ZKSumcheckInstanceProof {
           let a_eval = {
             let mut a = vec![Scalar::one(); poly.degree() + 1];
             for j in 1..a.len() {
-              a[j] = &a[j - 1] * &r_j;
+              a[j] = a[j - 1] * r_j;
             }
             a
           };
@@ -745,7 +737,7 @@ impl ZKSumcheckInstanceProof {
           // take weighted sum of the two vectors using w
           assert_eq!(a_sc.len(), a_eval.len());
           (0..a_sc.len())
-            .map(|i| &w[0] * &a_sc[i] + &w[1] * &a_eval[i])
+            .map(|i| w[0] * a_sc[i] + w[1] * a_eval[i])
             .collect::<Vec<Scalar>>()
         };
 

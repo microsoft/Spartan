@@ -144,7 +144,7 @@ impl R1CSProof {
   pub fn prove(
     inst: &R1CSInstance,
     vars: Vec<Scalar>,
-    input: &Vec<Scalar>,
+    input: &[Scalar],
     gens: &R1CSGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
@@ -153,7 +153,7 @@ impl R1CSProof {
     transcript.append_protocol_name(R1CSProof::protocol_name());
 
     // we currently require the number of |inputs| + 1 to be at most number of vars
-    assert!(input.len() + 1 <= vars.len());
+    assert!(input.len() < vars.len());
 
     let timer_commit = Timer::new("polycommit");
     let (poly_vars, comm_vars, blinds_vars) = {
@@ -247,7 +247,7 @@ impl R1CSProof {
 
     // prove the final step of sum-check #1
     let taus_bound_rx = tau_claim;
-    let blind_expected_claim_postsc1 = taus_bound_rx * (&prod_Az_Bz_blind - &Cz_blind);
+    let blind_expected_claim_postsc1 = taus_bound_rx * (prod_Az_Bz_blind - Cz_blind);
     let claim_post_phase1 = (Az_claim * Bz_claim - Cz_claim) * taus_bound_rx;
     let (proof_eq_sc_phase1, _C1, _C2) = EqualityProof::prove(
       &gens.gens_sc.gens_1,
@@ -264,8 +264,8 @@ impl R1CSProof {
     let r_A = transcript.challenge_scalar(b"challenege_Az");
     let r_B = transcript.challenge_scalar(b"challenege_Bz");
     let r_C = transcript.challenge_scalar(b"challenege_Cz");
-    let claim_phase2 = &r_A * Az_claim + &r_B * Bz_claim + &r_C * Cz_claim;
-    let blind_claim_phase2 = &r_A * Az_blind + &r_B * Bz_blind + &r_C * Cz_blind;
+    let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
+    let blind_claim_phase2 = r_A * Az_blind + r_B * Bz_blind + r_C * Cz_blind;
 
     let evals_ABC = {
       // compute the initial evaluation table for R(\tau, x)
@@ -276,7 +276,7 @@ impl R1CSProof {
       assert_eq!(evals_A.len(), evals_B.len());
       assert_eq!(evals_A.len(), evals_C.len());
       (0..evals_A.len())
-        .map(|i| &r_A * &evals_A[i] + &r_B * &evals_B[i] + &r_C * &evals_C[i])
+        .map(|i| r_A * evals_A[i] + r_B * evals_B[i] + r_C * evals_C[i])
         .collect::<Vec<Scalar>>()
     };
 
@@ -309,9 +309,9 @@ impl R1CSProof {
     timer_polyeval.stop();
 
     // prove the final step of sum-check #2
-    let blind_eval_Z_at_ry = (Scalar::one() - &ry[0]) * blind_eval;
-    let blind_expected_claim_postsc2 = &claims_phase2[1] * &blind_eval_Z_at_ry;
-    let claim_post_phase2 = &claims_phase2[0] * &claims_phase2[1];
+    let blind_eval_Z_at_ry = (Scalar::one() - ry[0]) * blind_eval;
+    let blind_expected_claim_postsc2 = claims_phase2[1] * blind_eval_Z_at_ry;
+    let claim_post_phase2 = claims_phase2[0] * claims_phase2[1];
     let (proof_eq_sc_phase2, _C1, _C2) = EqualityProof::prove(
       &gens.gens_pc.gens.gens_1,
       transcript,
@@ -350,7 +350,7 @@ impl R1CSProof {
     &self,
     num_vars: usize,
     num_cons: usize,
-    input: &Vec<Scalar>,
+    input: &[Scalar],
     evals: &R1CSInstanceEvals,
     transcript: &mut Transcript,
     gens: &R1CSGens,
