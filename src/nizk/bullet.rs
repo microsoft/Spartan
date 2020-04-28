@@ -6,9 +6,9 @@ use super::super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::super::math::Math;
 use super::super::scalar::Scalar;
 use super::super::transcript::ProofTranscript;
+use core::iter;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use core::iter;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BulletReductionProof {

@@ -9,10 +9,10 @@ use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
+use core::iter;
 use itertools::izip;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use core::iter;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SumcheckInstanceProof {

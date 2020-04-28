@@ -206,11 +206,15 @@ impl DensePolynomial {
     let R_size = right_num_vars.pow2();
     assert_eq!(L_size * R_size, n);
 
-    let blinds = if hiding { PolyCommitmentBlinds {
-      blinds: random_tape.unwrap().random_vector(b"poly_blinds", L_size),
-      } } else { PolyCommitmentBlinds {
-             blinds: vec![Scalar::zero(); L_size],
-           } };
+    let blinds = if hiding {
+      PolyCommitmentBlinds {
+        blinds: random_tape.unwrap().random_vector(b"poly_blinds", L_size),
+      }
+    } else {
+      PolyCommitmentBlinds {
+        blinds: vec![Scalar::zero(); L_size],
+      }
+    };
 
     (self.commit_inner(&blinds.blinds, &gens.gens.gens_n), blinds)
   }
@@ -331,7 +335,7 @@ impl PolyEvalProof {
   pub fn prove(
     poly: &DensePolynomial,
     blinds_opt: Option<&PolyCommitmentBlinds>,
-    r: &[Scalar],               // point at which the polynomial is evaluated
+    r: &[Scalar],                  // point at which the polynomial is evaluated
     Zr: &Scalar,                   // evaluation of \widetilde{Z}(r)
     blind_Zr_opt: Option<&Scalar>, // specifies a blind for Zr
     gens: &PolyCommitmentGens,
@@ -393,7 +397,7 @@ impl PolyEvalProof {
     &self,
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    r: &[Scalar],        // point at which the polynomial is evaluated
+    r: &[Scalar],           // point at which the polynomial is evaluated
     C_Zr: &CompressedGroup, // commitment to \widetilde{Z}(r)
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
@@ -418,7 +422,7 @@ impl PolyEvalProof {
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
     r: &[Scalar], // point at which the polynomial is evaluated
-    Zr: &Scalar,     // evaluation \widetilde{Z}(r)
+    Zr: &Scalar,  // evaluation \widetilde{Z}(r)
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
     // compute a commitment to Zr with a blind of zero

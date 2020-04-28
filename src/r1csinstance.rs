@@ -297,8 +297,7 @@ impl R1CSInstance {
   pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {
     assert_eq!(self.A.get_num_nz_entries(), self.B.get_num_nz_entries());
     assert_eq!(self.A.get_num_nz_entries(), self.C.get_num_nz_entries());
-    let (comm, dense) =
-      SparseMatPolynomial::multi_commit(&[&self.A, &self.B, &self.C], &gens.gens);
+    let (comm, dense) = SparseMatPolynomial::multi_commit(&[&self.A, &self.B, &self.C], &gens.gens);
     let r1cs_comm = R1CSCommitment {
       num_cons: self.num_cons,
       num_vars: self.num_vars,

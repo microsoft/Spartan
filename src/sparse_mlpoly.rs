@@ -12,9 +12,9 @@ use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
+use core::cmp::Ordering;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use core::cmp::Ordering;
 
 #[derive(Debug)]
 pub struct SparseMatEntry {
@@ -428,11 +428,7 @@ impl SparseMatPolynomial {
     }
   }
 
-  pub fn evaluate_with_tables(
-    &self,
-    eval_table_rx: &[Scalar],
-    eval_table_ry: &[Scalar],
-  ) -> Scalar {
+  pub fn evaluate_with_tables(&self, eval_table_rx: &[Scalar], eval_table_ry: &[Scalar]) -> Scalar {
     assert_eq!(self.num_vars_x.pow2(), eval_table_rx.len());
     assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
 
@@ -1481,16 +1477,14 @@ impl SparseMatPolyEvalProof {
         let mut rx_ext = vec![Scalar::zero(); diff];
         rx_ext.extend(rx);
         (rx_ext, ry.to_vec())
-      },
+      }
       Ordering::Greater => {
         let diff = rx.len() - ry.len();
         let mut ry_ext = vec![Scalar::zero(); diff];
         ry_ext.extend(ry);
         (rx.to_vec(), ry_ext)
-      },
-      Ordering::Equal => {
-        (rx.to_vec(), ry.to_vec())
       }
+      Ordering::Equal => (rx.to_vec(), ry.to_vec()),
     }
   }
 
