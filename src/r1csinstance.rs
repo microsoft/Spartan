@@ -117,6 +117,10 @@ impl R1CSInstance {
     self.num_cons
   }
 
+  pub fn get_num_inputs(&self) -> usize {
+    self.num_inputs
+  }
+
   pub fn size(&self) -> R1CSInstanceSize {
     R1CSInstanceSize {
       size_A: self.A.size(),
