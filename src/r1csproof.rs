@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::{
   DensePolynomial, EqPolynomial, PolyCommitment, PolyCommitmentGens, PolyEvalProof,
@@ -15,7 +16,7 @@ use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::iter;
+use core::iter;
 
 #[cfg(test)]
 use super::sparse_mlpoly::{SparseMatEntry, SparseMatPolynomial};

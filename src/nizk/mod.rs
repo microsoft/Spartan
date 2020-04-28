@@ -1,3 +1,4 @@
+#![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::CompressedGroup;
@@ -317,46 +318,46 @@ impl DotProductProof {
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
-    x: &[Scalar],
-    r_x: &Scalar,
-    a: &[Scalar],
+    x_vec: &[Scalar],
+    blind_x: &Scalar,
+    a_vec: &[Scalar],
     y: &Scalar,
-    r_y: &Scalar,
+    blind_y: &Scalar,
   ) -> (DotProductProof, CompressedGroup, CompressedGroup) {
     transcript.append_protocol_name(DotProductProof::protocol_name());
 
-    let n = x.len();
-    assert_eq!(x.len(), a.len());
-    assert_eq!(gens_n.n, a.len());
+    let n = x_vec.len();
+    assert_eq!(x_vec.len(), a_vec.len());
+    assert_eq!(gens_n.n, a_vec.len());
     assert_eq!(gens_1.n, 1);
 
     // produce randomness for the proofs
-    let d = random_tape.random_vector(b"d", n);
+    let d_vec = random_tape.random_vector(b"d_vec", n);
     let r_delta = random_tape.random_scalar(b"r_delta");
     let r_beta = random_tape.random_scalar(b"r_beta");
 
-    let Cx = x.commit(&r_x, gens_n).compress();
+    let Cx = x_vec.commit(&blind_x, gens_n).compress();
     Cx.append_to_transcript(b"Cx", transcript);
 
-    let Cy = y.commit(&r_y, gens_1).compress();
+    let Cy = y.commit(&blind_y, gens_1).compress();
     Cy.append_to_transcript(b"Cy", transcript);
 
-    let delta = d.commit(&r_delta, gens_n).compress();
+    let delta = d_vec.commit(&r_delta, gens_n).compress();
     delta.append_to_transcript(b"delta", transcript);
 
-    let dotproduct_a_d = DotProductProof::compute_dotproduct(&a, &d);
+    let dotproduct_a_d = DotProductProof::compute_dotproduct(&a_vec, &d_vec);
 
     let beta = dotproduct_a_d.commit(&r_beta, gens_1).compress();
     beta.append_to_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z = (0..d.len())
-      .map(|i| c * x[i] + d[i])
+    let z = (0..d_vec.len())
+      .map(|i| c * x_vec[i] + d_vec[i])
       .collect::<Vec<Scalar>>();
 
-    let z_delta = c * r_x + r_delta;
-    let z_beta = c * r_y + r_beta;
+    let z_delta = c * blind_x + r_delta;
+    let z_beta = c * blind_y + r_beta;
 
     (
       DotProductProof {
@@ -442,16 +443,16 @@ impl DotProductProofLog {
     gens: &DotProductProofGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
-    x: &[Scalar],
-    r_x: &Scalar,
-    a: &[Scalar],
+    x_vec: &[Scalar],
+    blind_x: &Scalar,
+    a_vec: &[Scalar],
     y: &Scalar,
-    r_y: &Scalar,
+    blind_y: &Scalar,
   ) -> (DotProductProofLog, CompressedGroup, CompressedGroup) {
     transcript.append_protocol_name(DotProductProofLog::protocol_name());
 
-    let n = x.len();
-    assert_eq!(x.len(), a.len());
+    let n = x_vec.len();
+    assert_eq!(x_vec.len(), a_vec.len());
     assert_eq!(gens.n, n);
 
     // produce randomness for generating a proof
@@ -466,22 +467,22 @@ impl DotProductProofLog {
         .collect::<Vec<(Scalar, Scalar)>>()
     };
 
-    let Cx = x.commit(&r_x, &gens.gens_n).compress();
+    let Cx = x_vec.commit(&blind_x, &gens.gens_n).compress();
     Cx.append_to_transcript(b"Cx", transcript);
 
-    let Cy = y.commit(&r_y, &gens.gens_1).compress();
+    let Cy = y.commit(&blind_y, &gens.gens_1).compress();
     Cy.append_to_transcript(b"Cy", transcript);
 
-    let r_Gamma = r_x + r_y;
+    let blind_Gamma = blind_x + blind_y;
     let (bullet_reduction_proof, _Gamma_hat, x_hat, a_hat, g_hat, rhat_Gamma) =
       BulletReductionProof::prove(
         transcript,
         &gens.gens_1.G[0],
         &gens.gens_n.G,
         &gens.gens_n.h,
-        x,
-        a,
-        &r_Gamma,
+        x_vec,
+        a_vec,
+        &blind_Gamma,
         &blinds_vec,
       );
     let y_hat = x_hat * a_hat;

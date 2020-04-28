@@ -1,4 +1,4 @@
-use std::fmt;
+use core::fmt;
 
 pub struct ProofVerifyError;
 

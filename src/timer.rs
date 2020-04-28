@@ -1,9 +1,9 @@
 #[cfg(feature = "profile")]
 use colored::Colorize;
 #[cfg(feature = "profile")]
-use std::sync::atomic::AtomicUsize;
+use core::sync::atomic::AtomicUsize;
 #[cfg(feature = "profile")]
-use std::{sync::atomic::Ordering, time::Instant};
+use core::{sync::atomic::Ordering, time::Instant};
 
 #[cfg(feature = "profile")]
 pub static CALL_DEPTH: AtomicUsize = AtomicUsize::new(0);

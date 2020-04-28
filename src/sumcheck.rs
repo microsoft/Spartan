@@ -1,3 +1,5 @@
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
@@ -10,7 +12,7 @@ use super::unipoly::{CompressedUniPoly, UniPoly};
 use itertools::izip;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::iter;
+use core::iter;
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SumcheckInstanceProof {

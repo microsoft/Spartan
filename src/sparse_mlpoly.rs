@@ -1,3 +1,6 @@
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::needless_range_loop)]
 use super::dense_mlpoly::DensePolynomial;
 use super::dense_mlpoly::{
   EqPolynomial, IdentityPolynomial, PolyCommitment, PolyCommitmentGens, PolyEvalProof,
@@ -11,6 +14,7 @@ use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
+use core::cmp::Ordering;
 
 #[derive(Debug)]
 pub struct SparseMatEntry {
@@ -214,15 +218,14 @@ struct AddrTimestamps {
 
 impl AddrTimestamps {
   pub fn new(num_cells: usize, num_ops: usize, ops_addr: Vec<Vec<usize>>) -> Self {
-    for i in 0..ops_addr.len() {
-      assert_eq!(ops_addr[i].len(), num_ops);
+    for item in ops_addr.iter() {
+      assert_eq!(item.len(), num_ops);
     }
 
     let mut audit_ts = vec![0usize; num_cells];
     let mut ops_addr_vec: Vec<DensePolynomial> = Vec::new();
     let mut read_ts_vec: Vec<DensePolynomial> = Vec::new();
-    for i in 0..ops_addr.len() {
-      let ops_addr_inst = &ops_addr[i];
+    for ops_addr_inst in ops_addr.iter() {
       let mut read_ts = vec![0usize; num_ops];
 
       // since read timestamps are trustworthy, we can simply increment the r-ts to obtain a w-ts
@@ -1328,7 +1331,7 @@ impl ProductLayerProof {
     );
     // verify the correctness of claim_row_eval_init and claim_row_eval_audit
     let (claims_mem, _claims_mem_dotp, rand_mem) = self.proof_mem.verify(
-      &vec![
+      &[
         *row_eval_init,
         *row_eval_audit,
         *col_eval_init,
@@ -1472,18 +1475,22 @@ impl SparseMatPolyEvalProof {
   }
 
   fn equalize(rx: &[Scalar], ry: &[Scalar]) -> (Vec<Scalar>, Vec<Scalar>) {
-    if rx.len() < ry.len() {
-      let diff = ry.len() - rx.len();
-      let mut rx_ext = vec![Scalar::zero(); diff];
-      rx_ext.extend(rx);
-      (rx_ext, ry.to_vec())
-    } else if rx.len() > ry.len() {
-      let diff = rx.len() - ry.len();
-      let mut ry_ext = vec![Scalar::zero(); diff];
-      ry_ext.extend(ry);
-      (rx.to_vec(), ry_ext)
-    } else {
-      (rx.to_vec(), ry.to_vec())
+    match rx.len().cmp(&ry.len()) {
+      Ordering::Less => {
+        let diff = ry.len() - rx.len();
+        let mut rx_ext = vec![Scalar::zero(); diff];
+        rx_ext.extend(rx);
+        (rx_ext, ry.to_vec())
+      },
+      Ordering::Greater => {
+        let diff = rx.len() - ry.len();
+        let mut ry_ext = vec![Scalar::zero(); diff];
+        ry_ext.extend(ry);
+        (rx.to_vec(), ry_ext)
+      },
+      Ordering::Equal => {
+        (rx.to_vec(), ry.to_vec())
+      }
     }
   }
 

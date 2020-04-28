@@ -1,5 +1,6 @@
 #![allow(non_snake_case)]
-
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 use super::super::errors::ProofVerifyError;
 use super::super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::super::math::Math;
@@ -7,7 +8,7 @@ use super::super::scalar::Scalar;
 use super::super::transcript::ProofTranscript;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
-use std::iter;
+use core::iter;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BulletReductionProof {

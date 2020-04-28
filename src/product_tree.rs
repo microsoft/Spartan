@@ -304,11 +304,11 @@ impl ProductCircuitEvalProofBatched {
       let mut poly_C_batched_seq: Vec<&mut DensePolynomial> = Vec::new();
       if layer_id == 0 && !dotp_circuit_vec.is_empty() {
         // add additional claims
-        for i in 0..dotp_circuit_vec.len() {
-          claims_to_verify.push(dotp_circuit_vec[i].evaluate());
-          assert_eq!(len / 2, dotp_circuit_vec[i].left.len());
-          assert_eq!(len / 2, dotp_circuit_vec[i].right.len());
-          assert_eq!(len / 2, dotp_circuit_vec[i].weight.len());
+        for item in dotp_circuit_vec.iter() {
+          claims_to_verify.push(item.evaluate());
+          assert_eq!(len / 2, item.left.len());
+          assert_eq!(len / 2, item.right.len());
+          assert_eq!(len / 2, item.weight.len());
         }
 
         for dotp_circuit in dotp_circuit_vec.iter_mut() {

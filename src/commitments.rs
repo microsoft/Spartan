@@ -81,29 +81,3 @@ impl Commitments for [Scalar] {
     GroupElement::vartime_multiscalar_mul(self, &gens_n.G) + blind * gens_n.h
   }
 }
-
-impl Commitments for Vec<bool> {
-  fn commit(&self, blind: &Scalar, gens_n: &MultiCommitGens) -> GroupElement {
-    assert!(gens_n.n == self.len());
-    let mut comm = blind * gens_n.h;
-    for i in 0..self.len() {
-      if self[i] {
-        comm += gens_n.G[i];
-      }
-    }
-    comm
-  }
-}
-
-impl Commitments for [bool] {
-  fn commit(&self, blind: &Scalar, gens_n: &MultiCommitGens) -> GroupElement {
-    assert!(gens_n.n == self.len());
-    let mut comm = blind * gens_n.h;
-    for i in 0..self.len() {
-      if self[i] {
-        comm += gens_n.G[i];
-      }
-    }
-    comm
-  }
-}
