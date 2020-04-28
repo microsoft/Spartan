@@ -248,7 +248,7 @@ impl SumcheckInstanceProof {
       vec![poly_A[0], poly_B[0], poly_C[0]],
     )
   }
-  
+
   pub fn prove_cubic_batched<F>(
     claim: &Scalar,
     num_rounds: usize,

@@ -41,10 +41,7 @@ impl SNARK {
   }
 
   /// A public computation to create a commitment to an R1CS instance
-  pub fn encode(
-    inst: &R1CSInstance,
-    gens: &SNARKGens,
-  ) -> (R1CSCommitment, R1CSDecommitment) {
+  pub fn encode(inst: &R1CSInstance, gens: &SNARKGens) -> (R1CSCommitment, R1CSDecommitment) {
     inst.commit(&gens.gens_r1cs_eval)
   }
 

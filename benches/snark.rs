@@ -8,7 +8,7 @@ extern crate rand;
 extern crate sha3;
 
 use libspartan::r1csinstance::R1CSInstance;
-use libspartan::spartan::{SNARK, SNARKGens};
+use libspartan::spartan::{SNARKGens, SNARK};
 use merlin::Transcript;
 
 use criterion::*;

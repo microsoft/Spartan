@@ -8,7 +8,7 @@ extern crate rand;
 extern crate sha3;
 
 use libspartan::r1csinstance::R1CSInstance;
-use libspartan::spartan::{NIZK, NIZKGens};
+use libspartan::spartan::{NIZKGens, NIZK};
 use merlin::Transcript;
 
 use criterion::*;

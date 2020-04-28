@@ -5,7 +5,7 @@ extern crate merlin;
 extern crate rand;
 
 use flate2::{write::ZlibEncoder, Compression};
-use libspartan::r1csinstance::{R1CSInstance};
+use libspartan::r1csinstance::R1CSInstance;
 use libspartan::spartan::{NIZKGens, NIZK};
 use libspartan::timer::Timer;
 use merlin::Transcript;
