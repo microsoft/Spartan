@@ -3,6 +3,7 @@ use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
 use super::nizk::{DotProductProofGens, DotProductProofLog};
+use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::ops::Index;
@@ -230,7 +231,7 @@ impl DensePolynomial {
     &self,
     hiding: bool,
     gens: &PolyCommitmentGens,
-    random_tape: Option<&mut Transcript>,
+    random_tape: Option<&mut RandomTape>,
   ) -> (PolyCommitment, PolyCommitmentBlinds) {
     let n = self.Z.len();
     let ell = self.get_num_vars();
@@ -243,9 +244,7 @@ impl DensePolynomial {
 
     let blinds = match hiding {
       true => PolyCommitmentBlinds {
-        blinds: random_tape
-          .unwrap()
-          .challenge_vector(b"poly_blinds", L_size),
+        blinds: random_tape.unwrap().random_vector(b"poly_blinds", L_size),
       },
       false => PolyCommitmentBlinds {
         blinds: vec![Scalar::zero(); L_size],
@@ -380,7 +379,7 @@ impl PolyEvalProof {
     blind_Zr_opt: Option<&Scalar>, // specifies a blind for Zr
     gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
   ) -> (PolyEvalProof, CompressedGroup) {
     transcript.append_protocol_name(PolyEvalProof::protocol_name());
 
@@ -714,12 +713,7 @@ mod tests {
     let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
     let (poly_commitment, blinds) = poly.commit(false, &gens, None);
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, C_Zr) = PolyEvalProof::prove(
       &poly,

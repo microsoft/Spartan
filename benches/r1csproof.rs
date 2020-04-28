@@ -11,6 +11,7 @@ use libspartan::dense_mlpoly::EqPolynomial;
 use libspartan::math::Math;
 use libspartan::r1csinstance::R1CSInstance;
 use libspartan::r1csproof::{R1CSGens, R1CSProof};
+use libspartan::random::RandomTape;
 use libspartan::scalar::Scalar;
 use libspartan::transcript::ProofTranscript;
 use merlin::Transcript;
@@ -35,12 +36,7 @@ fn prove_benchmark(c: &mut Criterion) {
     let name = format!("r1cs_prove_{}", n);
     group.bench_function(&name, move |b| {
       b.iter(|| {
-        let mut random_tape = {
-          let mut csprng: OsRng = OsRng;
-          let mut tape = Transcript::new(b"proof");
-          tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-          tape
-        };
+        let mut random_tape = RandomTape::new(b"proof");
         let mut prover_transcript = Transcript::new(b"example");
         R1CSProof::prove(
           black_box(&inst),
@@ -69,12 +65,7 @@ fn verify_benchmark(c: &mut Criterion) {
     let n = inst.get_num_vars();
     let gens = R1CSGens::new(num_cons, num_vars, b"test-m");
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, rx, ry) = R1CSProof::prove(
       &inst,

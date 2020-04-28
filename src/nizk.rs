@@ -3,6 +3,7 @@ use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::CompressedGroup;
 use super::math::Math;
+use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
@@ -23,15 +24,15 @@ impl KnowledgeProof {
   pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
     x: &Scalar,
     r: &Scalar,
   ) -> (KnowledgeProof, CompressedGroup) {
     transcript.append_protocol_name(KnowledgeProof::protocol_name());
 
     // produce two random Scalars
-    let t1 = random_tape.challenge_scalar(b"t1");
-    let t2 = random_tape.challenge_scalar(b"t2");
+    let t1 = random_tape.random_scalar(b"t1");
+    let t2 = random_tape.random_scalar(b"t2");
 
     let C = x.commit(&r, gens_n).compress();
     C.append_to_transcript(b"C", transcript);
@@ -89,7 +90,7 @@ impl EqualityProof {
   pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
     v1: &Scalar,
     s1: &Scalar,
     v2: &Scalar,
@@ -98,7 +99,7 @@ impl EqualityProof {
     transcript.append_protocol_name(EqualityProof::protocol_name());
 
     // produce a random Scalar
-    let r = random_tape.challenge_scalar(b"r");
+    let r = random_tape.random_scalar(b"r");
 
     let C1 = v1.commit(&s1, gens_n).compress();
     C1.append_to_transcript(b"C1", transcript);
@@ -160,7 +161,7 @@ impl ProductProof {
   pub fn prove(
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
     x: &Scalar,
     rX: &Scalar,
     y: &Scalar,
@@ -176,11 +177,11 @@ impl ProductProof {
     transcript.append_protocol_name(ProductProof::protocol_name());
 
     // produce five random Scalar
-    let b1 = random_tape.challenge_scalar(b"b1");
-    let b2 = random_tape.challenge_scalar(b"b2");
-    let b3 = random_tape.challenge_scalar(b"b3");
-    let b4 = random_tape.challenge_scalar(b"b4");
-    let b5 = random_tape.challenge_scalar(b"b5");
+    let b1 = random_tape.random_scalar(b"b1");
+    let b2 = random_tape.random_scalar(b"b2");
+    let b3 = random_tape.random_scalar(b"b3");
+    let b4 = random_tape.random_scalar(b"b4");
+    let b5 = random_tape.random_scalar(b"b5");
 
     let X = x.commit(&rX, gens_n).compress();
     X.append_to_transcript(b"X", transcript);
@@ -317,7 +318,7 @@ impl DotProductProof {
     gens_1: &MultiCommitGens,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
     x: &Vec<Scalar>,
     r_x: &Scalar,
     a: &Vec<Scalar>,
@@ -332,9 +333,9 @@ impl DotProductProof {
     assert_eq!(gens_1.n, 1);
 
     // produce randomness for the proofs
-    let d = random_tape.challenge_vector(b"d", n);
-    let r_delta = random_tape.challenge_scalar(b"r_delta");
-    let r_beta = random_tape.challenge_scalar(b"r_beta");
+    let d = random_tape.random_vector(b"d", n);
+    let r_delta = random_tape.random_scalar(b"r_delta");
+    let r_beta = random_tape.random_scalar(b"r_beta");
 
     let Cx = x.commit(&r_x, gens_n).compress();
     Cx.append_to_transcript(b"Cx", transcript);
@@ -442,7 +443,7 @@ impl DotProductProofLog {
   pub fn prove(
     gens: &DotProductProofGens,
     transcript: &mut Transcript,
-    random_tape: &mut Transcript,
+    random_tape: &mut RandomTape,
     x: &Vec<Scalar>,
     r_x: &Scalar,
     a: &Vec<Scalar>,
@@ -456,12 +457,12 @@ impl DotProductProofLog {
     assert_eq!(gens.n, n);
 
     // produce randomness for generating a proof
-    let d = random_tape.challenge_scalar(b"d");
-    let r_delta = random_tape.challenge_scalar(b"r_delta");
-    let r_beta = random_tape.challenge_scalar(b"r_delta");
+    let d = random_tape.random_scalar(b"d");
+    let r_delta = random_tape.random_scalar(b"r_delta");
+    let r_beta = random_tape.random_scalar(b"r_delta");
     let blinds_vec = {
-      let v1 = random_tape.challenge_vector(b"blinds_vec_1", 2 * n.log2());
-      let v2 = random_tape.challenge_vector(b"blinds_vec_2", 2 * n.log2());
+      let v1 = random_tape.random_vector(b"blinds_vec_1", 2 * n.log2());
+      let v2 = random_tape.random_vector(b"blinds_vec_2", 2 * n.log2());
       (0..v1.len())
         .map(|i| (v1[i], v2[i]))
         .collect::<Vec<(Scalar, Scalar)>>()
@@ -579,12 +580,7 @@ mod tests {
     let x = Scalar::random(&mut csprng);
     let r = Scalar::random(&mut csprng);
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, committed_value) =
       KnowledgeProof::prove(&gens_1, &mut prover_transcript, &mut random_tape, &x, &r);
@@ -605,12 +601,7 @@ mod tests {
     let s1 = Scalar::random(&mut csprng);
     let s2 = Scalar::random(&mut csprng);
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, C1, C2) = EqualityProof::prove(
       &gens_1,
@@ -640,12 +631,7 @@ mod tests {
     let z = x * y;
     let rZ = Scalar::random(&mut csprng);
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, X, Y, Z) = ProductProof::prove(
       &gens_1,
@@ -684,12 +670,7 @@ mod tests {
     let r_x = Scalar::random(&mut csprng);
     let r_y = Scalar::random(&mut csprng);
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, Cx, Cy) = DotProductProof::prove(
       &gens_1,
@@ -724,12 +705,7 @@ mod tests {
     let r_x = Scalar::random(&mut csprng);
     let r_y = Scalar::random(&mut csprng);
 
-    let mut random_tape = {
-      let mut csprng: OsRng = OsRng;
-      let mut tape = Transcript::new(b"proof");
-      tape.append_scalar(b"init_randomness", &Scalar::random(&mut csprng));
-      tape
-    };
+    let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
     let (proof, Cx, Cy) = DotProductProofLog::prove(
       &gens,
