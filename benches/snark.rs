@@ -1,14 +1,7 @@
-extern crate byteorder;
-extern crate core;
-extern crate criterion;
-extern crate digest;
 extern crate libspartan;
 extern crate merlin;
-extern crate rand;
-extern crate sha3;
 
-use libspartan::r1csinstance::R1CSInstance;
-use libspartan::spartan::{SNARKGens, SNARK};
+use libspartan::{Instance, SNARKGens, SNARK};
 use merlin::Transcript;
 
 use criterion::*;
@@ -22,14 +15,13 @@ fn snark_encode_benchmark(c: &mut Criterion) {
     let num_vars = (2 as usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, _vars, _input) =
-      R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    let n = inst.get_num_vars();
+    let (inst, _vars, _inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     // produce public parameters
-    let gens = SNARKGens::new(&inst.size());
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
-    let name = format!("SNARK_encode_{}", n);
+    // produce a commitment to R1CS instance
+    let name = format!("SNARK_encode_{}", num_cons);
     group.bench_function(&name, move |b| {
       b.iter(|| {
         SNARK::encode(black_box(&inst), black_box(&gens));
@@ -49,17 +41,16 @@ fn snark_prove_benchmark(c: &mut Criterion) {
     let num_cons = num_vars;
     let num_inputs = 10;
 
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    let n = inst.get_num_vars();
+    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     // produce public parameters
-    let gens = SNARKGens::new(&inst.size());
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
-    // encode the R1CS instance
+    // produce a commitment to R1CS instance
     let (_comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof
-    let name = format!("SNARK_prove_{}", n);
+    let name = format!("SNARK_prove_{}", num_cons);
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut prover_transcript = Transcript::new(b"example");
@@ -67,7 +58,7 @@ fn snark_prove_benchmark(c: &mut Criterion) {
           black_box(&inst),
           black_box(&decomm),
           black_box(vars.clone()),
-          black_box(&input),
+          black_box(&inputs),
           black_box(&gens),
           black_box(&mut prover_transcript),
         );
@@ -86,27 +77,27 @@ fn snark_verify_benchmark(c: &mut Criterion) {
     let num_vars = (2 as usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    let n = inst.get_num_vars();
+    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     // produce public parameters
-    let gens = SNARKGens::new(&inst.size());
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
-    // encode the R1CS instance
+    // produce a commitment to R1CS instance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = SNARK::prove(&inst, &decomm, vars, &input, &gens, &mut prover_transcript);
+    let proof = SNARK::prove(&inst, &decomm, vars, &inputs, &gens, &mut prover_transcript);
 
-    let name = format!("SNARK_verify_{}", n);
+    // verify the proof
+    let name = format!("SNARK_verify_{}", num_cons);
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut verifier_transcript = Transcript::new(b"example");
         assert!(proof
           .verify(
             black_box(&comm),
-            black_box(&input),
+            black_box(&inputs),
             black_box(&mut verifier_transcript),
             black_box(&gens)
           )

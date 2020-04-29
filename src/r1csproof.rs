@@ -7,7 +7,7 @@ use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
-use super::r1csinstance::{R1CSInstance, R1CSInstanceEvals};
+use super::r1csinstance::R1CSInstance;
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
@@ -66,7 +66,7 @@ pub struct R1CSGens {
 }
 
 impl R1CSGens {
-  pub fn new(_num_cons: usize, num_vars: usize, label: &'static [u8]) -> Self {
+  pub fn new(label: &'static [u8], _num_cons: usize, num_vars: usize) -> Self {
     let num_poly_vars = num_vars.log2();
     let gens_pc = PolyCommitmentGens::new(num_poly_vars, label);
     let gens_sc = R1CSSumcheckGens::new(label, &gens_pc.gens.gens_1);
@@ -162,7 +162,7 @@ impl R1CSProof {
       let poly_vars = DensePolynomial::new(vars.clone());
 
       // produce a commitment to the satisfying assignment
-      let (comm_vars, blinds_vars) = poly_vars.commit(true, &gens.gens_pc, Some(random_tape));
+      let (comm_vars, blinds_vars) = poly_vars.commit(&gens.gens_pc, Some(random_tape));
 
       // add the commitment to the prover's transcript
       comm_vars.append_to_transcript(b"poly_commitment", transcript);
@@ -352,7 +352,7 @@ impl R1CSProof {
     num_vars: usize,
     num_cons: usize,
     input: &[Scalar],
-    evals: &R1CSInstanceEvals,
+    evals: &(Scalar, Scalar, Scalar),
     transcript: &mut Transcript,
     gens: &R1CSGens,
   ) -> Result<(Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
@@ -489,7 +489,7 @@ impl R1CSProof {
     );
 
     // perform the final check in the second sum-check protocol
-    let (eval_A_r, eval_B_r, eval_C_r) = evals.get_evaluations();
+    let (eval_A_r, eval_B_r, eval_C_r) = evals;
     let expected_claim_post_phase2 =
       ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r) * comm_eval_Z_at_ry).compress();
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
@@ -597,7 +597,7 @@ mod tests {
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
-    let gens = R1CSGens::new(num_cons, num_vars, b"test-m");
+    let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
@@ -610,10 +610,8 @@ mod tests {
       &mut random_tape,
     );
 
-    let eval_table_rx = EqPolynomial::new(rx).evals();
-    let eval_table_ry = EqPolynomial::new(ry).evals();
-    let inst_evals = inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry);
-
+    let inst_evals = inst.evaluate(&rx, &ry);
+    
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
       .verify(

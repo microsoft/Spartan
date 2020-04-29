@@ -5,7 +5,7 @@ authors = ["Srinath Setty <srinath@microsoft.com>"]
 edition = "2018"
 
 [dependencies]
-curve25519-dalek = { version = "2", features = ["serde"]}
+curve25519-dalek = { version = "2", features = ["serde", "simd_backend"]}
 merlin = "2.0.0"
 rand = "0.7.3"
 digest = "0.8.1"
@@ -45,8 +45,5 @@ name = "nizk"
 harness = false
 
 [features]
-simd_backend = ["curve25519-dalek/simd_backend"]
-rayon_par = []
+multicore = []
 profile = []
-
-default = ["simd_backend"]

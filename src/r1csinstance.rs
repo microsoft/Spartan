@@ -6,10 +6,8 @@ use super::scalar::Scalar;
 use super::sparse_mlpoly::{
   MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
   SparseMatPolyCommitmentGens, SparseMatPolyEvalProof, SparseMatPolynomial,
-  SparseMatPolynomialSize,
 };
 use super::timer::Timer;
-use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -24,38 +22,23 @@ pub struct R1CSInstance {
   C: SparseMatPolynomial,
 }
 
-pub struct R1CSInstanceSize {
-  num_cons: usize,
-  num_vars: usize,
-  num_inputs: usize,
-  size_A: SparseMatPolynomialSize,
-  size_B: SparseMatPolynomialSize,
-  size_C: SparseMatPolynomialSize,
-}
-
-impl R1CSInstanceSize {
-  pub fn get_num_cons(&self) -> usize {
-    self.num_cons
-  }
-
-  pub fn get_num_vars(&self) -> usize {
-    self.num_vars
-  }
-
-  pub fn get_num_inputs(&self) -> usize {
-    self.num_inputs
-  }
-}
-
 pub struct R1CSCommitmentGens {
   gens: SparseMatPolyCommitmentGens,
 }
 
 impl R1CSCommitmentGens {
-  pub fn new(size: &R1CSInstanceSize, label: &'static [u8]) -> R1CSCommitmentGens {
-    assert_eq!(size.size_A, size.size_B);
-    assert_eq!(size.size_A, size.size_C);
-    let gens = SparseMatPolyCommitmentGens::new(&size.size_A, 3, label);
+  pub fn new(
+    label: &'static [u8],
+    num_cons: usize,
+    num_vars: usize,
+    num_inputs: usize,
+    num_nz_entries: usize,
+  ) -> R1CSCommitmentGens {
+    assert!(num_inputs < num_vars);
+    let num_poly_vars_x = num_cons.log2();
+    let num_poly_vars_y = (2 * num_vars).log2();
+    let gens =
+      SparseMatPolyCommitmentGens::new(label, num_poly_vars_x, num_poly_vars_y, num_nz_entries, 3);
     R1CSCommitmentGens { gens }
   }
 }
@@ -82,29 +65,6 @@ impl R1CSCommitment {
 
   pub fn get_num_inputs(&self) -> usize {
     self.num_inputs
-  }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct R1CSInstanceEvals {
-  eval_A_r: Scalar,
-  eval_B_r: Scalar,
-  eval_C_r: Scalar,
-}
-
-impl R1CSInstanceEvals {
-  pub fn get_evaluations(&self) -> (Scalar, Scalar, Scalar) {
-    (self.eval_A_r, self.eval_B_r, self.eval_C_r)
-  }
-}
-
-impl AppendToTranscript for R1CSInstanceEvals {
-  fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
-    transcript.append_message(label, b"R1CSInstanceEvals_begin");
-    transcript.append_scalar(b"Ar_eval", &self.eval_A_r);
-    transcript.append_scalar(b"Br_eval", &self.eval_B_r);
-    transcript.append_scalar(b"Cr_eval", &self.eval_C_r);
-    transcript.append_message(label, b"R1CSInstanceEvals_end");
   }
 }
 
@@ -139,22 +99,15 @@ impl R1CSInstance {
     self.num_inputs
   }
 
-  pub fn size(&self) -> R1CSInstanceSize {
-    R1CSInstanceSize {
-      num_cons: self.num_cons,
-      num_vars: self.num_vars,
-      num_inputs: self.num_inputs,
-      size_A: self.A.size(),
-      size_B: self.B.size(),
-      size_C: self.C.size(),
-    }
-  }
-
   pub fn produce_synthetic_r1cs(
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
   ) -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
+    Timer::print(&format!("number_of_constraints {}", num_cons));
+    Timer::print(&format!("number_of_variables {}", num_vars));
+    Timer::print(&format!("number_of_inputs {}", num_inputs));
+
     let mut csprng: OsRng = OsRng;
 
     // assert num_cons and num_vars are power of 2
@@ -201,6 +154,10 @@ impl R1CSInstance {
         ));
       }
     }
+
+    Timer::print(&format!("number_non-zero_entries_A {}", A.len()));
+    Timer::print(&format!("number_non-zero_entries_B {}", B.len()));
+    Timer::print(&format!("number_non-zero_entries_C {}", C.len()));
 
     let num_poly_vars_x = num_cons.log2();
     let num_poly_vars_y = (2 * num_vars).log2();
@@ -282,16 +239,9 @@ impl R1CSInstance {
     (evals_A, evals_B, evals_C)
   }
 
-  pub fn evaluate_with_tables(
-    &self,
-    evals_rx: &[Scalar],
-    evals_ry: &[Scalar],
-  ) -> R1CSInstanceEvals {
-    R1CSInstanceEvals {
-      eval_A_r: self.A.evaluate_with_tables(evals_rx, evals_ry),
-      eval_B_r: self.B.evaluate_with_tables(evals_rx, evals_ry),
-      eval_C_r: self.C.evaluate_with_tables(evals_rx, evals_ry),
-    }
+  pub fn evaluate(&self, rx: &[Scalar], ry: &[Scalar]) -> (Scalar, Scalar, Scalar) {
+    let evals = SparseMatPolynomial::multi_evaluate(&[&self.A, &self.B, &self.C], rx, ry);
+    (evals[0], evals[1], evals[2])
   }
 
   pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {
@@ -321,7 +271,7 @@ impl R1CSEvalProof {
     decomm: &R1CSDecommitment,
     rx: &[Scalar], // point at which the polynomial is evaluated
     ry: &[Scalar],
-    evals: &R1CSInstanceEvals,
+    evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
@@ -331,7 +281,7 @@ impl R1CSEvalProof {
       &decomm.dense,
       rx,
       ry,
-      &[evals.eval_A_r, evals.eval_B_r, evals.eval_C_r],
+      &[evals.0, evals.1, evals.2],
       &gens.gens,
       transcript,
       random_tape,
@@ -346,7 +296,7 @@ impl R1CSEvalProof {
     comm: &R1CSCommitment,
     rx: &[Scalar], // point at which the R1CS matrix polynomials are evaluated
     ry: &[Scalar],
-    eval: &R1CSInstanceEvals,
+    evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
@@ -356,7 +306,7 @@ impl R1CSEvalProof {
         &comm.comm,
         rx,
         ry,
-        &[eval.eval_A_r, eval.eval_B_r, eval.eval_C_r],
+        &[evals.0, evals.1, evals.2],
         &gens.gens,
         transcript
       )

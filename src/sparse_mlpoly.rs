@@ -51,18 +51,22 @@ impl Derefs {
   pub fn new(row_ops_val: Vec<DensePolynomial>, col_ops_val: Vec<DensePolynomial>) -> Self {
     assert_eq!(row_ops_val.len(), col_ops_val.len());
 
-    // combine all polynomials into a single polynomial (used below to produce a single commitment)
-    let comb = DensePolynomial::merge(row_ops_val.iter().chain(col_ops_val.iter()));
+    let derefs = {
+      // combine all polynomials into a single polynomial (used below to produce a single commitment)
+      let comb = DensePolynomial::merge(row_ops_val.iter().chain(col_ops_val.iter()));
 
-    Derefs {
-      row_ops_val,
-      col_ops_val,
-      comb,
-    }
+      Derefs {
+        row_ops_val,
+        col_ops_val,
+        comb,
+      }
+    };
+
+    derefs
   }
 
   pub fn commit(&self, gens: &PolyCommitmentGens) -> DerefsCommitment {
-    let (comm_ops_val, _blinds) = self.comb.commit(false, gens, None);
+    let (comm_ops_val, _blinds) = self.comb.commit(gens, None);
     DerefsCommitment { comm_ops_val }
   }
 }
@@ -91,25 +95,28 @@ impl DerefsEvalProof {
     evals.append_to_transcript(b"evals_ops_val", transcript);
 
     // n-to-1 reduction
-    let challenges = transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log2());
-    let mut poly_evals = DensePolynomial::new(evals);
-    for i in (0..challenges.len()).rev() {
-      poly_evals.bound_poly_var_bot(&challenges[i]);
-    }
-    assert_eq!(poly_evals.len(), 1);
-    let joint_claim_eval = poly_evals[0];
-    let mut r_joint = challenges;
-    r_joint.extend(r);
+    let (r_joint, eval_joint) = {
+      let challenges =
+        transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log2());
+      let mut poly_evals = DensePolynomial::new(evals);
+      for i in (0..challenges.len()).rev() {
+        poly_evals.bound_poly_var_bot(&challenges[i]);
+      }
+      assert_eq!(poly_evals.len(), 1);
+      let joint_claim_eval = poly_evals[0];
+      let mut r_joint = challenges;
+      r_joint.extend(r);
 
-    debug_assert_eq!(joint_poly.evaluate(&r_joint), joint_claim_eval);
-
+      debug_assert_eq!(joint_poly.evaluate(&r_joint), joint_claim_eval);
+      (r_joint, joint_claim_eval)
+    };
     // decommit the joint polynomial at r_joint
-    joint_claim_eval.append_to_transcript(b"joint_claim_eval", transcript);
+    eval_joint.append_to_transcript(b"joint_claim_eval", transcript);
     let (proof_derefs, _comm_derefs_eval) = PolyEvalProof::prove(
       joint_poly,
       None,
       &r_joint,
-      &joint_claim_eval,
+      &eval_joint,
       None,
       gens,
       transcript,
@@ -131,10 +138,12 @@ impl DerefsEvalProof {
   ) -> Self {
     transcript.append_protocol_name(DerefsEvalProof::protocol_name());
 
-    let mut evals = eval_row_ops_val_vec.to_owned();
-    evals.extend(eval_col_ops_val_vec);
-    evals.resize(evals.len().next_power_of_two(), Scalar::zero());
-
+    let evals = {
+      let mut evals = eval_row_ops_val_vec.to_owned();
+      evals.extend(eval_col_ops_val_vec);
+      evals.resize(evals.len().next_power_of_two(), Scalar::zero());
+      evals
+    };
     let proof_derefs =
       DerefsEvalProof::prove_single(&derefs.comb, r, evals, gens, transcript, random_tape);
 
@@ -279,22 +288,6 @@ pub struct MultiSparseMatPolynomialAsDense {
   comb_mem: DensePolynomial,
 }
 
-#[derive(Debug)]
-pub struct SparseMatPolynomialSize {
-  size_ops: usize,
-  size_mem: usize,
-  size_derefs: usize,
-}
-
-impl PartialEq for SparseMatPolynomialSize {
-  #[inline]
-  fn eq(&self, other: &Self) -> bool {
-    self.size_derefs == other.size_derefs
-      && self.size_mem == other.size_mem
-      && self.size_ops == other.size_ops
-  }
-}
-
 pub struct SparseMatPolyCommitmentGens {
   gens_ops: PolyCommitmentGens,
   gens_mem: PolyCommitmentGens,
@@ -303,13 +296,21 @@ pub struct SparseMatPolyCommitmentGens {
 
 impl SparseMatPolyCommitmentGens {
   pub fn new(
-    size: &SparseMatPolynomialSize,
-    batch_size: usize,
     label: &'static [u8],
+    num_vars_x: usize,
+    num_vars_y: usize,
+    num_nz_entries: usize,
+    batch_size: usize,
   ) -> SparseMatPolyCommitmentGens {
-    let num_vars_ops = size.size_ops + (batch_size * 5).next_power_of_two().log2();
-    let num_vars_mem = size.size_mem + 1;
-    let num_vars_derefs = size.size_derefs + batch_size.next_power_of_two().log2();
+    let num_vars_ops =
+      num_nz_entries.next_power_of_two().log2() + (batch_size * 5).next_power_of_two().log2();
+    let num_vars_mem = if num_vars_x > num_vars_y {
+      num_vars_x
+    } else {
+      num_vars_y
+    } + 1;
+    let num_vars_derefs =
+      num_nz_entries.next_power_of_two().log2() + (batch_size * 2).next_power_of_two().log2();
 
     let gens_ops = PolyCommitmentGens::new(num_vars_ops, label);
     let gens_mem = PolyCommitmentGens::new(num_vars_mem, label);
@@ -416,19 +417,7 @@ impl SparseMatPolynomial {
     }
   }
 
-  pub fn size(&self) -> SparseMatPolynomialSize {
-    let dense = SparseMatPolynomial::multi_sparse_to_dense_rep(&[&self]);
-
-    assert_eq!(dense.col.audit_ts.len(), dense.row.audit_ts.len());
-
-    SparseMatPolynomialSize {
-      size_mem: dense.row.audit_ts.get_num_vars(),
-      size_ops: dense.row.read_ts[0].get_num_vars(),
-      size_derefs: dense.row.read_ts[0].get_num_vars() + 1,
-    }
-  }
-
-  pub fn evaluate_with_tables(&self, eval_table_rx: &[Scalar], eval_table_ry: &[Scalar]) -> Scalar {
+  fn evaluate_with_tables(&self, eval_table_rx: &[Scalar], eval_table_ry: &[Scalar]) -> Scalar {
     assert_eq!(self.num_vars_x.pow2(), eval_table_rx.len());
     assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
 
@@ -442,20 +431,17 @@ impl SparseMatPolynomial {
       .sum()
   }
 
-  pub fn evaluate(&self, rx: &[Scalar], ry: &[Scalar]) -> Scalar {
+  pub fn multi_evaluate(
+    polys: &[&SparseMatPolynomial],
+    rx: &[Scalar],
+    ry: &[Scalar],
+  ) -> Vec<Scalar> {
     let eval_table_rx = EqPolynomial::new(rx.to_vec()).evals();
     let eval_table_ry = EqPolynomial::new(ry.to_vec()).evals();
-    assert_eq!(self.num_vars_x.pow2(), eval_table_rx.len());
-    assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
 
-    (0..self.M.len())
-      .map(|i| {
-        let row = self.M[i].row;
-        let col = self.M[i].col;
-        let val = &self.M[i].val;
-        eval_table_rx[row] * eval_table_ry[col] * val
-      })
-      .sum()
+    (0..polys.len())
+      .map(|i| polys[i].evaluate_with_tables(&eval_table_rx, &eval_table_ry))
+      .collect::<Vec<Scalar>>()
   }
 
   pub fn multiply_vec(&self, num_rows: usize, num_cols: usize, z: &[Scalar]) -> Vec<Scalar> {
@@ -498,8 +484,8 @@ impl SparseMatPolynomial {
     let batch_size = sparse_polys.len();
     let dense = SparseMatPolynomial::multi_sparse_to_dense_rep(sparse_polys);
 
-    let (comm_comb_ops, _blinds_comb_ops) = dense.comb_ops.commit(false, &gens.gens_ops, None);
-    let (comm_comb_mem, _blinds_comb_mem) = dense.comb_mem.commit(false, &gens.gens_mem, None);
+    let (comm_comb_ops, _blinds_comb_ops) = dense.comb_ops.commit(&gens.gens_ops, None);
+    let (comm_comb_mem, _blinds_comb_mem) = dense.comb_mem.commit(&gens.gens_mem, None);
 
     (
       SparseMatPolyCommitment {
@@ -885,7 +871,6 @@ impl HashLayerProof {
 
     // read
     for i in 0..eval_ops_addr.len() {
-      // TODO: should we verify length of these?
       let hash_read_at_rand_ops =
         hash_func(&eval_ops_addr[i], &eval_ops_val[i], &eval_read_ts[i]) - r_multiset_check; // verify the claim_last of init chunk
       assert_eq!(&hash_read_at_rand_ops, &claim_read[i]);
@@ -1674,8 +1659,13 @@ mod tests {
     }
 
     let poly_M = SparseMatPolynomial::new(num_vars_x, num_vars_y, M);
-    let poly_M_size = poly_M.size();
-    let gens = SparseMatPolyCommitmentGens::new(&poly_M_size, 3, b"gens_sparse_poly");
+    let gens = SparseMatPolyCommitmentGens::new(
+      b"gens_sparse_poly",
+      num_vars_x,
+      num_vars_y,
+      num_nz_entries,
+      3,
+    );
 
     // commitment
     let (poly_comm, dense) =
@@ -1688,8 +1678,8 @@ mod tests {
     let ry: Vec<Scalar> = (0..num_vars_y)
       .map(|_i| Scalar::random(&mut csprng))
       .collect::<Vec<Scalar>>();
-    let eval = poly_M.evaluate(&rx, &ry);
-    let evals = vec![eval, eval, eval];
+    let eval = SparseMatPolynomial::multi_evaluate(&[&poly_M], &rx, &ry);
+    let evals = vec![eval[0], eval[0], eval[0]];
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");

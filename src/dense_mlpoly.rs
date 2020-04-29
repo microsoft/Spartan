@@ -11,7 +11,7 @@ use core::ops::Index;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "rayon_par")]
+#[cfg(feature = "multicore")]
 use rayon::prelude::*;
 
 #[derive(Debug)]
@@ -46,23 +46,6 @@ pub struct PolyCommitment {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ConstPolyCommitment {
   C: CompressedGroup,
-}
-
-impl PolyCommitment {
-  pub fn combine(&self, comm: &PolyCommitment, s: &Scalar) -> PolyCommitment {
-    assert_eq!(comm.C.len(), self.C.len());
-    let C = (0..self.C.len())
-      .map(|i| (self.C[i].decompress().unwrap() + s * comm.C[i].decompress().unwrap()).compress())
-      .collect::<Vec<CompressedGroup>>();
-    PolyCommitment { C }
-  }
-
-  pub fn combine_const(&self, comm: &ConstPolyCommitment) -> PolyCommitment {
-    let C = (0..self.C.len())
-      .map(|i| (self.C[i].decompress().unwrap() + comm.C.decompress().unwrap()).compress())
-      .collect::<Vec<CompressedGroup>>();
-    PolyCommitment { C }
-  }
 }
 
 pub struct EqPolynomial {
@@ -159,7 +142,7 @@ impl DensePolynomial {
     )
   }
 
-  #[cfg(feature = "rayon_par")]
+  #[cfg(feature = "multicore")]
   fn commit_inner(&self, blinds: &Vec<Scalar>, gens: &MultiCommitGens) -> PolyCommitment {
     let L_size = blinds.len();
     let R_size = self.Z.len() / L_size;
@@ -176,7 +159,7 @@ impl DensePolynomial {
     PolyCommitment { C }
   }
 
-  #[cfg(not(feature = "rayon_par"))]
+  #[cfg(not(feature = "multicore"))]
   fn commit_inner(&self, blinds: &[Scalar], gens: &MultiCommitGens) -> PolyCommitment {
     let L_size = blinds.len();
     let R_size = self.Z.len() / L_size;
@@ -193,7 +176,6 @@ impl DensePolynomial {
 
   pub fn commit(
     &self,
-    hiding: bool,
     gens: &PolyCommitmentGens,
     random_tape: Option<&mut RandomTape>,
   ) -> (PolyCommitment, PolyCommitmentBlinds) {
@@ -206,7 +188,7 @@ impl DensePolynomial {
     let R_size = right_num_vars.pow2();
     assert_eq!(L_size * R_size, n);
 
-    let blinds = if hiding {
+    let blinds = if random_tape.is_some() {
       PolyCommitmentBlinds {
         blinds: random_tape.unwrap().random_vector(b"poly_blinds", L_size),
       }
@@ -244,15 +226,6 @@ impl DensePolynomial {
     }
     self.num_vars -= 1;
     self.len = n;
-  }
-
-  pub fn dotproduct(&self, other: &DensePolynomial) -> Scalar {
-    assert_eq!(self.len(), other.len());
-    let mut res = Scalar::zero();
-    for i in 0..self.len() {
-      res += self.Z[i] * other[i];
-    }
-    res
   }
 
   // returns Z(r) in O(n) time
@@ -613,7 +586,7 @@ mod tests {
     assert_eq!(eval, (28 as usize).to_scalar());
 
     let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
-    let (poly_commitment, blinds) = poly.commit(false, &gens, None);
+    let (poly_commitment, blinds) = poly.commit(&gens, None);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
