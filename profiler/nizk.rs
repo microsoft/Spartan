@@ -6,7 +6,7 @@ extern crate rand;
 
 use flate2::{write::ZlibEncoder, Compression};
 use libspartan::r1csinstance::R1CSInstance;
-use libspartan::spartan::{NIZKGens, NIZK};
+use libspartan::{NIZKGens, NIZK};
 use merlin::Transcript;
 
 fn print(msg: &str) {

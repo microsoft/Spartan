@@ -6,7 +6,7 @@ extern crate rand;
 
 use flate2::{write::ZlibEncoder, Compression};
 use libspartan::r1csinstance::R1CSInstance;
-use libspartan::spartan::{SNARKGens, SNARK};
+use libspartan::{SNARKGens, SNARK};
 use merlin::Transcript;
 
 fn print(msg: &str) {
