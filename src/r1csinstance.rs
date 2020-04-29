@@ -155,6 +155,10 @@ impl R1CSInstance {
     num_vars: usize,
     num_inputs: usize,
   ) -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
+    Timer::print(&format!("number_of_constraints {}", num_cons));
+    Timer::print(&format!("number_of_variables {}", num_vars));
+    Timer::print(&format!("number_of_inputs {}", num_inputs));
+
     let mut csprng: OsRng = OsRng;
 
     // assert num_cons and num_vars are power of 2
@@ -201,6 +205,10 @@ impl R1CSInstance {
         ));
       }
     }
+
+    Timer::print(&format!("num_non-zero_entries_A {}", A.len()));
+    Timer::print(&format!("num_non-zero_entries_B {}", B.len()));
+    Timer::print(&format!("num_non-zero_entries_C {}", C.len()));
 
     let num_poly_vars_x = num_cons.log2();
     let num_poly_vars_y = (2 * num_vars).log2();

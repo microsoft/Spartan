@@ -42,7 +42,10 @@ impl SNARK {
 
   /// A public computation to create a commitment to an R1CS instance
   pub fn encode(inst: &R1CSInstance, gens: &SNARKGens) -> (R1CSCommitment, R1CSDecommitment) {
-    inst.commit(&gens.gens_r1cs_eval)
+    let timer_encode = Timer::new("SNARK::encode");
+    let ret = inst.commit(&gens.gens_r1cs_eval);
+    timer_encode.stop();
+    ret
   }
 
   /// A method to produce a proof of the satisfiability of an R1CS instance
@@ -54,6 +57,8 @@ impl SNARK {
     gens: &SNARKGens,
     transcript: &mut Transcript,
   ) -> Self {
+    let timer_prove = Timer::new("SNARK::prove");
+
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
     let mut random_tape = RandomTape::new(b"proof");
@@ -100,6 +105,7 @@ impl SNARK {
       proof
     };
 
+    timer_prove.stop();
     SNARK {
       r1cs_sat_proof,
       inst_evals,
@@ -115,6 +121,7 @@ impl SNARK {
     transcript: &mut Transcript,
     gens: &SNARKGens,
   ) -> Result<(), ProofVerifyError> {
+    let timer_verify = Timer::new("SNARK::verify");
     transcript.append_protocol_name(SNARK::protocol_name());
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
@@ -148,6 +155,7 @@ impl SNARK {
       )
       .is_ok());
     timer_eval_proof.stop();
+    timer_verify.stop();
     Ok(())
   }
 }
@@ -182,6 +190,7 @@ impl NIZK {
     gens: &NIZKGens,
     transcript: &mut Transcript,
   ) -> Self {
+    let timer_prove = Timer::new("NIZK::prove");
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
     let mut random_tape = RandomTape::new(b"proof");
@@ -197,10 +206,10 @@ impl NIZK {
       );
       let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
-
       (proof, rx, ry)
     };
 
+    timer_prove.stop();
     NIZK {
       r1cs_sat_proof,
       r: (rx, ry),
@@ -215,6 +224,8 @@ impl NIZK {
     transcript: &mut Transcript,
     gens: &NIZKGens,
   ) -> Result<(), ProofVerifyError> {
+    let timer_verify = Timer::new("NIZK::verify");
+
     transcript.append_protocol_name(NIZK::protocol_name());
 
     // We send evaluations of A, B, C at r = (rx, ry) as claims
@@ -246,6 +257,7 @@ impl NIZK {
     assert_eq!(rx, *claimed_rx);
     assert_eq!(ry, *claimed_ry);
     timer_sat_proof.stop();
+    timer_verify.stop();
 
     Ok(())
   }
