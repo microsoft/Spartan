@@ -9,7 +9,6 @@ use super::sparse_mlpoly::{
   SparseMatPolynomialSize,
 };
 use super::timer::Timer;
-use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
@@ -82,29 +81,6 @@ impl R1CSCommitment {
 
   pub fn get_num_inputs(&self) -> usize {
     self.num_inputs
-  }
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct R1CSInstanceEvals {
-  eval_A_r: Scalar,
-  eval_B_r: Scalar,
-  eval_C_r: Scalar,
-}
-
-impl R1CSInstanceEvals {
-  pub fn get_evaluations(&self) -> (Scalar, Scalar, Scalar) {
-    (self.eval_A_r, self.eval_B_r, self.eval_C_r)
-  }
-}
-
-impl AppendToTranscript for R1CSInstanceEvals {
-  fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
-    transcript.append_message(label, b"R1CSInstanceEvals_begin");
-    transcript.append_scalar(b"Ar_eval", &self.eval_A_r);
-    transcript.append_scalar(b"Br_eval", &self.eval_B_r);
-    transcript.append_scalar(b"Cr_eval", &self.eval_C_r);
-    transcript.append_message(label, b"R1CSInstanceEvals_end");
   }
 }
 
@@ -206,9 +182,9 @@ impl R1CSInstance {
       }
     }
 
-    Timer::print(&format!("num_non-zero_entries_A {}", A.len()));
-    Timer::print(&format!("num_non-zero_entries_B {}", B.len()));
-    Timer::print(&format!("num_non-zero_entries_C {}", C.len()));
+    Timer::print(&format!("number_non-zero_entries_A {}", A.len()));
+    Timer::print(&format!("number_non-zero_entries_B {}", B.len()));
+    Timer::print(&format!("number_non-zero_entries_C {}", C.len()));
 
     let num_poly_vars_x = num_cons.log2();
     let num_poly_vars_y = (2 * num_vars).log2();
@@ -294,12 +270,12 @@ impl R1CSInstance {
     &self,
     evals_rx: &[Scalar],
     evals_ry: &[Scalar],
-  ) -> R1CSInstanceEvals {
-    R1CSInstanceEvals {
-      eval_A_r: self.A.evaluate_with_tables(evals_rx, evals_ry),
-      eval_B_r: self.B.evaluate_with_tables(evals_rx, evals_ry),
-      eval_C_r: self.C.evaluate_with_tables(evals_rx, evals_ry),
-    }
+  ) -> (Scalar, Scalar, Scalar) {
+    (
+      self.A.evaluate_with_tables(evals_rx, evals_ry),
+      self.B.evaluate_with_tables(evals_rx, evals_ry),
+      self.C.evaluate_with_tables(evals_rx, evals_ry),
+    )
   }
 
   pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {
@@ -329,7 +305,7 @@ impl R1CSEvalProof {
     decomm: &R1CSDecommitment,
     rx: &[Scalar], // point at which the polynomial is evaluated
     ry: &[Scalar],
-    evals: &R1CSInstanceEvals,
+    evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
@@ -339,7 +315,7 @@ impl R1CSEvalProof {
       &decomm.dense,
       rx,
       ry,
-      &[evals.eval_A_r, evals.eval_B_r, evals.eval_C_r],
+      &[evals.0, evals.1, evals.2],
       &gens.gens,
       transcript,
       random_tape,
@@ -354,7 +330,7 @@ impl R1CSEvalProof {
     comm: &R1CSCommitment,
     rx: &[Scalar], // point at which the R1CS matrix polynomials are evaluated
     ry: &[Scalar],
-    eval: &R1CSInstanceEvals,
+    evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
@@ -364,7 +340,7 @@ impl R1CSEvalProof {
         &comm.comm,
         rx,
         ry,
-        &[eval.eval_A_r, eval.eval_B_r, eval.eval_C_r],
+        &[evals.0, evals.1, evals.2],
         &gens.gens,
         transcript
       )

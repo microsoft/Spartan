@@ -7,7 +7,7 @@ use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
-use super::r1csinstance::{R1CSInstance, R1CSInstanceEvals};
+use super::r1csinstance::R1CSInstance;
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
@@ -352,7 +352,7 @@ impl R1CSProof {
     num_vars: usize,
     num_cons: usize,
     input: &[Scalar],
-    evals: &R1CSInstanceEvals,
+    evals: &(Scalar, Scalar, Scalar),
     transcript: &mut Transcript,
     gens: &R1CSGens,
   ) -> Result<(Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
@@ -489,7 +489,7 @@ impl R1CSProof {
     );
 
     // perform the final check in the second sum-check protocol
-    let (eval_A_r, eval_B_r, eval_C_r) = evals.get_evaluations();
+    let (eval_A_r, eval_B_r, eval_C_r) = evals;
     let expected_claim_post_phase2 =
       ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r) * comm_eval_Z_at_ry).compress();
     // verify proof that expected_claim_post_phase1 == claim_post_phase1

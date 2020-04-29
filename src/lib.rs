@@ -30,17 +30,17 @@ mod unipoly;
 
 use dense_mlpoly::EqPolynomial;
 use errors::ProofVerifyError;
+use merlin::Transcript;
 use r1csinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
-  R1CSInstanceEvals, R1CSInstanceSize,
+  R1CSInstanceSize,
 };
 use r1csproof::{R1CSGens, R1CSProof};
 use random::RandomTape;
 use scalar::Scalar;
+use serde::{Deserialize, Serialize};
 use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
-use merlin::Transcript;
-use serde::{Deserialize, Serialize};
 
 pub struct SNARKGens {
   gens_r1cs_sat: R1CSGens,
@@ -61,7 +61,7 @@ impl SNARKGens {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SNARK {
   r1cs_sat_proof: R1CSProof,
-  inst_evals: R1CSInstanceEvals,
+  inst_evals: (Scalar, Scalar, Scalar),
   r1cs_eval_proof: R1CSEvalProof,
 }
 
@@ -114,9 +114,12 @@ impl SNARK {
     let inst_evals = {
       let eval_table_rx = EqPolynomial::new(rx.clone()).evals();
       let eval_table_ry = EqPolynomial::new(ry.clone()).evals();
-      inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry)
+      let (Ar, Br, Cr) = inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry);
+      Ar.append_to_transcript(b"Ar_claim", transcript);
+      Br.append_to_transcript(b"Br_claim", transcript);
+      Cr.append_to_transcript(b"Cr_claim", transcript);
+      (Ar, Br, Cr)
     };
-    inst_evals.append_to_transcript(b"r1cs_inst_evals", transcript);
     timer_eval.stop();
 
     let r1cs_eval_proof = {
@@ -170,9 +173,10 @@ impl SNARK {
     timer_sat_proof.stop();
 
     let timer_eval_proof = Timer::new("verify_eval_proof");
-    self
-      .inst_evals
-      .append_to_transcript(b"r1cs_inst_evals", transcript);
+    let (Ar, Br, Cr) = &self.inst_evals;
+    Ar.append_to_transcript(b"Ar_claim", transcript);
+    Br.append_to_transcript(b"Br_claim", transcript);
+    Cr.append_to_transcript(b"Cr_claim", transcript);
     assert!(self
       .r1cs_eval_proof
       .verify(
