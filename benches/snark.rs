@@ -27,8 +27,9 @@ fn snark_encode_benchmark(c: &mut Criterion) {
     let n = inst.get_num_vars();
 
     // produce public parameters
-    let gens = SNARKGens::new(&inst.size());
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
+    // produce a commitment to R1CS instance
     let name = format!("SNARK_encode_{}", n);
     group.bench_function(&name, move |b| {
       b.iter(|| {
@@ -53,9 +54,9 @@ fn snark_prove_benchmark(c: &mut Criterion) {
     let n = inst.get_num_vars();
 
     // produce public parameters
-    let gens = SNARKGens::new(&inst.size());
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
-    // encode the R1CS instance
+    // produce a commitment to R1CS instance
     let (_comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof
@@ -90,15 +91,16 @@ fn snark_verify_benchmark(c: &mut Criterion) {
     let n = inst.get_num_vars();
 
     // produce public parameters
-    let gens = SNARKGens::new(&inst.size());
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
-    // encode the R1CS instance
+    // produce a commitment to R1CS instance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"example");
     let proof = SNARK::prove(&inst, &decomm, vars, &input, &gens, &mut prover_transcript);
 
+    // verify the proof
     let name = format!("SNARK_verify_{}", n);
     group.bench_function(&name, move |b| {
       b.iter(|| {

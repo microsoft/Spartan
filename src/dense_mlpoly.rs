@@ -193,7 +193,6 @@ impl DensePolynomial {
 
   pub fn commit(
     &self,
-    hiding: bool,
     gens: &PolyCommitmentGens,
     random_tape: Option<&mut RandomTape>,
   ) -> (PolyCommitment, PolyCommitmentBlinds) {
@@ -206,7 +205,7 @@ impl DensePolynomial {
     let R_size = right_num_vars.pow2();
     assert_eq!(L_size * R_size, n);
 
-    let blinds = if hiding {
+    let blinds = if random_tape.is_some() {
       PolyCommitmentBlinds {
         blinds: random_tape.unwrap().random_vector(b"poly_blinds", L_size),
       }
@@ -613,7 +612,7 @@ mod tests {
     assert_eq!(eval, (28 as usize).to_scalar());
 
     let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
-    let (poly_commitment, blinds) = poly.commit(false, &gens, None);
+    let (poly_commitment, blinds) = poly.commit(&gens, None);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");

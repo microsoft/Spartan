@@ -26,7 +26,7 @@ pub fn main() {
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // produce public generators
-    let gens = SNARKGens::new(&inst.size());
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
     // create a commitment to R1CSInstance
     let (comm, decomm) = SNARK::encode(&inst, &gens);

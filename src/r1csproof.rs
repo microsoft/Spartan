@@ -66,7 +66,7 @@ pub struct R1CSGens {
 }
 
 impl R1CSGens {
-  pub fn new(_num_cons: usize, num_vars: usize, label: &'static [u8]) -> Self {
+  pub fn new(label: &'static [u8], _num_cons: usize, num_vars: usize) -> Self {
     let num_poly_vars = num_vars.log2();
     let gens_pc = PolyCommitmentGens::new(num_poly_vars, label);
     let gens_sc = R1CSSumcheckGens::new(label, &gens_pc.gens.gens_1);
@@ -162,7 +162,7 @@ impl R1CSProof {
       let poly_vars = DensePolynomial::new(vars.clone());
 
       // produce a commitment to the satisfying assignment
-      let (comm_vars, blinds_vars) = poly_vars.commit(true, &gens.gens_pc, Some(random_tape));
+      let (comm_vars, blinds_vars) = poly_vars.commit(&gens.gens_pc, Some(random_tape));
 
       // add the commitment to the prover's transcript
       comm_vars.append_to_transcript(b"poly_commitment", transcript);
@@ -597,7 +597,7 @@ mod tests {
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
-    let gens = R1CSGens::new(num_cons, num_vars, b"test-m");
+    let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");

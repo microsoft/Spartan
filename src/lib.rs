@@ -33,7 +33,6 @@ use errors::ProofVerifyError;
 use merlin::Transcript;
 use r1csinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
-  R1CSInstanceSize,
 };
 use r1csproof::{R1CSGens, R1CSProof};
 use random::RandomTape;
@@ -48,9 +47,15 @@ pub struct SNARKGens {
 }
 
 impl SNARKGens {
-  pub fn new(size: &R1CSInstanceSize) -> Self {
-    let gens_r1cs_sat = R1CSGens::new(size.get_num_cons(), size.get_num_vars(), b"gens_r1cs_sat");
-    let gens_r1cs_eval = R1CSCommitmentGens::new(size, b"gens_r1cs_eval");
+  pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize, num_nz_entries: usize) -> Self {
+    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars);
+    let gens_r1cs_eval = R1CSCommitmentGens::new(
+      b"gens_r1cs_eval",
+      num_cons,
+      num_vars,
+      num_inputs,
+      num_nz_entries,
+    );
     SNARKGens {
       gens_r1cs_sat,
       gens_r1cs_eval,
@@ -200,7 +205,7 @@ pub struct NIZKGens {
 
 impl NIZKGens {
   pub fn new(num_cons: usize, num_vars: usize) -> Self {
-    let gens_r1cs_sat = R1CSGens::new(num_cons, num_vars, b"gens_r1cs_sat");
+    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars);
     NIZKGens { gens_r1cs_sat }
   }
 }
@@ -307,10 +312,9 @@ mod tests {
     let num_cons = num_vars;
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    let r1cs_size = inst.size();
 
     // produce public generators
-    let gens = SNARKGens::new(&r1cs_size);
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
     // create a commitment to R1CSInstance
     let (comm, decomm) = SNARK::encode(&inst, &gens);

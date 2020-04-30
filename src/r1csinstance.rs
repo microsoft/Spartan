@@ -6,7 +6,6 @@ use super::scalar::Scalar;
 use super::sparse_mlpoly::{
   MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
   SparseMatPolyCommitmentGens, SparseMatPolyEvalProof, SparseMatPolynomial,
-  SparseMatPolynomialSize,
 };
 use super::timer::Timer;
 use merlin::Transcript;
@@ -23,38 +22,23 @@ pub struct R1CSInstance {
   C: SparseMatPolynomial,
 }
 
-pub struct R1CSInstanceSize {
-  num_cons: usize,
-  num_vars: usize,
-  num_inputs: usize,
-  size_A: SparseMatPolynomialSize,
-  size_B: SparseMatPolynomialSize,
-  size_C: SparseMatPolynomialSize,
-}
-
-impl R1CSInstanceSize {
-  pub fn get_num_cons(&self) -> usize {
-    self.num_cons
-  }
-
-  pub fn get_num_vars(&self) -> usize {
-    self.num_vars
-  }
-
-  pub fn get_num_inputs(&self) -> usize {
-    self.num_inputs
-  }
-}
-
 pub struct R1CSCommitmentGens {
   gens: SparseMatPolyCommitmentGens,
 }
 
 impl R1CSCommitmentGens {
-  pub fn new(size: &R1CSInstanceSize, label: &'static [u8]) -> R1CSCommitmentGens {
-    assert_eq!(size.size_A, size.size_B);
-    assert_eq!(size.size_A, size.size_C);
-    let gens = SparseMatPolyCommitmentGens::new(&size.size_A, 3, label);
+  pub fn new(
+    label: &'static [u8],
+    num_cons: usize,
+    num_vars: usize,
+    num_inputs: usize,
+    num_nz_entries: usize,
+  ) -> R1CSCommitmentGens {
+    assert!(num_inputs < num_vars);
+    let num_poly_vars_x = num_cons.log2();
+    let num_poly_vars_y = (2 * num_vars).log2();
+    let gens =
+      SparseMatPolyCommitmentGens::new(label, num_poly_vars_x, num_poly_vars_y, num_nz_entries, 3);
     R1CSCommitmentGens { gens }
   }
 }
@@ -113,17 +97,6 @@ impl R1CSInstance {
 
   pub fn get_num_inputs(&self) -> usize {
     self.num_inputs
-  }
-
-  pub fn size(&self) -> R1CSInstanceSize {
-    R1CSInstanceSize {
-      num_cons: self.num_cons,
-      num_vars: self.num_vars,
-      num_inputs: self.num_inputs,
-      size_A: self.A.size(),
-      size_B: self.B.size(),
-      size_C: self.C.size(),
-    }
   }
 
   pub fn produce_synthetic_r1cs(
