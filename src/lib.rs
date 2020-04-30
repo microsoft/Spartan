@@ -1,6 +1,8 @@
+//! Spartan Proof system
+
 #![allow(non_snake_case)]
 #![feature(test)]
-
+#![warn(missing_docs)]
 extern crate byteorder;
 extern crate core;
 extern crate curve25519_dalek;
@@ -40,12 +42,41 @@ use serde::{Deserialize, Serialize};
 use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
 
+/// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
+pub struct ComputationCommitment {
+  comm: R1CSCommitment,
+}
+
+/// `ComputationDecommitment` holds information to decommit `ComputationCommitment`
+pub struct ComputationDecommitment {
+  decomm: R1CSDecommitment,
+}
+
+/// `Instance` holds the description of R1CS
+pub struct Instance {
+  inst: R1CSInstance,
+}
+
+impl Instance {
+  /// Constructs a synthetic R1CS instance and the associated satisfying assignment
+  pub fn new(
+    num_cons: usize,
+    num_vars: usize,
+    num_inputs: usize,
+  ) -> (Self, Vec<Scalar>, Vec<Scalar>) {
+    let (inst, vars, inputs) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    (Instance { inst }, vars, inputs)
+  }
+}
+
+/// `SNARKGens` holds public parameters for producing and verifying proofs with the Spartan SNARK
 pub struct SNARKGens {
   gens_r1cs_sat: R1CSGens,
   gens_r1cs_eval: R1CSCommitmentGens,
 }
 
 impl SNARKGens {
+  /// Constructs a new `SNARKGens` given the size of the R1CS statement
   pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize, num_nz_entries: usize) -> Self {
     let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars);
     let gens_r1cs_eval = R1CSCommitmentGens::new(
@@ -62,29 +93,7 @@ impl SNARKGens {
   }
 }
 
-pub struct ComputationCommitment {
-  comm: R1CSCommitment,
-}
-
-pub struct ComputationDecommitment {
-  decomm: R1CSDecommitment,
-}
-
-pub struct Instance {
-  inst: R1CSInstance,
-}
-
-impl Instance {
-  pub fn new(
-    num_cons: usize,
-    num_vars: usize,
-    num_inputs: usize,
-  ) -> (Self, Vec<Scalar>, Vec<Scalar>) {
-    let (inst, vars, inputs) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    (Instance { inst }, vars, inputs)
-  }
-}
-
+/// `SNARK` holds a proof produced by Spartan SNARK
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SNARK {
   r1cs_sat_proof: R1CSProof,
@@ -111,7 +120,7 @@ impl SNARK {
     )
   }
 
-  /// A method to produce a proof of the satisfiability of an R1CS instance
+  /// A method to produce a SNARK proof of the satisfiability of an R1CS instance
   pub fn prove(
     inst: &Instance,
     decomm: &ComputationDecommitment,
@@ -177,7 +186,7 @@ impl SNARK {
     }
   }
 
-  /// A method to verify the proof of the satisfiability of an R1CS instance
+  /// A method to verify the SNARK proof of the satisfiability of an R1CS instance
   pub fn verify(
     &self,
     comm: &ComputationCommitment,
@@ -225,17 +234,20 @@ impl SNARK {
   }
 }
 
+/// `NIZKGens` holds public parameters for producing and verifying proofs with the Spartan NIZK
 pub struct NIZKGens {
   gens_r1cs_sat: R1CSGens,
 }
 
 impl NIZKGens {
+  /// Constructs a new `NIZKGens` given the size of the R1CS statement
   pub fn new(num_cons: usize, num_vars: usize) -> Self {
     let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars);
     NIZKGens { gens_r1cs_sat }
   }
 }
 
+/// `NIZK` holds a proof produced by Spartan NIZK
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NIZK {
   r1cs_sat_proof: R1CSProof,
@@ -247,7 +259,7 @@ impl NIZK {
     b"Spartan NIZK proof"
   }
 
-  /// A method to produce a proof of the satisfiability of an R1CS instance
+  /// A method to produce a NIZK proof of the satisfiability of an R1CS instance
   pub fn prove(
     inst: &Instance,
     vars: Vec<Scalar>,
@@ -281,7 +293,7 @@ impl NIZK {
     }
   }
 
-  /// A method to verify the proof of the satisfiability of an R1CS instance
+  /// A method to verify a NIZK proof of the satisfiability of an R1CS instance
   pub fn verify(
     &self,
     inst: &Instance,
