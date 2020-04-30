@@ -5,8 +5,7 @@ extern crate merlin;
 extern crate rand;
 
 use flate2::{write::ZlibEncoder, Compression};
-use libspartan::r1csinstance::R1CSInstance;
-use libspartan::{SNARKGens, SNARK};
+use libspartan::{Instance, SNARKGens, SNARK};
 use merlin::Transcript;
 
 fn print(msg: &str) {
@@ -23,7 +22,7 @@ pub fn main() {
     let num_vars = (2 as usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     // produce public generators
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
@@ -33,7 +32,7 @@ pub fn main() {
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"snark_example");
-    let proof = SNARK::prove(&inst, &decomm, vars, &input, &gens, &mut prover_transcript);
+    let proof = SNARK::prove(&inst, &decomm, vars, &inputs, &gens, &mut prover_transcript);
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     bincode::serialize_into(&mut encoder, &proof).unwrap();
@@ -44,7 +43,7 @@ pub fn main() {
     // verify the proof of satisfiability
     let mut verifier_transcript = Transcript::new(b"snark_example");
     assert!(proof
-      .verify(&comm, &input, &mut verifier_transcript, &gens)
+      .verify(&comm, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
 
     println!();

@@ -7,8 +7,7 @@ extern crate merlin;
 extern crate rand;
 extern crate sha3;
 
-use libspartan::r1csinstance::R1CSInstance;
-use libspartan::{NIZKGens, NIZK};
+use libspartan::{Instance, NIZKGens, NIZK};
 use merlin::Transcript;
 
 use criterion::*;
@@ -23,19 +22,18 @@ fn nizk_prove_benchmark(c: &mut Criterion) {
     let num_cons = num_vars;
     let num_inputs = 10;
 
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    let n = inst.get_num_vars();
+    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     let gens = NIZKGens::new(num_cons, num_vars);
 
-    let name = format!("NIZK_prove_{}", n);
+    let name = format!("NIZK_prove_{}", num_vars);
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut prover_transcript = Transcript::new(b"example");
         NIZK::prove(
           black_box(&inst),
           black_box(vars.clone()),
-          black_box(&input),
+          black_box(&inputs),
           black_box(&gens),
           black_box(&mut prover_transcript),
         );
@@ -54,23 +52,22 @@ fn nizk_verify_benchmark(c: &mut Criterion) {
     let num_vars = (2 as usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    let n = inst.get_num_vars();
+    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     let gens = NIZKGens::new(num_cons, num_vars);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = NIZK::prove(&inst, vars, &input, &gens, &mut prover_transcript);
+    let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
-    let name = format!("NIZK_verify_{}", n);
+    let name = format!("NIZK_verify_{}", num_cons);
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut verifier_transcript = Transcript::new(b"example");
         assert!(proof
           .verify(
             black_box(&inst),
-            black_box(&input),
+            black_box(&inputs),
             black_box(&mut verifier_transcript),
             black_box(&gens)
           )

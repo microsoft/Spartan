@@ -48,23 +48,6 @@ pub struct ConstPolyCommitment {
   C: CompressedGroup,
 }
 
-impl PolyCommitment {
-  pub fn combine(&self, comm: &PolyCommitment, s: &Scalar) -> PolyCommitment {
-    assert_eq!(comm.C.len(), self.C.len());
-    let C = (0..self.C.len())
-      .map(|i| (self.C[i].decompress().unwrap() + s * comm.C[i].decompress().unwrap()).compress())
-      .collect::<Vec<CompressedGroup>>();
-    PolyCommitment { C }
-  }
-
-  pub fn combine_const(&self, comm: &ConstPolyCommitment) -> PolyCommitment {
-    let C = (0..self.C.len())
-      .map(|i| (self.C[i].decompress().unwrap() + comm.C.decompress().unwrap()).compress())
-      .collect::<Vec<CompressedGroup>>();
-    PolyCommitment { C }
-  }
-}
-
 pub struct EqPolynomial {
   r: Vec<Scalar>,
 }
@@ -243,15 +226,6 @@ impl DensePolynomial {
     }
     self.num_vars -= 1;
     self.len = n;
-  }
-
-  pub fn dotproduct(&self, other: &DensePolynomial) -> Scalar {
-    assert_eq!(self.len(), other.len());
-    let mut res = Scalar::zero();
-    for i in 0..self.len() {
-      res += self.Z[i] * other[i];
-    }
-    res
   }
 
   // returns Z(r) in O(n) time

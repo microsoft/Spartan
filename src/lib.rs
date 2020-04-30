@@ -18,7 +18,7 @@ mod group;
 mod math;
 mod nizk;
 mod product_tree;
-pub mod r1csinstance;
+mod r1csinstance;
 mod r1csproof;
 mod random;
 mod scalar;
@@ -28,7 +28,6 @@ mod timer;
 mod transcript;
 mod unipoly;
 
-use dense_mlpoly::EqPolynomial;
 use errors::ProofVerifyError;
 use merlin::Transcript;
 use r1csinstance::{
@@ -63,6 +62,29 @@ impl SNARKGens {
   }
 }
 
+pub struct ComputationCommitment {
+  comm: R1CSCommitment,
+}
+
+pub struct ComputationDecommitment {
+  decomm: R1CSDecommitment,
+}
+
+pub struct Instance {
+  inst: R1CSInstance,
+}
+
+impl Instance {
+  pub fn new(
+    num_cons: usize,
+    num_vars: usize,
+    num_inputs: usize,
+  ) -> (Self, Vec<Scalar>, Vec<Scalar>) {
+    let (inst, vars, inputs) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    (Instance { inst }, vars, inputs)
+  }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct SNARK {
   r1cs_sat_proof: R1CSProof,
@@ -76,17 +98,23 @@ impl SNARK {
   }
 
   /// A public computation to create a commitment to an R1CS instance
-  pub fn encode(inst: &R1CSInstance, gens: &SNARKGens) -> (R1CSCommitment, R1CSDecommitment) {
+  pub fn encode(
+    inst: &Instance,
+    gens: &SNARKGens,
+  ) -> (ComputationCommitment, ComputationDecommitment) {
     let timer_encode = Timer::new("SNARK::encode");
-    let ret = inst.commit(&gens.gens_r1cs_eval);
+    let (comm, decomm) = inst.inst.commit(&gens.gens_r1cs_eval);
     timer_encode.stop();
-    ret
+    (
+      ComputationCommitment { comm },
+      ComputationDecommitment { decomm },
+    )
   }
 
   /// A method to produce a proof of the satisfiability of an R1CS instance
   pub fn prove(
-    inst: &R1CSInstance,
-    decomm: &R1CSDecommitment,
+    inst: &Instance,
+    decomm: &ComputationDecommitment,
     vars: Vec<Scalar>,
     input: &[Scalar],
     gens: &SNARKGens,
@@ -100,7 +128,7 @@ impl SNARK {
     transcript.append_protocol_name(SNARK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = R1CSProof::prove(
-        inst,
+        &inst.inst,
         vars,
         input,
         &gens.gens_r1cs_sat,
@@ -117,9 +145,7 @@ impl SNARK {
     // to enable the verifier complete the first sum-check
     let timer_eval = Timer::new("eval_sparse_polys");
     let inst_evals = {
-      let eval_table_rx = EqPolynomial::new(rx.clone()).evals();
-      let eval_table_ry = EqPolynomial::new(ry.clone()).evals();
-      let (Ar, Br, Cr) = inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry);
+      let (Ar, Br, Cr) = inst.inst.evaluate(&rx, &ry);
       Ar.append_to_transcript(b"Ar_claim", transcript);
       Br.append_to_transcript(b"Br_claim", transcript);
       Cr.append_to_transcript(b"Cr_claim", transcript);
@@ -129,7 +155,7 @@ impl SNARK {
 
     let r1cs_eval_proof = {
       let proof = R1CSEvalProof::prove(
-        decomm,
+        &decomm.decomm,
         &rx,
         &ry,
         &inst_evals,
@@ -154,7 +180,7 @@ impl SNARK {
   /// A method to verify the proof of the satisfiability of an R1CS instance
   pub fn verify(
     &self,
-    comm: &R1CSCommitment,
+    comm: &ComputationCommitment,
     input: &[Scalar],
     transcript: &mut Transcript,
     gens: &SNARKGens,
@@ -163,12 +189,12 @@ impl SNARK {
     transcript.append_protocol_name(SNARK::protocol_name());
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
-    assert_eq!(input.len(), comm.get_num_inputs());
+    assert_eq!(input.len(), comm.comm.get_num_inputs());
     let (rx, ry) = self
       .r1cs_sat_proof
       .verify(
-        comm.get_num_vars(),
-        comm.get_num_cons(),
+        comm.comm.get_num_vars(),
+        comm.comm.get_num_cons(),
         input,
         &self.inst_evals,
         transcript,
@@ -185,7 +211,7 @@ impl SNARK {
     assert!(self
       .r1cs_eval_proof
       .verify(
-        comm,
+        &comm.comm,
         &rx,
         &ry,
         &self.inst_evals,
@@ -223,7 +249,7 @@ impl NIZK {
 
   /// A method to produce a proof of the satisfiability of an R1CS instance
   pub fn prove(
-    inst: &R1CSInstance,
+    inst: &Instance,
     vars: Vec<Scalar>,
     input: &[Scalar],
     gens: &NIZKGens,
@@ -236,7 +262,7 @@ impl NIZK {
     transcript.append_protocol_name(NIZK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = R1CSProof::prove(
-        inst,
+        &inst.inst,
         vars,
         input,
         &gens.gens_r1cs_sat,
@@ -258,7 +284,7 @@ impl NIZK {
   /// A method to verify the proof of the satisfiability of an R1CS instance
   pub fn verify(
     &self,
-    inst: &R1CSInstance,
+    inst: &Instance,
     input: &[Scalar],
     transcript: &mut Transcript,
     gens: &NIZKGens,
@@ -271,20 +297,16 @@ impl NIZK {
     // to enable the verifier complete the first sum-check
     let timer_eval = Timer::new("eval_sparse_polys");
     let (claimed_rx, claimed_ry) = &self.r;
-    let inst_evals = {
-      let eval_table_rx = EqPolynomial::new(claimed_rx.clone()).evals();
-      let eval_table_ry = EqPolynomial::new(claimed_ry.clone()).evals();
-      inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry)
-    };
+    let inst_evals = inst.inst.evaluate(claimed_rx, claimed_ry);
     timer_eval.stop();
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
-    assert_eq!(input.len(), inst.get_num_inputs());
+    assert_eq!(input.len(), inst.inst.get_num_inputs());
     let (rx, ry) = self
       .r1cs_sat_proof
       .verify(
-        inst.get_num_vars(),
-        inst.get_num_cons(),
+        inst.inst.get_num_vars(),
+        inst.inst.get_num_cons(),
         input,
         &inst_evals,
         transcript,
@@ -311,7 +333,7 @@ mod tests {
     let num_vars = 256;
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     // produce public generators
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
@@ -321,12 +343,12 @@ mod tests {
 
     // produce a proof
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = SNARK::prove(&inst, &decomm, vars, &input, &gens, &mut prover_transcript);
+    let proof = SNARK::prove(&inst, &decomm, vars, &inputs, &gens, &mut prover_transcript);
 
     // verify the proof
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
-      .verify(&comm, &input, &mut verifier_transcript, &gens)
+      .verify(&comm, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
   }
 }

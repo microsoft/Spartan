@@ -610,10 +610,8 @@ mod tests {
       &mut random_tape,
     );
 
-    let eval_table_rx = EqPolynomial::new(rx).evals();
-    let eval_table_ry = EqPolynomial::new(ry).evals();
-    let inst_evals = inst.evaluate_with_tables(&eval_table_rx, &eval_table_ry);
-
+    let inst_evals = inst.evaluate(&rx, &ry);
+    
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
       .verify(

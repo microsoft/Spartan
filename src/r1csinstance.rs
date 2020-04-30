@@ -239,16 +239,9 @@ impl R1CSInstance {
     (evals_A, evals_B, evals_C)
   }
 
-  pub fn evaluate_with_tables(
-    &self,
-    evals_rx: &[Scalar],
-    evals_ry: &[Scalar],
-  ) -> (Scalar, Scalar, Scalar) {
-    (
-      self.A.evaluate_with_tables(evals_rx, evals_ry),
-      self.B.evaluate_with_tables(evals_rx, evals_ry),
-      self.C.evaluate_with_tables(evals_rx, evals_ry),
-    )
+  pub fn evaluate(&self, rx: &[Scalar], ry: &[Scalar]) -> (Scalar, Scalar, Scalar) {
+    let evals = SparseMatPolynomial::multi_evaluate(&[&self.A, &self.B, &self.C], rx, ry);
+    (evals[0], evals[1], evals[2])
   }
 
   pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {

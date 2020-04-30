@@ -5,8 +5,7 @@ extern crate merlin;
 extern crate rand;
 
 use flate2::{write::ZlibEncoder, Compression};
-use libspartan::r1csinstance::R1CSInstance;
-use libspartan::{NIZKGens, NIZK};
+use libspartan::{Instance, NIZKGens, NIZK};
 use merlin::Transcript;
 
 fn print(msg: &str) {
@@ -23,14 +22,14 @@ pub fn main() {
     let num_vars = (2 as usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     // produce public generators
     let gens = NIZKGens::new(num_cons, num_vars);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"nizk_example");
-    let proof = NIZK::prove(&inst, vars, &input, &gens, &mut prover_transcript);
+    let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     bincode::serialize_into(&mut encoder, &proof).unwrap();
@@ -41,7 +40,7 @@ pub fn main() {
     // verify the proof of satisfiability
     let mut verifier_transcript = Transcript::new(b"nizk_example");
     assert!(proof
-      .verify(&inst, &input, &mut verifier_transcript, &gens)
+      .verify(&inst, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
 
     println!();

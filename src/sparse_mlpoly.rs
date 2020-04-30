@@ -417,7 +417,7 @@ impl SparseMatPolynomial {
     }
   }
 
-  pub fn evaluate_with_tables(&self, eval_table_rx: &[Scalar], eval_table_ry: &[Scalar]) -> Scalar {
+  fn evaluate_with_tables(&self, eval_table_rx: &[Scalar], eval_table_ry: &[Scalar]) -> Scalar {
     assert_eq!(self.num_vars_x.pow2(), eval_table_rx.len());
     assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
 
@@ -431,20 +431,17 @@ impl SparseMatPolynomial {
       .sum()
   }
 
-  pub fn evaluate(&self, rx: &[Scalar], ry: &[Scalar]) -> Scalar {
+  pub fn multi_evaluate(
+    polys: &[&SparseMatPolynomial],
+    rx: &[Scalar],
+    ry: &[Scalar],
+  ) -> Vec<Scalar> {
     let eval_table_rx = EqPolynomial::new(rx.to_vec()).evals();
     let eval_table_ry = EqPolynomial::new(ry.to_vec()).evals();
-    assert_eq!(self.num_vars_x.pow2(), eval_table_rx.len());
-    assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
 
-    (0..self.M.len())
-      .map(|i| {
-        let row = self.M[i].row;
-        let col = self.M[i].col;
-        let val = &self.M[i].val;
-        eval_table_rx[row] * eval_table_ry[col] * val
-      })
-      .sum()
+    (0..polys.len())
+      .map(|i| polys[i].evaluate_with_tables(&eval_table_rx, &eval_table_ry))
+      .collect::<Vec<Scalar>>()
   }
 
   pub fn multiply_vec(&self, num_rows: usize, num_cols: usize, z: &[Scalar]) -> Vec<Scalar> {
@@ -1682,8 +1679,8 @@ mod tests {
     let ry: Vec<Scalar> = (0..num_vars_y)
       .map(|_i| Scalar::random(&mut csprng))
       .collect::<Vec<Scalar>>();
-    let eval = poly_M.evaluate(&rx, &ry);
-    let evals = vec![eval, eval, eval];
+    let eval = SparseMatPolynomial::multi_evaluate(&[&poly_M], &rx, &ry);
+    let evals = vec![eval[0], eval[0], eval[0]];
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
