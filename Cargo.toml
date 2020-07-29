@@ -3,6 +3,12 @@ name = "spartan"
 version = "0.1.0"
 authors = ["Srinath Setty <srinath@microsoft.com>"]
 edition = "2018"
+description = "High-speed zkSNARKs without trusted setup"
+documentation = "https://github.com/microsoft/Spartan"
+readme = "README.md"
+repository = "https://github.com/microsoft/Spartan"
+license-file = "LICENSE"
+keywords = ["zkSNARKs", "cryptography", "proofs"]
 
 [dependencies]
 curve25519-dalek = { version = "2", features = ["serde", "simd_backend"]}
