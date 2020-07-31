@@ -103,9 +103,9 @@ impl CompressedUniPoly {
     }
 
     let mut coeffs: Vec<Scalar> = Vec::new();
-    coeffs.extend(vec![&self.coeffs_except_linear_term[0]]);
-    coeffs.extend(vec![&linear_term]);
-    coeffs.extend(self.coeffs_except_linear_term[1..].to_vec());
+    coeffs.push(self.coeffs_except_linear_term[0]);
+    coeffs.push(linear_term);
+    coeffs.extend(&self.coeffs_except_linear_term[1..]);
     assert_eq!(self.coeffs_except_linear_term.len() + 1, coeffs.len());
     UniPoly { coeffs }
   }

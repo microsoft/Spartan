@@ -168,8 +168,8 @@ impl BulletReductionProof {
 
     // 3. Compute u_i^2 and (1/u_i)^2
     for i in 0..lg_n {
-      challenges[i] = challenges[i] * challenges[i];
-      challenges_inv[i] = challenges_inv[i] * challenges_inv[i];
+      challenges[i] = challenges[i].square();
+      challenges_inv[i] = challenges_inv[i].square();
     }
     let challenges_sq = challenges;
     let challenges_inv_sq = challenges_inv;

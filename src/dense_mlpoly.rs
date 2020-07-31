@@ -16,7 +16,7 @@ use rayon::prelude::*;
 
 #[derive(Debug)]
 pub struct DensePolynomial {
-  num_vars: usize, //the number of variables in the multilinear polynomial
+  num_vars: usize, // the number of variables in the multilinear polynomial
   len: usize,
   Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
@@ -148,8 +148,7 @@ impl DensePolynomial {
     let R_size = self.Z.len() / L_size;
     assert_eq!(L_size * R_size, self.Z.len());
     let C = (0..L_size)
-      .collect::<Vec<usize>>()
-      .par_iter()
+      .into_par_iter()
       .map(|&i| {
         self.Z[R_size * i..R_size * (i + 1)]
           .commit(&blinds[i], gens)
@@ -207,7 +206,7 @@ impl DensePolynomial {
     let R_size = right_num_vars.pow2();
     (0..R_size)
       .map(|i| (0..L_size).map(|j| L[j] * self.Z[j * R_size + i]).sum())
-      .collect::<Vec<Scalar>>()
+      .collect()
   }
 
   pub fn bound_poly_var_top(&mut self, r: &Scalar) {
