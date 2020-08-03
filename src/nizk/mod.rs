@@ -415,7 +415,7 @@ pub struct DotProductProofGens {
 
 impl DotProductProofGens {
   pub fn new(n: usize, label: &[u8]) -> Self {
-    let (gens_n, gens_1) = MultiCommitGens::new(n + 1, label).split_at_mut(n);
+    let (gens_n, gens_1) = MultiCommitGens::new(n + 1, label).split_at(n);
     DotProductProofGens { n, gens_n, gens_1 }
   }
 }
