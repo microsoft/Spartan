@@ -1,6 +1,6 @@
 use super::group::{GroupElement, VartimeMultiscalarMul, GROUP_BASEPOINT_COMPRESSED};
 use super::scalar::Scalar;
-use digest::{ExtendableOutput, Input, XofReader};
+use digest::{ExtendableOutput, Input};
 use sha3::Shake256;
 use std::io::Read;
 
