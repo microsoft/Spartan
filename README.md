@@ -2,10 +2,9 @@
 
 ![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)
 
-Spartan is a high-speed zero-knowledge proof system, a cryptographic primitive that enables a prover to prove a mathematical statement to a verifier without revealing anything besides the validity of the statement. This repository provides `libspartan`, a Rust library that implements a zero-knowledge succinct non-interactive argument of knowledge (zkSNARK), which is a type of zero-knowledge proof system with short proofs and fast verification times. The details of the Spartan proof system are described in our [paper](https://eprint.iacr.org/2019/550) published at [CRYPTO 2020](https://crypto.iacr.org/2020/).
+Spartan is a high-speed zero-knowledge proof system, a cryptographic primitive that enables a prover to prove a mathematical statement to a verifier without revealing anything besides the validity of the statement. This repository provides `libspartan,` a Rust library that implements a zero-knowledge succinct non-interactive argument of knowledge (zkSNARK), which is a type of zero-knowledge proof system with short proofs and fast verification times. The details of the Spartan proof system are described in our [paper](https://eprint.iacr.org/2019/550) published at [CRYPTO 2020](https://crypto.iacr.org/2020/).
 
-
-A simple example application is proving the knowledge of a secret s such that H(s) == d for a public d, where H is a cryptographic hash function (e.g., SHA-256, Keccak). A more complex application is a stateful cloud service that produces proofs of correct state machine transitions for auditability. See this [paper](https://eprint.iacr.org/2020/758.pdf) for details.
+A simple example application is proving the knowledge of a secret s such that H(s) == d for a public d, where H is a cryptographic hash function (e.g., SHA-256, Keccak). A more complex application is a database-backed cloud service that produces proofs of correct state machine transitions for auditability. See this [paper](https://eprint.iacr.org/2020/758.pdf) for an overview and this [paper](https://eprint.iacr.org/2018/907.pdf) for details.
 
 Note that this library has *not* received a security review or audit.
 
@@ -150,7 +149,7 @@ Build `libspartan` with `profile` feature enabled. It creates two profilers: `./
 
 These profilers report performance as depicted below (for varying R1CS instance sizes). The reported
 performance is from running the profilers on a Microsoft Surface Laptop 3 on a single CPU core of Intel Core i7-1065G7 running Ubuntu 20.04 (atop WSL2 on Windows 10).
-See Section 8 in our [paper](https://eprint.iacr.org/2019/550) to see how this compares with other zkSNARKs in the literature.
+See Section 9 in our [paper](https://eprint.iacr.org/2019/550) to see how this compares with other zkSNARKs in the literature.
 
 ```text
 $ ./target/release/snark 
