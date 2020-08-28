@@ -1,5 +1,5 @@
 use super::dense_mlpoly::DensePolynomial;
-use super::errors::ProofVerifyError;
+use super::errors::{ProofVerifyError, R1CSError};
 use super::math::Math;
 use super::random::RandomTape;
 use super::scalar::Scalar;
@@ -73,18 +73,60 @@ impl R1CSInstance {
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
-    A: SparseMatPolynomial,
-    B: SparseMatPolynomial,
-    C: SparseMatPolynomial,
-  ) -> Self {
-    R1CSInstance {
+    A: &Vec<(usize, usize, Scalar)>,
+    B: &Vec<(usize, usize, Scalar)>,
+    C: &Vec<(usize, usize, Scalar)>,
+  ) -> Result<R1CSInstance, R1CSError> {
+    Timer::print(&format!("number_of_constraints {}", num_cons));
+    Timer::print(&format!("number_of_variables {}", num_vars));
+    Timer::print(&format!("number_of_inputs {}", num_inputs));
+    Timer::print(&format!("number_non-zero_entries_A {}", A.len()));
+    Timer::print(&format!("number_non-zero_entries_B {}", B.len()));
+    Timer::print(&format!("number_non-zero_entries_C {}", C.len()));
+
+    // check that num_cons is power of 2
+    if num_cons.next_power_of_two() != num_cons {
+      return Err(R1CSError::NonPowerOfTwoCons);
+    }
+
+    // check that the number of variables is a power of 2
+    if num_vars.next_power_of_two() != num_vars {
+      return Err(R1CSError::NonPowerOfTwoVars);
+    }
+
+    // check that num_inputs + 1 <= num_vars
+    if num_inputs >= num_vars {
+      return Err(R1CSError::InvalidNumberOfInputs);
+    }
+
+    // no errors, so create polynomials
+    let num_poly_vars_x = num_cons.log2();
+    let num_poly_vars_y = (2 * num_vars).log2();
+
+    let mat_A = (0..A.len())
+      .map(|i| SparseMatEntry::new(A[i].0, A[i].1, A[i].2))
+      .collect::<Vec<SparseMatEntry>>();
+    let mat_B = (0..B.len())
+      .map(|i| SparseMatEntry::new(B[i].0, B[i].1, B[i].2))
+      .collect::<Vec<SparseMatEntry>>();
+    let mat_C = (0..C.len())
+      .map(|i| SparseMatEntry::new(C[i].0, C[i].1, C[i].2))
+      .collect::<Vec<SparseMatEntry>>();
+
+    let poly_A = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, mat_A);
+    let poly_B = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, mat_B);
+    let poly_C = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, mat_C);
+
+    let inst = R1CSInstance {
       num_cons,
       num_vars,
       num_inputs,
-      A,
-      B,
-      C,
-    }
+      A: poly_A,
+      B: poly_B,
+      C: poly_C,
+    };
+
+    Ok(inst)
   }
 
   pub fn get_num_vars(&self) -> usize {
@@ -165,7 +207,14 @@ impl R1CSInstance {
     let poly_B = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, B);
     let poly_C = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, C);
 
-    let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, poly_A, poly_B, poly_C);
+    let inst = R1CSInstance {
+      num_cons,
+      num_vars,
+      num_inputs,
+      A: poly_A,
+      B: poly_B,
+      C: poly_C,
+    };
 
     assert_eq!(
       inst.is_sat(&Z[0..num_vars].to_vec(), &Z[num_vars + 1..].to_vec()),
@@ -245,8 +294,6 @@ impl R1CSInstance {
   }
 
   pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {
-    assert_eq!(self.A.get_num_nz_entries(), self.B.get_num_nz_entries());
-    assert_eq!(self.A.get_num_nz_entries(), self.C.get_num_nz_entries());
     let (comm, dense) = SparseMatPolynomial::multi_commit(&[&self.A, &self.B, &self.C], &gens.gens);
     let r1cs_comm = R1CSCommitment {
       num_cons: self.num_cons,

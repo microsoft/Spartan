@@ -13,3 +13,22 @@ impl fmt::Debug for ProofVerifyError {
     write!(f, "{{ file: {}, line: {} }}", file!(), line!())
   }
 }
+
+pub enum R1CSError {
+  NonPowerOfTwoCons,
+  NonPowerOfTwoVars,
+  InvalidNumberOfInputs,
+  InvalidScalar,
+}
+
+impl fmt::Display for R1CSError {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "R1CSError")
+  }
+}
+
+impl fmt::Debug for R1CSError {
+  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    write!(f, "{{ file: {}, line: {} }}", file!(), line!())
+  }
+}

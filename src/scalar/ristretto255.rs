@@ -1,6 +1,6 @@
 //! This module provides an implementation of the Curve25519's scalar field $\mathbb{F}_q$
 //! where `q = 2^252 + 27742317777372353535851937790883648493 = 0x1000000000000000 0000000000000000 14def9dea2f79cd6 5812631a5cf5d3ed`
-//! This module is an adaptation of code from the bls12-381 crate. 
+//! This module is an adaptation of code from the bls12-381 crate.
 //! We modify various constants (MODULUS, R, R2, etc.) to appropriate values for Curve25519 and update tests
 //! We borrow the `invert` method from the curve25519-dalek crate.
 //! See NOTICE.md for more details
