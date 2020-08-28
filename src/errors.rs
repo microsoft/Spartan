@@ -1,16 +1,17 @@
-use core::fmt;
+use core::fmt::Debug;
+use thiserror::Error;
 
-pub struct ProofVerifyError;
-
-impl fmt::Display for ProofVerifyError {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "Proof verification failed")
-  }
+#[derive(Error, Debug)]
+pub enum ProofVerifyError {
+  #[error("Proof verification failed")]
+  InternalError,
+  #[error("Compressed group element failed to decompress: {0:?}")]
+  DecompressionError([u8; 32]),
 }
 
-impl fmt::Debug for ProofVerifyError {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{{ file: {}, line: {} }}", file!(), line!())
+impl Default for ProofVerifyError {
+  fn default() -> Self {
+    ProofVerifyError::InternalError
   }
 }
 

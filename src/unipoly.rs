@@ -80,7 +80,7 @@ impl UniPoly {
   }
 
   pub fn compress(&self) -> CompressedUniPoly {
-    let coeffs_except_linear_term = [&self.coeffs[0..1], &self.coeffs[2..]].concat();
+    let coeffs_except_linear_term = [&self.coeffs[..1], &self.coeffs[2..]].concat();
     assert_eq!(coeffs_except_linear_term.len() + 1, self.coeffs.len());
     CompressedUniPoly {
       coeffs_except_linear_term,

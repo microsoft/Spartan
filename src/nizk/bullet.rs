@@ -148,10 +148,10 @@ impl BulletReductionProof {
     if lg_n >= 32 {
       // 4 billion multiplications should be enough for anyone
       // and this check prevents overflow in 1<<lg_n below.
-      return Err(ProofVerifyError);
+      return Err(ProofVerifyError::InternalError);
     }
     if n != (1 << lg_n) {
-      return Err(ProofVerifyError);
+      return Err(ProofVerifyError::InternalError);
     }
 
     // 1. Recompute x_k,...,x_1 based on the proof transcript
@@ -206,13 +206,13 @@ impl BulletReductionProof {
     let Ls = self
       .L_vec
       .iter()
-      .map(|p| p.decompress().ok_or(ProofVerifyError))
+      .map(|p| p.decompress().ok_or(ProofVerifyError::InternalError))
       .collect::<Result<Vec<_>, _>>()?;
 
     let Rs = self
       .R_vec
       .iter()
-      .map(|p| p.decompress().ok_or(ProofVerifyError))
+      .map(|p| p.decompress().ok_or(ProofVerifyError::InternalError))
       .collect::<Result<Vec<_>, _>>()?;
 
     let G_hat = GroupElement::vartime_multiscalar_mul(s.iter(), G.iter());

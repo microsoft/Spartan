@@ -27,7 +27,7 @@ impl MultiCommitGens {
 
     MultiCommitGens {
       n,
-      G: gens[0..n].to_vec(),
+      G: gens[..n].to_vec(),
       h: gens[n],
     }
   }

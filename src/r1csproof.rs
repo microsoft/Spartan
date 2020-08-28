@@ -370,18 +370,14 @@ impl R1CSProof {
     let claim_phase1 = Scalar::zero()
       .commit(&Scalar::zero(), &gens.gens_sc.gens_1)
       .compress();
-    let (comm_claim_post_phase1, rx) = self
-      .sc_proof_phase1
-      .verify(
-        &claim_phase1,
-        num_rounds_x,
-        3,
-        &gens.gens_sc.gens_1,
-        &gens.gens_sc.gens_4,
-        transcript,
-      )
-      .unwrap();
-
+    let (comm_claim_post_phase1, rx) = self.sc_proof_phase1.verify(
+      &claim_phase1,
+      num_rounds_x,
+      3,
+      &gens.gens_sc.gens_1,
+      &gens.gens_sc.gens_4,
+      transcript,
+    )?;
     // perform the intermediate sum-check test with claimed Az, Bz, and Cz
     let (comm_Az_claim, comm_Bz_claim, comm_Cz_claim, comm_prod_Az_Bz_claims) = &self.claims_phase2;
     let (pok_Cz_claim, proof_prod) = &self.pok_claims_phase2;

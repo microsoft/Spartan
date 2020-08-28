@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
-use super::group::CompressedGroup;
+use super::group::{CompressedGroup, CompressedGroupExt};
 use super::math::Math;
 use super::random::RandomTape;
 use super::scalar::Scalar;
@@ -64,17 +64,12 @@ impl KnowledgeProof {
     let c = transcript.challenge_scalar(b"c");
 
     let lhs = self.z1.commit(&self.z2, gens_n).compress();
-    let rhs = (c * C.decompress().expect("Could not decompress C")
-      + self
-        .alpha
-        .decompress()
-        .expect("Could not decompress self.alpha"))
-    .compress();
+    let rhs = (c * C.unpack()? + self.alpha.unpack()?).compress();
 
     if lhs == rhs {
       Ok(())
     } else {
-      Err(ProofVerifyError)
+      Err(ProofVerifyError::InternalError)
     }
   }
 }
@@ -134,8 +129,8 @@ impl EqualityProof {
 
     let c = transcript.challenge_scalar(b"c");
     let rhs = {
-      let C = C1.decompress().unwrap() - C2.decompress().unwrap();
-      (c * C + self.alpha.decompress().unwrap()).compress()
+      let C = C1.unpack()? - C2.unpack()?;
+      (c * C + self.alpha.unpack()?).compress()
     };
 
     let lhs = (self.z * gens_n.h).compress();
@@ -143,7 +138,7 @@ impl EqualityProof {
     if lhs == rhs {
       Ok(())
     } else {
-      Err(ProofVerifyError)
+      Err(ProofVerifyError::InternalError)
     }
   }
 }
@@ -280,7 +275,7 @@ impl ProductProof {
         &c,
         &MultiCommitGens {
           n: 1,
-          G: vec![X.decompress().unwrap()],
+          G: vec![X.unpack()?],
           h: gens_n.h,
         },
         &z3,
@@ -289,7 +284,7 @@ impl ProductProof {
     {
       Ok(())
     } else {
-      Err(ProofVerifyError)
+      Err(ProofVerifyError::InternalError)
     }
   }
 }
@@ -392,17 +387,16 @@ impl DotProductProof {
 
     let c = transcript.challenge_scalar(b"c");
 
-    let mut result = c * Cx.decompress().unwrap() + self.delta.decompress().unwrap()
-      == self.z.commit(&self.z_delta, gens_n);
+    let mut result =
+      c * Cx.unpack()? + self.delta.unpack()? == self.z.commit(&self.z_delta, gens_n);
 
     let dotproduct_z_a = DotProductProof::compute_dotproduct(&self.z, &a);
-    result &= c * Cy.decompress().unwrap() + self.beta.decompress().unwrap()
-      == dotproduct_z_a.commit(&self.z_beta, gens_1);
+    result &= c * Cy.unpack()? + self.beta.unpack()? == dotproduct_z_a.commit(&self.z_beta, gens_1);
 
     if result {
       Ok(())
     } else {
-      Err(ProofVerifyError)
+      Err(ProofVerifyError::InternalError)
     }
   }
 }
@@ -534,7 +528,7 @@ impl DotProductProofLog {
     Cx.append_to_transcript(b"Cx", transcript);
     Cy.append_to_transcript(b"Cy", transcript);
 
-    let Gamma = Cx.decompress().unwrap() + Cy.decompress().unwrap();
+    let Gamma = Cx.unpack()? + Cy.unpack()?;
 
     let (g_hat, Gamma_hat, a_hat) = self
       .bullet_reduction_proof
@@ -547,9 +541,9 @@ impl DotProductProofLog {
     let c = transcript.challenge_scalar(b"c");
 
     let c_s = &c;
-    let beta_s = self.beta.decompress().unwrap();
+    let beta_s = self.beta.unpack()?;
     let a_hat_s = &a_hat;
-    let delta_s = self.delta.decompress().unwrap();
+    let delta_s = self.delta.unpack()?;
     let z1_s = &self.z1;
     let z2_s = &self.z2;
 
@@ -561,7 +555,7 @@ impl DotProductProofLog {
     if lhs == rhs {
       Ok(())
     } else {
-      Err(ProofVerifyError)
+      Err(ProofVerifyError::InternalError)
     }
   }
 }

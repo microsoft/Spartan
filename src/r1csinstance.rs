@@ -211,11 +211,11 @@ impl R1CSInstance {
     };
 
     assert_eq!(
-      inst.is_sat(&Z[0..num_vars].to_vec(), &Z[num_vars + 1..].to_vec()),
+      inst.is_sat(&Z[..num_vars].to_vec(), &Z[num_vars + 1..].to_vec()),
       true,
     );
 
-    (inst, Z[0..num_vars].to_vec(), Z[num_vars + 1..].to_vec())
+    (inst, Z[..num_vars].to_vec(), Z[num_vars + 1..].to_vec())
   }
 
   pub fn is_sat(&self, vars: &[Scalar], input: &[Scalar]) -> bool {

@@ -339,17 +339,14 @@ impl SNARK {
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
-    let (rx, ry) = self
-      .r1cs_sat_proof
-      .verify(
-        comm.comm.get_num_vars(),
-        comm.comm.get_num_cons(),
-        &input.assignment,
-        &self.inst_evals,
-        transcript,
-        &gens.gens_r1cs_sat,
-      )
-      .unwrap();
+    let (rx, ry) = self.r1cs_sat_proof.verify(
+      comm.comm.get_num_vars(),
+      comm.comm.get_num_cons(),
+      &input.assignment,
+      &self.inst_evals,
+      transcript,
+      &gens.gens_r1cs_sat,
+    )?;
     timer_sat_proof.stop();
 
     let timer_eval_proof = Timer::new("verify_eval_proof");
@@ -454,17 +451,14 @@ impl NIZK {
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), inst.inst.get_num_inputs());
-    let (rx, ry) = self
-      .r1cs_sat_proof
-      .verify(
-        inst.inst.get_num_vars(),
-        inst.inst.get_num_cons(),
-        &input.assignment,
-        &inst_evals,
-        transcript,
-        &gens.gens_r1cs_sat,
-      )
-      .unwrap();
+    let (rx, ry) = self.r1cs_sat_proof.verify(
+      inst.inst.get_num_vars(),
+      inst.inst.get_num_cons(),
+      &input.assignment,
+      &inst_evals,
+      transcript,
+      &gens.gens_r1cs_sat,
+    )?;
 
     // verify if claimed rx and ry are correct
     assert_eq!(rx, *claimed_rx);

@@ -1400,9 +1400,7 @@ impl PolyEvalNetworkProof {
 
     let (claims_mem, rand_mem, mut claims_ops, claims_dotp, rand_ops) = self
       .proof_prod_layer
-      .verify(num_ops, num_cells, evals, transcript)
-      .unwrap();
-
+      .verify(num_ops, num_cells, evals, transcript)?;
     assert_eq!(claims_mem.len(), 4);
     assert_eq!(claims_ops.len(), 4 * num_instances);
     assert_eq!(claims_dotp.len(), 3 * num_instances);
