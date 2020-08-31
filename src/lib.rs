@@ -54,6 +54,7 @@ pub struct ComputationDecommitment {
 }
 
 /// `Assignment` holds an assignment of values to either the inputs or variables in an `Instance`
+#[derive(Clone)]
 pub struct Assignment {
   assignment: Vec<Scalar>,
 }
