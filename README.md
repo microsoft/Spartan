@@ -15,17 +15,12 @@ We now highlight Spartan's distinctive features.
 
 * **General-purpose:** Spartan produces proofs for arbitrary NP statements. `libspartan` supports NP statements expressed as rank-1 constraint satisfiability (R1CS) instances, a popular language for which there exists efficient transformations and compiler toolchains from high-level programs of interest.
 
-* **Sub-linear verification costs and linear-time proving costs:** Spartan is the first transparent proof system with sub-linear verification costs for arbitrary NP statements (e.g., R1CS). Spartan also features a time-optimal prover, a property that has remained elusive for nearly all zkSNARKs in the literature.
+* **Sub-linear verification costs and linear-time proving costs:** Spartan is the first transparent proof system with sub-linear verification costs for arbitrary NP statements (e.g., R1CS). Spartan also features a linear-time prover, a property that has remained elusive for nearly all zkSNARKs in the literature.
 
 * **Standardized security:** Spartan's security relies on the hardness of computing discrete logarithms (a standard cryptographic assumption) in the random oracle model. `libspartan` uses `ristretto255`, a prime-order group abstraction atop `curve25519` (a high-speed elliptic curve). We use [`curve25519-dalek`](https://docs.rs/curve25519-dalek) for arithmetic over `ristretto255`. 
 
 * **State-of-the-art performance:** 
-Among transparent SNARKs, Spartan
-offers the fastest prover with speedups of 36–152× depending on the baseline,
-produces proofs that are shorter by 1.2–416×, and incurs the lowest verification
-times with speedups of 3.6–1326×. When compared to the state-of-the-art zkSNARK
-with trusted setup, Spartan’s prover is 2× faster for arbitrary R1CS instances and
-16× faster for data-parallel workloads.
+Among transparent SNARKs, Spartan offers the fastest prover with speedups of 36–152× depending on the baseline, produces proofs that are shorter by 1.2–416×, and incurs the lowest verification times with speedups of 3.6–1326×. The only exception is proof sizes under Bulletproofs, but Bulletproofs incurs slower verification both asymptotically and concretely. When compared to the state-of-the-art zkSNARK with trusted setup, Spartan’s prover is 2× faster for arbitrary R1CS instances and 16× faster for data-parallel workloads.
 
 
 ### Implementation details
