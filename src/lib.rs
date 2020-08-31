@@ -87,6 +87,12 @@ impl Assignment {
   }
 }
 
+/// `VarsAssignment` holds an assignment of values to variables in an `Instance`
+pub type VarsAssignment = Assignment;
+
+/// `VarsAssignment` holds an assignment of values to variables in an `Instance`
+pub type InputsAssignment = Assignment;
+
 /// `Instance` holds the description of R1CS matrices
 pub struct Instance {
   inst: R1CSInstance,
@@ -102,6 +108,21 @@ impl Instance {
     B: &Vec<(usize, usize, [u8; 32])>,
     C: &Vec<(usize, usize, [u8; 32])>,
   ) -> Result<Instance, R1CSError> {
+    // check that num_cons is power of 2
+    if num_cons.next_power_of_two() != num_cons {
+      return Err(R1CSError::NonPowerOfTwoCons);
+    }
+
+    // check that the number of variables is a power of 2
+    if num_vars.next_power_of_two() != num_vars {
+      return Err(R1CSError::NonPowerOfTwoVars);
+    }
+
+    // check that num_inputs + 1 <= num_vars
+    if num_inputs >= num_vars {
+      return Err(R1CSError::InvalidNumberOfInputs);
+    }
+
     let bytes_to_scalar =
       |tups: &Vec<(usize, usize, [u8; 32])>| -> Result<Vec<(usize, usize, Scalar)>, R1CSError> {
         let mut mat: Vec<(usize, usize, Scalar)> = Vec::new();
@@ -135,13 +156,21 @@ impl Instance {
       &C_scalar.unwrap(),
     );
 
-    if inst.is_ok() {
-      Ok(Instance {
-        inst: inst.unwrap(),
-      })
-    } else {
-      Err(inst.err().unwrap())
+    Ok(Instance { inst })
+  }
+
+  /// Checks if a given R1CSInstance is satisfiable with a given variables and inputs assignments
+  pub fn is_sat(&self, vars: &VarsAssignment, inputs: &InputsAssignment) -> Result<bool, R1CSError> {
+    
+    if vars.assignment.len() != self.inst.get_num_vars() {
+      return Err(R1CSError::InvalidNumberOfVars)
     }
+    
+    if inputs.assignment.len() != self.inst.get_num_inputs() {
+      return Err(R1CSError::InvalidNumberOfInputs)
+    }
+ 
+    Ok(self.inst.is_sat(&vars.assignment, &inputs.assignment))
   }
 
   /// Constructs a new synthetic R1CS `Instance` and an associated satisfying assignment
@@ -149,12 +178,12 @@ impl Instance {
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
-  ) -> (Instance, Assignment, Assignment) {
+  ) -> (Instance, VarsAssignment, InputsAssignment) {
     let (inst, vars, inputs) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
     (
       Instance { inst },
-      Assignment { assignment: vars },
-      Assignment { assignment: inputs },
+      VarsAssignment { assignment: vars },
+      InputsAssignment { assignment: inputs },
     )
   }
 }
@@ -214,8 +243,8 @@ impl SNARK {
   pub fn prove(
     inst: &Instance,
     decomm: &ComputationDecommitment,
-    vars: Assignment,
-    input: &Assignment,
+    vars: VarsAssignment,
+    inputs: &InputsAssignment,
     gens: &SNARKGens,
     transcript: &mut Transcript,
   ) -> Self {
@@ -229,7 +258,7 @@ impl SNARK {
       let (proof, rx, ry) = R1CSProof::prove(
         &inst.inst,
         vars.assignment,
-        &input.assignment,
+        &inputs.assignment,
         &gens.gens_r1cs_sat,
         transcript,
         &mut random_tape,
@@ -280,7 +309,7 @@ impl SNARK {
   pub fn verify(
     &self,
     comm: &ComputationCommitment,
-    input: &Assignment,
+    input: &InputsAssignment,
     transcript: &mut Transcript,
     gens: &SNARKGens,
   ) -> Result<(), ProofVerifyError> {
@@ -352,8 +381,8 @@ impl NIZK {
   /// A method to produce a NIZK proof of the satisfiability of an R1CS instance
   pub fn prove(
     inst: &Instance,
-    vars: Assignment,
-    input: &Assignment,
+    vars: VarsAssignment,
+    input: &InputsAssignment,
     gens: &NIZKGens,
     transcript: &mut Transcript,
   ) -> Self {
@@ -387,7 +416,7 @@ impl NIZK {
   pub fn verify(
     &self,
     inst: &Instance,
-    input: &Assignment,
+    input: &InputsAssignment,
     transcript: &mut Transcript,
     gens: &NIZKGens,
   ) -> Result<(), ProofVerifyError> {

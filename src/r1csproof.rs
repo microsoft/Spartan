@@ -540,7 +540,7 @@ mod tests {
     A.push((2, 4, one));
     B.push((2, num_vars, one));
 
-    let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+    let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
 
     // compute a satisfying assignment
     let mut csprng: OsRng = OsRng;

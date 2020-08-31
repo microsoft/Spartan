@@ -1,5 +1,5 @@
 use super::dense_mlpoly::DensePolynomial;
-use super::errors::{ProofVerifyError, R1CSError};
+use super::errors::ProofVerifyError;
 use super::math::Math;
 use super::random::RandomTape;
 use super::scalar::Scalar;
@@ -76,7 +76,7 @@ impl R1CSInstance {
     A: &Vec<(usize, usize, Scalar)>,
     B: &Vec<(usize, usize, Scalar)>,
     C: &Vec<(usize, usize, Scalar)>,
-  ) -> Result<R1CSInstance, R1CSError> {
+  ) -> R1CSInstance {
     Timer::print(&format!("number_of_constraints {}", num_cons));
     Timer::print(&format!("number_of_variables {}", num_vars));
     Timer::print(&format!("number_of_inputs {}", num_inputs));
@@ -84,20 +84,14 @@ impl R1CSInstance {
     Timer::print(&format!("number_non-zero_entries_B {}", B.len()));
     Timer::print(&format!("number_non-zero_entries_C {}", C.len()));
 
-    // check that num_cons is power of 2
-    if num_cons.next_power_of_two() != num_cons {
-      return Err(R1CSError::NonPowerOfTwoCons);
-    }
+    // check that num_cons is a power of 2
+    assert_eq!(num_cons.next_power_of_two(), num_cons);
 
-    // check that the number of variables is a power of 2
-    if num_vars.next_power_of_two() != num_vars {
-      return Err(R1CSError::NonPowerOfTwoVars);
-    }
+    // check that num_vars is a power of 2
+    assert_eq!(num_vars.next_power_of_two(), num_vars);
 
-    // check that num_inputs + 1 <= num_vars
-    if num_inputs >= num_vars {
-      return Err(R1CSError::InvalidNumberOfInputs);
-    }
+    // check that number_inputs + 1 <= num_vars
+    assert!(num_inputs < num_vars);
 
     // no errors, so create polynomials
     let num_poly_vars_x = num_cons.log2();
@@ -126,7 +120,7 @@ impl R1CSInstance {
       C: poly_C,
     };
 
-    Ok(inst)
+    inst
   }
 
   pub fn get_num_vars(&self) -> usize {
