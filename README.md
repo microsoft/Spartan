@@ -15,20 +15,12 @@ We now highlight Spartan's distinctive features.
 
 * **General-purpose:** Spartan produces proofs for arbitrary NP statements. `libspartan` supports NP statements expressed as rank-1 constraint satisfiability (R1CS) instances, a popular language for which there exists efficient transformations and compiler toolchains from high-level programs of interest.
 
-* **Sub-linear verification costs and linear-time proving costs:** Spartan is the first transparent proof system with sub-linear verification costs for arbitrary NP statements (e.g., R1CS). Spartan also features a time-optimal prover, a property that has remained elusive for nearly all zkSNARKs in the literature.
+* **Sub-linear verification costs and linear-time proving costs:** Spartan is the first transparent proof system with sub-linear verification costs for arbitrary NP statements (e.g., R1CS). Spartan also features a linear-time prover, a property that has remained elusive for nearly all zkSNARKs in the literature.
 
 * **Standardized security:** Spartan's security relies on the hardness of computing discrete logarithms (a standard cryptographic assumption) in the random oracle model. `libspartan` uses `ristretto255`, a prime-order group abstraction atop `curve25519` (a high-speed elliptic curve). We use [`curve25519-dalek`](https://docs.rs/curve25519-dalek) for arithmetic over `ristretto255`. 
 
 * **State-of-the-art performance:** 
-Among transparent SNARKs, Spartan
-offers the fastest prover with speedups of 36–152× depending on the baseline,
-produces proofs that are shorter by 1.2–416×, and incurs the lowest verification
-times with speedups of 3.6–1326×. When compared to the state-of-the-art zkSNARK
-with trusted setup, Spartan’s prover is 2× faster for arbitrary R1CS instances and
-16× faster for data-parallel workloads.
-
-### Status
-Development is ongoing (PRs are welcome!). For example, the library does not yet offer APIs to specify an NP statement, but we will in the future offer standardized APIs and also integrate with a compiler that produces R1CS instances from high level programs.
+Among transparent SNARKs, Spartan offers the fastest prover with speedups of 36–152× depending on the baseline, produces proofs that are shorter by 1.2–416×, and incurs the lowest verification times with speedups of 3.6–1326×. The only exception is proof sizes under Bulletproofs, but Bulletproofs incurs slower verification both asymptotically and concretely. When compared to the state-of-the-art zkSNARK with trusted setup, Spartan’s prover is 2× faster for arbitrary R1CS instances and 16× faster for data-parallel workloads.
 
 ### Implementation details
 `libspartan` uses [`merlin`](https://docs.rs/merlin/) to automate the Fiat-Shamir transform. We also introduce a new type called `RandomTape` that extends a `Transcript` in `merlin` to allow the prover's internal methods to produce private randomness using its private transcript without having to create `OsRng` objects throughout the code. An object of type `RandomTape` is initialized with a new random seed from `OsRng` for each proof produced by the library. 
@@ -53,7 +45,7 @@ Some of our public APIs' style is inspired by the underlying crates we use.
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
 
     // ask the library to produce a synthentic R1CS instance
-    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // create a commitment to the R1CS instance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
@@ -86,7 +78,7 @@ Here is another example to use the NIZK variant of the Spartan proof system:
     let gens = NIZKGens::new(num_cons, num_vars);
 
     // ask the library to produce a synthentic R1CS instance
-    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"nizk_example");
@@ -97,6 +89,153 @@ Here is another example to use the NIZK variant of the Spartan proof system:
     assert!(proof
       .verify(&inst, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
+# }
+```
+
+Finally, we provide an example that specifies a custom R1CS instance instead of using a synthetic instance
+```rust
+# extern crate curve25519_dalek;
+# extern crate libspartan;
+# extern crate merlin;
+# use curve25519_dalek::scalar::Scalar;
+# use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
+# use merlin::Transcript;
+# use rand::rngs::OsRng;
+# fn main() {
+  // produce a tiny instance
+  let (
+    num_cons,
+    num_vars,
+    num_inputs,
+    num_non_zero_entries,
+    inst,
+    assignment_vars,
+    assignment_inputs,
+  ) = produce_tiny_r1cs();
+
+  // produce public parameters
+  let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
+
+  // create a commitment to the R1CS instance
+  let (comm, decomm) = SNARK::encode(&inst, &gens);
+
+  // produce a proof of satisfiability
+  let mut prover_transcript = Transcript::new(b"snark_example");
+  let proof = SNARK::prove(
+    &inst,
+    &decomm,
+    assignment_vars,
+    &assignment_inputs,
+    &gens,
+    &mut prover_transcript,
+  );
+
+  // verify the proof of satisfiability
+  let mut verifier_transcript = Transcript::new(b"snark_example");
+  assert!(proof
+    .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
+    .is_ok());
+# }
+
+# fn produce_tiny_r1cs() -> (
+#  usize,
+#  usize,
+#  usize,
+#  usize,
+#  Instance,
+#  VarsAssignment,
+#  InputsAssignment,
+# ) {
+  // We will use the following example, but one could construct any R1CS instance.
+  // Our R1CS instance is three constraints over five variables and two public inputs
+  // (Z0 + Z1) * I0 - Z2 = 0
+  // (Z0 + I1) * Z2 - Z3 = 0
+  // Z4 * 1 - 0 = 0
+
+  // parameters of the R1CS instance rounded to the nearest power of two
+  let num_cons = 4;
+  let num_vars = 8;
+  let num_inputs = 2;
+  let num_non_zero_entries = 8;
+
+  // We will encode the above constraints into three matrices, where
+  // the coefficients in the matrix are in the little-endian byte order
+  let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
+  let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
+  let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
+
+  // The constraint system is defined over a finite field, which in our case is
+  // the scalar field of ristreeto255/curve25519 i.e., p =  2^{252}+27742317777372353535851937790883648493
+  // To construct these matrices, we will use `curve25519-dalek` but one can use any other method.
+
+  // a variable that holds a byte representation of 1
+  let one = Scalar::one().to_bytes();
+
+  // R1CS is a set of three sparse matrices A B C, where is a row for every 
+  // constraint and a column for every entry in z = (vars, 1, inputs)
+  // An R1CS instance is satisfiable iff:
+  // Az \circ Bz = Cz, where z = (vars, 1, inputs)
+
+  // constraint 0 entries in (A,B,C)
+  // constraint 0 is (Z0 + Z1) * I0 - Z2 = 0.
+  // We set 1 in matrix A for columns that correspond to Z0 and Z1
+  // We set 1 in matrix B for column that corresponds to I0
+  // We set 1 in matrix C for column that corresponds to Z2
+  A.push((0, 0, one));
+  A.push((0, 1, one));
+  B.push((0, num_vars + 1, one));
+  C.push((0, 2, one));
+
+  // constraint 1 entries in (A,B,C)
+  A.push((1, 0, one));
+  A.push((1, num_vars + 2, one));
+  B.push((1, 2, one));
+  C.push((1, 3, one));
+
+  // constraint 3 entries in (A,B,C)
+  A.push((2, 4, one));
+  B.push((2, num_vars, one));
+
+  let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+
+  // compute a satisfying assignment
+  let mut csprng: OsRng = OsRng;
+  let i0 = Scalar::random(&mut csprng);
+  let i1 = Scalar::random(&mut csprng);
+  let z0 = Scalar::random(&mut csprng);
+  let z1 = Scalar::random(&mut csprng);
+  let z2 = (z0 + z1) * i0; // constraint 0
+  let z3 = (z0 + i1) * z2; // constraint 1
+  let z4 = Scalar::zero(); //constraint 2
+
+  // create a VarsAssignment
+  let mut vars = vec![Scalar::zero().to_bytes(); num_vars];
+  vars[0] = z0.to_bytes();
+  vars[1] = z1.to_bytes();
+  vars[2] = z2.to_bytes();
+  vars[3] = z3.to_bytes();
+  vars[4] = z4.to_bytes();
+  let assignment_vars = VarsAssignment::new(&vars).unwrap();
+
+  // create an InputsAssignment
+  let mut inputs = vec![Scalar::zero().to_bytes(); num_inputs];
+  inputs[0] = i0.to_bytes();
+  inputs[1] = i1.to_bytes();
+  let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
+  
+  // check if the instance we created is satisfiable
+  let res = inst.is_sat(&assignment_vars, &assignment_inputs);
+  assert_eq!(res.unwrap(), true);
+
+  (
+    num_cons,
+    num_vars,
+    num_inputs,
+    num_non_zero_entries,
+    inst,
+    assignment_vars,
+    assignment_inputs,
+  )
 # }
 ```
 

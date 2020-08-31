@@ -1,4 +1,4 @@
-//! This module is an adaptation of code from the bulletproofs crate. 
+//! This module is an adaptation of code from the bulletproofs crate.
 //! See NOTICE.md for more details
 #![allow(non_snake_case)]
 #![allow(clippy::type_complexity)]

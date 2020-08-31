@@ -31,7 +31,7 @@ mod timer;
 mod transcript;
 mod unipoly;
 
-use errors::ProofVerifyError;
+use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
 use r1csinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
@@ -53,6 +53,47 @@ pub struct ComputationDecommitment {
   decomm: R1CSDecommitment,
 }
 
+/// `Assignment` holds an assignment of values to either the inputs or variables in an `Instance`
+#[derive(Clone)]
+pub struct Assignment {
+  assignment: Vec<Scalar>,
+}
+
+impl Assignment {
+  /// Constructs a new `Assignment` from a vector
+  pub fn new(assignment: &Vec<[u8; 32]>) -> Result<Assignment, R1CSError> {
+    let bytes_to_scalar = |vec: &Vec<[u8; 32]>| -> Result<Vec<Scalar>, R1CSError> {
+      let mut vec_scalar: Vec<Scalar> = Vec::new();
+      for i in 0..vec.len() {
+        let val = Scalar::from_bytes(&vec[i]);
+        if val.is_some().unwrap_u8() == 1 {
+          vec_scalar.push(val.unwrap());
+        } else {
+          return Err(R1CSError::InvalidScalar);
+        }
+      }
+      Ok(vec_scalar)
+    };
+
+    let assignment_scalar = bytes_to_scalar(assignment);
+
+    // check for any parsing errors
+    if assignment_scalar.is_err() {
+      return Err(R1CSError::InvalidScalar);
+    }
+
+    Ok(Assignment {
+      assignment: assignment_scalar.unwrap(),
+    })
+  }
+}
+
+/// `VarsAssignment` holds an assignment of values to variables in an `Instance`
+pub type VarsAssignment = Assignment;
+
+/// `VarsAssignment` holds an assignment of values to variables in an `Instance`
+pub type InputsAssignment = Assignment;
+
 /// `Instance` holds the description of R1CS matrices
 pub struct Instance {
   inst: R1CSInstance,
@@ -64,9 +105,87 @@ impl Instance {
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
-  ) -> (Self, Vec<Scalar>, Vec<Scalar>) {
+    A: &Vec<(usize, usize, [u8; 32])>,
+    B: &Vec<(usize, usize, [u8; 32])>,
+    C: &Vec<(usize, usize, [u8; 32])>,
+  ) -> Result<Instance, R1CSError> {
+    // check that num_cons is power of 2
+    if num_cons.next_power_of_two() != num_cons {
+      return Err(R1CSError::NonPowerOfTwoCons);
+    }
+
+    // check that the number of variables is a power of 2
+    if num_vars.next_power_of_two() != num_vars {
+      return Err(R1CSError::NonPowerOfTwoVars);
+    }
+
+    // check that num_inputs + 1 <= num_vars
+    if num_inputs >= num_vars {
+      return Err(R1CSError::InvalidNumberOfInputs);
+    }
+
+    let bytes_to_scalar =
+      |tups: &Vec<(usize, usize, [u8; 32])>| -> Result<Vec<(usize, usize, Scalar)>, R1CSError> {
+        let mut mat: Vec<(usize, usize, Scalar)> = Vec::new();
+        for i in 0..tups.len() {
+          let (row, col, val_bytes) = tups[i];
+          let val = Scalar::from_bytes(&val_bytes);
+          if val.is_some().unwrap_u8() == 1 {
+            mat.push((row, col, val.unwrap()));
+          } else {
+            return Err(R1CSError::InvalidScalar);
+          }
+        }
+        Ok(mat)
+      };
+
+    let A_scalar = bytes_to_scalar(A);
+    let B_scalar = bytes_to_scalar(B);
+    let C_scalar = bytes_to_scalar(C);
+
+    // check for any parsing errors
+    if A_scalar.is_err() || B_scalar.is_err() || C_scalar.is_err() {
+      return Err(R1CSError::InvalidScalar);
+    }
+
+    let inst = R1CSInstance::new(
+      num_cons,
+      num_vars,
+      num_inputs,
+      &A_scalar.unwrap(),
+      &B_scalar.unwrap(),
+      &C_scalar.unwrap(),
+    );
+
+    Ok(Instance { inst })
+  }
+
+  /// Checks if a given R1CSInstance is satisfiable with a given variables and inputs assignments
+  pub fn is_sat(&self, vars: &VarsAssignment, inputs: &InputsAssignment) -> Result<bool, R1CSError> {
+    
+    if vars.assignment.len() != self.inst.get_num_vars() {
+      return Err(R1CSError::InvalidNumberOfVars)
+    }
+    
+    if inputs.assignment.len() != self.inst.get_num_inputs() {
+      return Err(R1CSError::InvalidNumberOfInputs)
+    }
+ 
+    Ok(self.inst.is_sat(&vars.assignment, &inputs.assignment))
+  }
+
+  /// Constructs a new synthetic R1CS `Instance` and an associated satisfying assignment
+  pub fn produce_synthetic_r1cs(
+    num_cons: usize,
+    num_vars: usize,
+    num_inputs: usize,
+  ) -> (Instance, VarsAssignment, InputsAssignment) {
     let (inst, vars, inputs) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
-    (Instance { inst }, vars, inputs)
+    (
+      Instance { inst },
+      VarsAssignment { assignment: vars },
+      InputsAssignment { assignment: inputs },
+    )
   }
 }
 
@@ -125,8 +244,8 @@ impl SNARK {
   pub fn prove(
     inst: &Instance,
     decomm: &ComputationDecommitment,
-    vars: Vec<Scalar>,
-    input: &[Scalar],
+    vars: VarsAssignment,
+    inputs: &InputsAssignment,
     gens: &SNARKGens,
     transcript: &mut Transcript,
   ) -> Self {
@@ -139,8 +258,8 @@ impl SNARK {
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = R1CSProof::prove(
         &inst.inst,
-        vars,
-        input,
+        vars.assignment,
+        &inputs.assignment,
         &gens.gens_r1cs_sat,
         transcript,
         &mut random_tape,
@@ -191,7 +310,7 @@ impl SNARK {
   pub fn verify(
     &self,
     comm: &ComputationCommitment,
-    input: &[Scalar],
+    input: &InputsAssignment,
     transcript: &mut Transcript,
     gens: &SNARKGens,
   ) -> Result<(), ProofVerifyError> {
@@ -199,13 +318,13 @@ impl SNARK {
     transcript.append_protocol_name(SNARK::protocol_name());
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
-    assert_eq!(input.len(), comm.comm.get_num_inputs());
+    assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
     let (rx, ry) = self
       .r1cs_sat_proof
       .verify(
         comm.comm.get_num_vars(),
         comm.comm.get_num_cons(),
-        input,
+        &input.assignment,
         &self.inst_evals,
         transcript,
         &gens.gens_r1cs_sat,
@@ -263,8 +382,8 @@ impl NIZK {
   /// A method to produce a NIZK proof of the satisfiability of an R1CS instance
   pub fn prove(
     inst: &Instance,
-    vars: Vec<Scalar>,
-    input: &[Scalar],
+    vars: VarsAssignment,
+    input: &InputsAssignment,
     gens: &NIZKGens,
     transcript: &mut Transcript,
   ) -> Self {
@@ -276,8 +395,8 @@ impl NIZK {
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = R1CSProof::prove(
         &inst.inst,
-        vars,
-        input,
+        vars.assignment,
+        &input.assignment,
         &gens.gens_r1cs_sat,
         transcript,
         &mut random_tape,
@@ -298,7 +417,7 @@ impl NIZK {
   pub fn verify(
     &self,
     inst: &Instance,
-    input: &[Scalar],
+    input: &InputsAssignment,
     transcript: &mut Transcript,
     gens: &NIZKGens,
   ) -> Result<(), ProofVerifyError> {
@@ -314,13 +433,13 @@ impl NIZK {
     timer_eval.stop();
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
-    assert_eq!(input.len(), inst.inst.get_num_inputs());
+    assert_eq!(input.assignment.len(), inst.inst.get_num_inputs());
     let (rx, ry) = self
       .r1cs_sat_proof
       .verify(
         inst.inst.get_num_vars(),
         inst.inst.get_num_cons(),
-        input,
+        &input.assignment,
         &inst_evals,
         transcript,
         &gens.gens_r1cs_sat,
@@ -346,10 +465,12 @@ mod tests {
     let num_vars = 256;
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, vars, inputs) = Instance::new(num_cons, num_vars, num_inputs);
 
     // produce public generators
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
+
+    // produce a synthetic R1CSInstance
+    let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // create a commitment to R1CSInstance
     let (comm, decomm) = SNARK::encode(&inst, &gens);

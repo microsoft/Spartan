@@ -18,9 +18,6 @@ use core::iter;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[cfg(test)]
-use super::sparse_mlpoly::{SparseMatEntry, SparseMatPolynomial};
-
 #[derive(Serialize, Deserialize, Debug)]
 pub struct R1CSProof {
   comm_vars: PolyCommitment,
@@ -520,37 +517,30 @@ mod tests {
     let num_inputs = 2;
 
     // encode the above constraints into three matrices
-    let mut A: Vec<SparseMatEntry> = Vec::new();
-    let mut B: Vec<SparseMatEntry> = Vec::new();
-    let mut C: Vec<SparseMatEntry> = Vec::new();
+    let mut A: Vec<(usize, usize, Scalar)> = Vec::new();
+    let mut B: Vec<(usize, usize, Scalar)> = Vec::new();
+    let mut C: Vec<(usize, usize, Scalar)> = Vec::new();
 
     let one = Scalar::one();
     // constraint 0 entries
     // (Z1 + Z2) * I0 - Z3 = 0;
-    A.push(SparseMatEntry::new(0, 0, one));
-    A.push(SparseMatEntry::new(0, 1, one));
-    B.push(SparseMatEntry::new(0, num_vars + 1, one));
-    C.push(SparseMatEntry::new(0, 2, one));
+    A.push((0, 0, one));
+    A.push((0, 1, one));
+    B.push((0, num_vars + 1, one));
+    C.push((0, 2, one));
 
     // constraint 1 entries
     // (Z1 + I1) * (Z3) - Z4 = 0
-    A.push(SparseMatEntry::new(1, 0, one));
-    A.push(SparseMatEntry::new(1, num_vars + 2, one));
-    B.push(SparseMatEntry::new(1, 2, one));
-    C.push(SparseMatEntry::new(1, 3, one));
+    A.push((1, 0, one));
+    A.push((1, num_vars + 2, one));
+    B.push((1, 2, one));
+    C.push((1, 3, one));
     // constraint 3 entries
     // Z5 * 1 - 0 = 0
-    A.push(SparseMatEntry::new(2, 4, one));
-    B.push(SparseMatEntry::new(2, num_vars, one));
+    A.push((2, 4, one));
+    B.push((2, num_vars, one));
 
-    let num_vars_x = num_cons.log2();
-    let num_vars_y = (2 * num_vars).log2();
-
-    let poly_A = SparseMatPolynomial::new(num_vars_x, num_vars_y, A);
-    let poly_B = SparseMatPolynomial::new(num_vars_x, num_vars_y, B);
-    let poly_C = SparseMatPolynomial::new(num_vars_x, num_vars_y, C);
-
-    let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, poly_A, poly_B, poly_C);
+    let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
 
     // compute a satisfying assignment
     let mut csprng: OsRng = OsRng;
@@ -611,7 +601,7 @@ mod tests {
     );
 
     let inst_evals = inst.evaluate(&rx, &ry);
-    
+
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
       .verify(
