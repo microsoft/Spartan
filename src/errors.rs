@@ -14,6 +14,7 @@ impl fmt::Debug for ProofVerifyError {
   }
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub enum R1CSError {
   /// returned if the number of constraints is not a power of 2
   NonPowerOfTwoCons,
@@ -25,16 +26,6 @@ pub enum R1CSError {
   InvalidNumberOfVars,
   /// returned if a [u8;32] does not parse into a valid Scalar in the field of ristretto255
   InvalidScalar,
-}
-
-impl fmt::Display for R1CSError {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "R1CSError")
-  }
-}
-
-impl fmt::Debug for R1CSError {
-  fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-    write!(f, "{{ file: {}, line: {} }}", file!(), line!())
-  }
+  /// returned if the supplied row or col in (row,col,val) tuple is out of range
+  InvalidIndex,
 }
