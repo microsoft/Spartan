@@ -1,7 +1,7 @@
 # Spartan: High-speed zkSNARKs without trusted setup
 
 ![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)
-![crates.io](https://img.shields.io/crates/v/spartan.svg)
+[![](https://img.shields.io/crates/v/spartan.svg)]((https://crates.io/crates/curve25519-dalek))
 
 Spartan is a high-speed zero-knowledge proof system, a cryptographic primitive that enables a prover to prove a mathematical statement to a verifier without revealing anything besides the validity of the statement. This repository provides `libspartan,` a Rust library that implements a zero-knowledge succinct non-interactive argument of knowledge (zkSNARK), which is a type of zero-knowledge proof system with short proofs and fast verification times. The details of the Spartan proof system are described in our [paper](https://eprint.iacr.org/2019/550) published at [CRYPTO 2020](https://crypto.iacr.org/2020/). The security of the Spartan variant implemented in this library is based on the discrete logarithm problem in the random oracle model.
 
@@ -27,6 +27,11 @@ Among transparent SNARKs, Spartan offers the fastest prover with speedups of 36â
 `libspartan` uses [`merlin`](https://docs.rs/merlin/) to automate the Fiat-Shamir transform. We also introduce a new type called `RandomTape` that extends a `Transcript` in `merlin` to allow the prover's internal methods to produce private randomness using its private transcript without having to create `OsRng` objects throughout the code. An object of type `RandomTape` is initialized with a new random seed from `OsRng` for each proof produced by the library. 
 
 ## Examples
+To import `libspartan` into your Rust project, add the following dependency to `Cargo.toml`:
+```text
+spartan = "0.2.1"
+```
+
 The following example shows how to use `libspartan` to create and verify a SNARK proof.
 Some of our public APIs' style is inspired by the underlying crates we use.
 
@@ -60,6 +65,7 @@ Some of our public APIs' style is inspired by the underlying crates we use.
     assert!(proof
       .verify(&comm, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
+    println!("proof verification successful!");
 # }
 ```
 
@@ -90,6 +96,7 @@ Here is another example to use the NIZK variant of the Spartan proof system:
     assert!(proof
       .verify(&inst, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
+    println!("proof verification successful!");
 # }
 ```
 
@@ -136,6 +143,7 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
   assert!(proof
     .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
     .is_ok());
+  println!("proof verification successful!");
 # }
 
 # fn produce_tiny_r1cs() -> (
