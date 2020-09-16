@@ -248,6 +248,8 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 # }
 ```
 
+For more examples, see [`examples/`](examples) directory in this repo.
+
 ## Building `libspartan`
 Install [`rustup`](https://rustup.rs/)
 
