@@ -90,7 +90,7 @@ impl EqPolynomial {
     let ell = self.r.len();
     let (left_num_vars, _right_num_vars) = EqPolynomial::compute_factored_lens(ell);
 
-    let L = EqPolynomial::new(self.r[0..left_num_vars].to_vec()).evals();
+    let L = EqPolynomial::new(self.r[..left_num_vars].to_vec()).evals();
     let R = EqPolynomial::new(self.r[left_num_vars..ell].to_vec()).evals();
 
     (L, R)
@@ -137,7 +137,7 @@ impl DensePolynomial {
   pub fn split(&self, idx: usize) -> (DensePolynomial, DensePolynomial) {
     assert!(idx < self.len());
     (
-      DensePolynomial::new(self.Z[0..idx].to_vec()),
+      DensePolynomial::new(self.Z[..idx].to_vec()),
       DensePolynomial::new(self.Z[idx..2 * idx].to_vec()),
     )
   }
@@ -326,18 +326,12 @@ impl PolyEvalProof {
     let default_blinds = PolyCommitmentBlinds {
       blinds: vec![Scalar::zero(); L_size],
     };
-    let blinds = match blinds_opt {
-      Some(p) => p,
-      None => &default_blinds,
-    };
+    let blinds = blinds_opt.map_or(&default_blinds, |p| p);
 
     assert_eq!(blinds.blinds.len(), L_size);
 
     let zero = Scalar::zero();
-    let blind_Zr = match blind_Zr_opt {
-      Some(p) => p,
-      None => &zero,
-    };
+    let blind_Zr = blind_Zr_opt.map_or(&zero, |p| p);
 
     // compute the L and R vectors
     let eq = EqPolynomial::new(r.to_vec());
