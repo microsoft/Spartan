@@ -437,17 +437,14 @@ impl R1CSProof {
     .compress();
 
     // verify the joint claim with a sum-check protocol
-    let (comm_claim_post_phase2, ry) = self
-      .sc_proof_phase2
-      .verify(
-        &comm_claim_phase2,
-        num_rounds_y,
-        2,
-        &gens.gens_sc.gens_1,
-        &gens.gens_sc.gens_3,
-        transcript,
-      )
-      .unwrap();
+    let (comm_claim_post_phase2, ry) = self.sc_proof_phase2.verify(
+      &comm_claim_phase2,
+      num_rounds_y,
+      2,
+      &gens.gens_sc.gens_1,
+      &gens.gens_sc.gens_3,
+      transcript,
+    )?;
 
     // verify Z(ry) proof against the initial commitment
     assert!(self
