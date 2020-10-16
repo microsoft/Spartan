@@ -530,11 +530,10 @@ impl DotProductProofLog {
 
     let Gamma = Cx.unpack()? + Cy.unpack()?;
 
-    let (g_hat, Gamma_hat, a_hat) = self
-      .bullet_reduction_proof
-      .verify(n, a, transcript, &Gamma, &gens.gens_n.G)
-      .unwrap();
-
+    let (g_hat, Gamma_hat, a_hat) =
+      self
+        .bullet_reduction_proof
+        .verify(n, a, transcript, &Gamma, &gens.gens_n.G)?;
     self.delta.append_to_transcript(b"delta", transcript);
     self.beta.append_to_transcript(b"beta", transcript);
 
