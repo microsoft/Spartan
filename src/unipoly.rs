@@ -5,15 +5,15 @@ use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-// ax^2 + bx + c stored as vec![a,b,c]
-// ax^3 + bx^2 + cx + d stored as vec![a,b,c,d]
+// ax^2 + bx + c stored as vec![c,b,a]
+// ax^3 + bx^2 + cx + d stored as vec![d,c,b,a]
 #[derive(Debug)]
 pub struct UniPoly {
   coeffs: Vec<Scalar>,
 }
 
-// ax^2 + bx + c stored as vec![a,c]
-// ax^3 + bx^2 + cx + d stored as vec![a,c,d]
+// ax^2 + bx + c stored as vec![c,a]
+// ax^3 + bx^2 + cx + d stored as vec![d,b,a]
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CompressedUniPoly {
   coeffs_except_linear_term: Vec<Scalar>,
