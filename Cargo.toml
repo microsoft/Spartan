@@ -11,7 +11,7 @@ license-file = "LICENSE"
 keywords = ["zkSNARKs", "cryptography", "proofs"]
 
 [dependencies]
-curve25519-dalek = { version = "2", features = ["serde", "simd_backend"]}
+curve25519-dalek = { version = "3", features = ["serde", "simd_backend"]}
 merlin = "2.0.0"
 rand = "0.7.3"
 digest = "0.8.1"
