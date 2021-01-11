@@ -10,8 +10,13 @@ repository = "https://github.com/microsoft/Spartan"
 license-file = "LICENSE"
 keywords = ["zkSNARKs", "cryptography", "proofs"]
 
+[dependencies.curve25519-dalek]
+features = ["serde", "simd_backend"]
+#version = "3"
+git = "https://github.com/dalek-cryptography/curve25519-dalek"
+rev = "a787300ba169ae035bcdf2d540cf2b61b950405c"
+
 [dependencies]
-curve25519-dalek = { version = "2", features = ["serde", "simd_backend"]}
 merlin = "2.0.0"
 rand = "0.7.3"
 digest = "0.8.1"
