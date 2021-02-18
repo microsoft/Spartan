@@ -1,7 +1,54 @@
-mod ristretto255;
+use core::borrow::Borrow;
+use core::iter::{Product, Sum};
+use ff::{Field, PrimeField};
+use ligero_pc::FieldHash;
+use serde::{Deserialize, Serialize};
 
-pub type Scalar = ristretto255::Scalar;
-pub type ScalarBytes = curve25519_dalek::scalar::Scalar;
+// BLS12-381 scalar
+//#[derive(PrimeField, Serialize, Deserialize)]
+//#[PrimeFieldModulus = "52435875175126190479447740508185965837690552500527637822603658699938581184513"]
+//#[PrimeFieldGenerator = "7"]
+//#[PrimeFieldReprEndianness = "little"]
+//pub struct Scalar([u64; 4]);
+
+// 128-bit scalar
+#[derive(PrimeField, Serialize, Deserialize)]
+#[PrimeFieldModulus = "70386805592835581672624750593"]
+#[PrimeFieldGenerator = "17"]
+#[PrimeFieldReprEndianness = "little"]
+pub struct Scalar([u64; 2]);
+
+impl FieldHash for Scalar {
+  type HashRepr = <Scalar as PrimeField>::Repr;
+
+  fn to_hash_repr(&self) -> Self::HashRepr {
+    PrimeField::to_repr(self)
+  }
+}
+
+impl<T> Product<T> for Scalar
+where
+  T: Borrow<Scalar>,
+{
+  fn product<I>(iter: I) -> Self
+  where
+    I: Iterator<Item = T>,
+  {
+    iter.fold(Scalar::one(), |acc, item| acc * item.borrow())
+  }
+}
+
+impl<T> Sum<T> for Scalar
+where
+  T: Borrow<Scalar>,
+{
+  fn sum<I>(iter: I) -> Self
+  where
+    I: Iterator<Item = T>,
+  {
+    iter.fold(Scalar::zero(), |acc, item| acc + item.borrow())
+  }
+}
 
 pub trait ScalarFromPrimitives {
   fn to_scalar(self) -> Scalar;
@@ -22,22 +69,5 @@ impl ScalarFromPrimitives for bool {
     } else {
       Scalar::zero()
     }
-  }
-}
-
-pub trait ScalarBytesFromScalar {
-  fn decompress_scalar(s: &Scalar) -> ScalarBytes;
-  fn decompress_vector(s: &[Scalar]) -> Vec<ScalarBytes>;
-}
-
-impl ScalarBytesFromScalar for Scalar {
-  fn decompress_scalar(s: &Scalar) -> ScalarBytes {
-    ScalarBytes::from_bytes_mod_order(s.to_bytes())
-  }
-
-  fn decompress_vector(s: &[Scalar]) -> Vec<ScalarBytes> {
-    (0..s.len())
-      .map(|i| Scalar::decompress_scalar(&s[i]))
-      .collect::<Vec<ScalarBytes>>()
   }
 }

@@ -1,7 +1,6 @@
-use super::commitments::{Commitments, MultiCommitGens};
-use super::group::GroupElement;
 use super::scalar::{Scalar, ScalarFromPrimitives};
 use super::transcript::{AppendToTranscript, ProofTranscript};
+use ff::Field;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
@@ -57,10 +56,6 @@ impl UniPoly {
     self.coeffs.len() - 1
   }
 
-  pub fn as_vec(&self) -> Vec<Scalar> {
-    self.coeffs.clone()
-  }
-
   pub fn eval_at_zero(&self) -> Scalar {
     self.coeffs[0]
   }
@@ -86,10 +81,6 @@ impl UniPoly {
       coeffs_except_linear_term,
     }
   }
-
-  pub fn commit(&self, gens: &MultiCommitGens, blind: &Scalar) -> GroupElement {
-    self.coeffs.commit(blind, gens)
-  }
 }
 
 impl CompressedUniPoly {
@@ -97,9 +88,9 @@ impl CompressedUniPoly {
   // linear_term = hint - 2 * constant_term - deg2 term - deg3 term
   pub fn decompress(&self, hint: &Scalar) -> UniPoly {
     let mut linear_term =
-      hint - self.coeffs_except_linear_term[0] - self.coeffs_except_linear_term[0];
+      *hint - self.coeffs_except_linear_term[0] - self.coeffs_except_linear_term[0];
     for i in 1..self.coeffs_except_linear_term.len() {
-      linear_term -= self.coeffs_except_linear_term[i];
+      linear_term = linear_term - self.coeffs_except_linear_term[i];
     }
 
     let mut coeffs: Vec<Scalar> = Vec::new();

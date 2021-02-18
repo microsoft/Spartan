@@ -5,12 +5,13 @@ use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{
   MultiSparseMatPolynomialAsDense, SparseMatEntry, SparseMatPolyCommitment,
-  SparseMatPolyCommitmentGens, SparseMatPolyEvalProof, SparseMatPolynomial,
+  SparseMatPolyCommitmentGens, SparseMatPolyDecommitment, SparseMatPolyEvalProof,
+  SparseMatPolynomial,
 };
 use super::timer::Timer;
+use ff::Field;
 use merlin::Transcript;
-use rand::rngs::OsRng;
-use serde::{Deserialize, Serialize};
+use rand_core::OsRng;
 
 #[derive(Debug)]
 pub struct R1CSInstance {
@@ -52,6 +53,7 @@ pub struct R1CSCommitment {
 
 pub struct R1CSDecommitment {
   dense: MultiSparseMatPolynomialAsDense,
+  decomm: SparseMatPolyDecommitment,
 }
 
 impl R1CSCommitment {
@@ -288,7 +290,8 @@ impl R1CSInstance {
   }
 
   pub fn commit(&self, gens: &R1CSCommitmentGens) -> (R1CSCommitment, R1CSDecommitment) {
-    let (comm, dense) = SparseMatPolynomial::multi_commit(&[&self.A, &self.B, &self.C], &gens.gens);
+    let (comm, decomm, dense) =
+      SparseMatPolynomial::multi_commit(&[&self.A, &self.B, &self.C], &gens.gens);
     let r1cs_comm = R1CSCommitment {
       num_cons: self.num_cons,
       num_vars: self.num_vars,
@@ -296,13 +299,13 @@ impl R1CSInstance {
       comm,
     };
 
-    let r1cs_decomm = R1CSDecommitment { dense };
+    let r1cs_decomm = R1CSDecommitment { dense, decomm };
 
     (r1cs_comm, r1cs_decomm)
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct R1CSEvalProof {
   proof: SparseMatPolyEvalProof,
 }
@@ -320,6 +323,7 @@ impl R1CSEvalProof {
     let timer = Timer::new("R1CSEvalProof::prove");
     let proof = SparseMatPolyEvalProof::prove(
       &decomm.dense,
+      &decomm.decomm,
       rx,
       ry,
       &[evals.0, evals.1, evals.2],

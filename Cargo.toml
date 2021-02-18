@@ -11,22 +11,26 @@ license-file = "LICENSE"
 keywords = ["zkSNARKs", "cryptography", "proofs"]
 
 [dependencies]
-curve25519-dalek = {version = "3.0.0", features = ["serde", "simd_backend"]}
 merlin = "2.0.0"
-rand = "0.7.3"
-digest = "0.8.1"
-sha3 = "0.8.2"
+digest = "0.9"
 byteorder = "1.3.4"
 rayon = "1.3.0"
 serde = { version = "1.0.106", features = ["derive"] }
 bincode = "1.2.1"
 subtle = { version = "^2.2.3", default-features = false }
-rand_core = { version = "0.5", default-features = false }
+rand_core = { version = "0.6", default-features = false, features = ["getrandom"] }
 zeroize = { version = "1", default-features = false }
 itertools = "0.9.0"
 colored = "1.9.3"
 flate2 = "1.0.14"
 thiserror = "1.0"
+funty = "=1.1.0"
+bitvec = "0.20"
+ff = {version = "0.9", features = ["derive"]}
+rand_chacha = "0.3"
+ligero-pc = {path = "../ligero-pc"}
+fffft = "*"
+blake3 = "0.3"
 
 [dev-dependencies]
 criterion = "0.3.1"

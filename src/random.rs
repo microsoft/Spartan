@@ -1,7 +1,8 @@
 use super::scalar::Scalar;
 use super::transcript::ProofTranscript;
+use ff::Field;
 use merlin::Transcript;
-use rand::rngs::OsRng;
+use rand_core::OsRng;
 
 pub struct RandomTape {
   tape: Transcript,

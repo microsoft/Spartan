@@ -1,15 +1,17 @@
 #![allow(clippy::too_many_arguments)]
-use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
-use super::nizk::{DotProductProofGens, DotProductProofLog};
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
+use blake3::traits::digest;
 use core::ops::Index;
+use digest::Output;
+use ff::Field;
+use ligero_pc::{commit_with_dims, prove, verify, LigeroCommit, LigeroEvalProof};
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+
+type Hasher = blake3::Hasher;
 
 #[cfg(feature = "multicore")]
 use rayon::prelude::*;
@@ -22,14 +24,14 @@ pub struct DensePolynomial {
 }
 
 pub struct PolyCommitmentGens {
-  pub gens: DotProductProofGens,
+  pub gens: usize,
 }
 
 impl PolyCommitmentGens {
   // the number of variables in the multilinear polynomial
-  pub fn new(num_vars: usize, label: &'static [u8]) -> PolyCommitmentGens {
+  pub fn new(num_vars: usize, _label: &'static [u8]) -> PolyCommitmentGens {
     let (_left, right) = EqPolynomial::compute_factored_lens(num_vars);
-    let gens = DotProductProofGens::new(right.pow2(), label);
+    let gens = right.pow2();
     PolyCommitmentGens { gens }
   }
 }
@@ -38,14 +40,14 @@ pub struct PolyCommitmentBlinds {
   blinds: Vec<Scalar>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct PolyCommitment {
-  C: Vec<CompressedGroup>,
+  C: Output<Hasher>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ConstPolyCommitment {
-  C: CompressedGroup,
+#[derive(Debug)]
+pub struct PolyDecommitment {
+  decomm: LigeroCommit<Hasher, Scalar>,
 }
 
 pub struct EqPolynomial {
@@ -142,42 +144,11 @@ impl DensePolynomial {
     )
   }
 
-  #[cfg(feature = "multicore")]
-  fn commit_inner(&self, blinds: &Vec<Scalar>, gens: &MultiCommitGens) -> PolyCommitment {
-    let L_size = blinds.len();
-    let R_size = self.Z.len() / L_size;
-    assert_eq!(L_size * R_size, self.Z.len());
-    let C = (0..L_size)
-      .into_par_iter()
-      .map(|&i| {
-        self.Z[R_size * i..R_size * (i + 1)]
-          .commit(&blinds[i], gens)
-          .compress()
-      })
-      .collect();
-    PolyCommitment { C }
-  }
-
-  #[cfg(not(feature = "multicore"))]
-  fn commit_inner(&self, blinds: &[Scalar], gens: &MultiCommitGens) -> PolyCommitment {
-    let L_size = blinds.len();
-    let R_size = self.Z.len() / L_size;
-    assert_eq!(L_size * R_size, self.Z.len());
-    let C = (0..L_size)
-      .map(|i| {
-        self.Z[R_size * i..R_size * (i + 1)]
-          .commit(&blinds[i], gens)
-          .compress()
-      })
-      .collect();
-    PolyCommitment { C }
-  }
-
   pub fn commit(
     &self,
-    gens: &PolyCommitmentGens,
+    _gens: &PolyCommitmentGens,
     random_tape: Option<&mut RandomTape>,
-  ) -> (PolyCommitment, PolyCommitmentBlinds) {
+  ) -> (PolyCommitment, PolyDecommitment, PolyCommitmentBlinds) {
     let n = self.Z.len();
     let ell = self.get_num_vars();
     assert_eq!(n, ell.pow2());
@@ -196,8 +167,24 @@ impl DensePolynomial {
         blinds: vec![Scalar::zero(); L_size],
       }
     };
+    let rho_inv = 4.0;
+    let n_rows = L_size;
+    let n_per_row = R_size;
+    let n_cols = n_per_row * rho_inv as usize;
+    let n_col_opens = core::cmp::min(190, n_cols);
 
-    (self.commit_inner(&blinds.blinds, &gens.gens.gens_n), blinds)
+    let decomm = commit_with_dims::<Hasher, Scalar>(
+      &self.Z,
+      1.0 / rho_inv,
+      2usize,
+      n_col_opens,
+      n_rows,
+      n_per_row,
+      n_cols,
+    )
+    .unwrap();
+    let C = decomm.get_root().unwrap();
+    (PolyCommitment { C }, PolyDecommitment { decomm }, blinds)
   }
 
   pub fn bound(&self, L: &[Scalar]) -> Vec<Scalar> {
@@ -212,7 +199,7 @@ impl DensePolynomial {
   pub fn bound_poly_var_top(&mut self, r: &Scalar) {
     let n = self.len() / 2;
     for i in 0..n {
-      self.Z[i] = self.Z[i] + r * (self.Z[i + n] - self.Z[i]);
+      self.Z[i] = self.Z[i] + *r * (self.Z[i + n] - self.Z[i]);
     }
     self.num_vars -= 1;
     self.len = n;
@@ -221,7 +208,7 @@ impl DensePolynomial {
   pub fn bound_poly_var_bot(&mut self, r: &Scalar) {
     let n = self.len() / 2;
     for i in 0..n {
-      self.Z[i] = self.Z[2 * i] + r * (self.Z[2 * i + 1] - self.Z[2 * i]);
+      self.Z[i] = self.Z[2 * i] + *r * (self.Z[2 * i + 1] - self.Z[2 * i]);
     }
     self.num_vars -= 1;
     self.len = n;
@@ -233,7 +220,7 @@ impl DensePolynomial {
     assert_eq!(r.len(), self.get_num_vars());
     let chis = EqPolynomial::new(r.to_vec()).evals();
     assert_eq!(chis.len(), self.Z.len());
-    DotProductProofLog::compute_dotproduct(&self.Z, &chis)
+    (0..chis.len()).map(|i| chis[i] * self.Z[i]).sum()
   }
 
   fn vec(&self) -> &Vec<Scalar> {
@@ -287,16 +274,14 @@ impl Index<usize> for DensePolynomial {
 impl AppendToTranscript for PolyCommitment {
   fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
     transcript.append_message(label, b"poly_commitment_begin");
-    for i in 0..self.C.len() {
-      transcript.append_point(b"poly_commitment_share", &self.C[i]);
-    }
+    transcript.append_message(b"poly_commitment_share", &self.C.as_ref());
     transcript.append_message(label, b"poly_commitment_end");
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 pub struct PolyEvalProof {
-  proof: DotProductProofLog,
+  proof: LigeroEvalProof<Hasher, Scalar>,
 }
 
 impl PolyEvalProof {
@@ -306,19 +291,21 @@ impl PolyEvalProof {
 
   pub fn prove(
     poly: &DensePolynomial,
+    decomm: &PolyDecommitment,
     blinds_opt: Option<&PolyCommitmentBlinds>,
     r: &[Scalar],                  // point at which the polynomial is evaluated
-    Zr: &Scalar,                   // evaluation of \widetilde{Z}(r)
+    _Zr: &Scalar,                  // evaluation of \widetilde{Z}(r)
     blind_Zr_opt: Option<&Scalar>, // specifies a blind for Zr
-    gens: &PolyCommitmentGens,
+    _gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    random_tape: &mut RandomTape,
-  ) -> (PolyEvalProof, CompressedGroup) {
+    _random_tape: &mut RandomTape,
+  ) -> PolyEvalProof {
     transcript.append_protocol_name(PolyEvalProof::protocol_name());
 
     // assert vectors are of the right size
     assert_eq!(poly.get_num_vars(), r.len());
 
+    // compute L and R
     let (left_num_vars, right_num_vars) = EqPolynomial::compute_factored_lens(r.len());
     let L_size = left_num_vars.pow2();
     let R_size = right_num_vars.pow2();
@@ -331,7 +318,7 @@ impl PolyEvalProof {
     assert_eq!(blinds.blinds.len(), L_size);
 
     let zero = Scalar::zero();
-    let blind_Zr = blind_Zr_opt.map_or(&zero, |p| p);
+    let _blind_Zr = blind_Zr_opt.map_or(&zero, |p| p);
 
     // compute the L and R vectors
     let eq = EqPolynomial::new(r.to_vec());
@@ -341,46 +328,54 @@ impl PolyEvalProof {
 
     // compute the vector underneath L*Z and the L*blinds
     // compute vector-matrix product between L and Z viewed as a matrix
-    let LZ = poly.bound(&L);
-    let LZ_blind: Scalar = (0..L.len()).map(|i| blinds.blinds[i] * L[i]).sum();
+    let _LZ = poly.bound(&L);
+    let _LZ_blind: Scalar = (0..L.len()).map(|i| blinds.blinds[i] * L[i]).sum();
 
-    // a dot product proof of size R_size
-    let (proof, _C_LR, C_Zr_prime) = DotProductProofLog::prove(
-      &gens.gens,
-      transcript,
-      random_tape,
-      &LZ,
-      &LZ_blind,
-      &R,
-      &Zr,
-      blind_Zr,
-    );
+    let proof = prove::<Hasher, Scalar>(&decomm.decomm, &L, transcript).unwrap();
 
-    (PolyEvalProof { proof }, C_Zr_prime)
+    PolyEvalProof { proof }
   }
 
   pub fn verify(
     &self,
-    gens: &PolyCommitmentGens,
+    _gens: &PolyCommitmentGens,
     transcript: &mut Transcript,
-    r: &[Scalar],           // point at which the polynomial is evaluated
-    C_Zr: &CompressedGroup, // commitment to \widetilde{Z}(r)
+    r: &[Scalar],  // point at which the polynomial is evaluated
+    eval: &Scalar, // commitment to \widetilde{Z}(r)
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(PolyEvalProof::protocol_name());
 
     // compute L and R
+    let (left_num_vars, right_num_vars) = EqPolynomial::compute_factored_lens(r.len());
+    let L_size = left_num_vars.pow2();
+    let R_size = right_num_vars.pow2();
+
     let eq = EqPolynomial::new(r.to_vec());
     let (L, R) = eq.compute_factored_evals();
+    let rho_inv = 4.0;
+    let _n_rows = L_size;
+    let n_per_row = R_size;
+    let n_cols = n_per_row * rho_inv as usize;
+    let n_col_opens = core::cmp::min(190, n_cols);
 
-    // compute a weighted sum of commitments and L
-    let C_decompressed = comm.C.iter().map(|pt| pt.decompress().unwrap());
+    let res = verify(
+      &comm.C,
+      &L,
+      &R,
+      &self.proof,
+      1.0 / rho_inv,
+      2usize,
+      n_col_opens,
+      transcript,
+    )
+    .unwrap();
 
-    let C_LZ = GroupElement::vartime_multiscalar_mul(&L, C_decompressed).compress();
-
-    self
-      .proof
-      .verify(R.len(), &gens.gens, transcript, &R, &C_LZ, C_Zr)
+    if res == *eval {
+      Ok(())
+    } else {
+      Err(ProofVerifyError::InternalError)
+    }
   }
 
   pub fn verify_plain(
@@ -391,10 +386,7 @@ impl PolyEvalProof {
     Zr: &Scalar,  // evaluation \widetilde{Z}(r)
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
-    // compute a commitment to Zr with a blind of zero
-    let C_Zr = Zr.commit(&Scalar::zero(), &gens.gens.gens_1).compress();
-
-    self.verify(gens, transcript, r, &C_Zr, comm)
+    self.verify(gens, transcript, r, &Zr, comm)
   }
 }
 
@@ -402,7 +394,7 @@ impl PolyEvalProof {
 mod tests {
   use super::super::scalar::ScalarFromPrimitives;
   use super::*;
-  use rand::rngs::OsRng;
+  use rand_core::OsRng;
 
   fn evaluate_with_LR(Z: &Vec<Scalar>, r: &Vec<Scalar>) -> Scalar {
     let eq = EqPolynomial::new(r.to_vec());
@@ -422,7 +414,7 @@ mod tests {
       .collect::<Vec<Scalar>>();
 
     // compute dot product between LZ and R
-    DotProductProofLog::compute_dotproduct(&LZ, &R)
+    (0..LZ.len()).map(|i| LZ[i] * R[i]).sum()
   }
 
   #[test]
@@ -579,12 +571,13 @@ mod tests {
     assert_eq!(eval, (28 as usize).to_scalar());
 
     let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
-    let (poly_commitment, blinds) = poly.commit(&gens, None);
+    let (poly_comm, poly_decomm, blinds) = poly.commit(&gens, None);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
-    let (proof, C_Zr) = PolyEvalProof::prove(
+    let proof = PolyEvalProof::prove(
       &poly,
+      &poly_decomm,
       Some(&blinds),
       &r,
       &eval,
@@ -596,7 +589,61 @@ mod tests {
 
     let mut verifier_transcript = Transcript::new(b"example");
     assert!(proof
-      .verify(&gens, &mut verifier_transcript, &r, &C_Zr, &poly_commitment)
+      .verify(&gens, &mut verifier_transcript, &r, &eval, &poly_comm)
+      .is_ok());
+  }
+
+  #[test]
+  fn check_polynomial_commit_large() {
+    let mut Z: Vec<Scalar> = Vec::new();
+    for _i in 0..4096 {
+      Z.push((2 as usize).to_scalar());
+    }
+    let poly = DensePolynomial::new(Z);
+
+    // r = [4,3]
+    let mut r: Vec<Scalar> = Vec::new();
+    for _i in 0..12 {
+      r.push((4 as usize).to_scalar());
+    }
+
+    let eval = poly.evaluate(&r);
+
+    let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
+    let (poly_comm, poly_decomm, blinds) = poly.commit(&gens, None);
+
+    let mut random_tape = RandomTape::new(b"proof");
+    let mut prover_transcript = Transcript::new(b"example");
+    let proof = PolyEvalProof::prove(
+      &poly,
+      &poly_decomm,
+      Some(&blinds),
+      &r,
+      &eval,
+      None,
+      &gens,
+      &mut prover_transcript,
+      &mut random_tape,
+    );
+
+    let proof2 = PolyEvalProof::prove(
+      &poly,
+      &poly_decomm,
+      Some(&blinds),
+      &r,
+      &eval,
+      None,
+      &gens,
+      &mut prover_transcript,
+      &mut random_tape,
+    );
+
+    let mut verifier_transcript = Transcript::new(b"example");
+    assert!(proof
+      .verify(&gens, &mut verifier_transcript, &r, &eval, &poly_comm)
+      .is_ok());
+    assert!(proof2
+      .verify(&gens, &mut verifier_transcript, &r, &eval, &poly_comm)
       .is_ok());
   }
 }

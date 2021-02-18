@@ -1,11 +1,13 @@
-use super::group::CompressedGroup;
+use super::ff::Field;
 use super::scalar::Scalar;
+use ff::PrimeField;
 use merlin::Transcript;
+use rand_chacha::ChaCha20Rng;
+use rand_core::SeedableRng;
 
 pub trait ProofTranscript {
   fn append_protocol_name(&mut self, protocol_name: &'static [u8]);
   fn append_scalar(&mut self, label: &'static [u8], scalar: &Scalar);
-  fn append_point(&mut self, label: &'static [u8], point: &CompressedGroup);
   fn challenge_scalar(&mut self, label: &'static [u8]) -> Scalar;
   fn challenge_vector(&mut self, label: &'static [u8], len: usize) -> Vec<Scalar>;
 }
@@ -16,17 +18,15 @@ impl ProofTranscript for Transcript {
   }
 
   fn append_scalar(&mut self, label: &'static [u8], scalar: &Scalar) {
-    self.append_message(label, &scalar.to_bytes());
-  }
-
-  fn append_point(&mut self, label: &'static [u8], point: &CompressedGroup) {
-    self.append_message(label, point.as_bytes());
+    self.append_message(label, &scalar.to_repr().0);
   }
 
   fn challenge_scalar(&mut self, label: &'static [u8]) -> Scalar {
-    let mut buf = [0u8; 64];
-    self.challenge_bytes(label, &mut buf);
-    Scalar::from_bytes_wide(&buf)
+    //let mut buf = [0u8; 32];
+    let mut key: <ChaCha20Rng as SeedableRng>::Seed = Default::default();
+    self.challenge_bytes(label, &mut key);
+    let mut rng = ChaCha20Rng::from_seed(key);
+    Scalar::random(&mut rng)
   }
 
   fn challenge_vector(&mut self, label: &'static [u8], len: usize) -> Vec<Scalar> {
@@ -53,11 +53,5 @@ impl AppendToTranscript for Vec<Scalar> {
       transcript.append_scalar(label, item);
     }
     transcript.append_message(label, b"end_append_vector");
-  }
-}
-
-impl AppendToTranscript for CompressedGroup {
-  fn append_to_transcript(&self, label: &'static [u8], transcript: &mut Transcript) {
-    transcript.append_point(label, self);
   }
 }
