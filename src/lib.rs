@@ -581,4 +581,67 @@ mod tests {
     assert_eq!(inst.is_err(), true);
     assert_eq!(inst.err(), Some(R1CSError::InvalidScalar));
   }
+
+  #[test]
+  fn test_padded_constraints() {
+    // parameters of the R1CS instance
+    let num_cons = 1;
+    let num_vars = 0;
+    let num_inputs = 3;
+    let num_non_zero_entries = 3;
+
+    // We will encode the above constraints into three matrices, where
+    // the coefficients in the matrix are in the little-endian byte order
+    let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
+    let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
+    let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
+
+    // Create a^2 + b + 13
+    A.push((0, num_vars+2, Scalar::one().to_bytes())); // 1*a
+    B.push((0, num_vars+2, Scalar::one().to_bytes())); // 1*a
+    C.push((0, num_vars+1, Scalar::one().to_bytes())); // 1*z
+    C.push((0, num_vars, (-Scalar::from(13u64)).to_bytes())); // -13*1
+    C.push((0, num_vars+3, (-Scalar::one()).to_bytes())); // -1*b
+
+    // Var Assignments (Z_0 = 16 is the only output)
+    let vars = vec![Scalar::zero().to_bytes(); num_vars];
+
+    // create an InputsAssignment (a = 1, b = 2)
+    let mut inputs = vec![Scalar::zero().to_bytes(); num_inputs];
+    inputs[0] = Scalar::from(16u64).to_bytes();
+    inputs[1] = Scalar::from(1u64).to_bytes();
+    inputs[2] = Scalar::from(2u64).to_bytes();
+
+    // Now compute proof
+    let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
+    let assignment_vars = VarsAssignment::new(&vars).unwrap();
+
+    // Check if instance is satisfiable
+    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+    let res = inst.is_sat(&assignment_vars, &assignment_inputs);
+    assert_eq!(res.unwrap(), true, "should be satisfied");
+
+    // Crypto proof public params
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
+
+    // create a commitment to the R1CS instance
+    let (comm, decomm) = SNARK::encode(&inst, &gens);
+
+    // produce a proof of satisfiability
+    let mut prover_transcript = Transcript::new(b"snark_example");
+    let proof = SNARK::prove(
+      &inst,
+      &decomm,
+      assignment_vars,
+      &assignment_inputs,
+      &gens,
+      &mut prover_transcript,
+    );
+
+    // verify the proof of satisfiability
+    let mut verifier_transcript = Transcript::new(b"snark_example");
+    assert!(proof
+      .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
+      .is_ok());
+  }
 }
