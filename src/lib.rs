@@ -98,8 +98,7 @@ pub type InputsAssignment = Assignment;
 
 /// `Instance` holds the description of R1CS matrices
 pub struct Instance {
-  inst: R1CSInstance,
-  vars_pad: usize
+  inst: R1CSInstance
 }
 
 impl Instance {
@@ -190,12 +189,13 @@ impl Instance {
       &C_scalar.unwrap(),
     );
 
-    Ok(Instance { inst, vars_pad })
+    Ok(Instance { inst })
   }
 
   // Work for any number of variables
   fn pad_variables(&self, vars: &Vec<Scalar>) -> Vec<Scalar> {
-      let mut padding = vec![Scalar::zero(); self.vars_pad];
+      let vars_pad = self.inst.get_num_vars() - vars.len();
+      let mut padding = vec![Scalar::zero(); vars_pad];
       let mut padded_assignment = vars.clone();
       padded_assignment.append(&mut padding);
       padded_assignment
@@ -207,16 +207,12 @@ impl Instance {
     vars: &VarsAssignment,
     inputs: &InputsAssignment,
   ) -> Result<bool, R1CSError> {
-    if vars.assignment.len() + self.vars_pad != self.inst.get_num_vars() {
-      return Err(R1CSError::InvalidNumberOfVars);
-    }
-
     if inputs.assignment.len() != self.inst.get_num_inputs() {
       return Err(R1CSError::InvalidNumberOfInputs);
     }
 
     // Might need to create dummy variables
-    if self.vars_pad > 0 {
+    if self.inst.get_num_vars() > vars.assignment.len() {
       Ok(self.inst.is_sat(&self.pad_variables(&vars.assignment), &inputs.assignment))
     } else {
       Ok(self.inst.is_sat(&vars.assignment, &inputs.assignment))
@@ -231,7 +227,7 @@ impl Instance {
   ) -> (Instance, VarsAssignment, InputsAssignment) {
     let (inst, vars, inputs) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
     (
-      Instance { inst, vars_pad: 0 },
+      Instance { inst },
       VarsAssignment { assignment: vars },
       InputsAssignment { assignment: inputs },
     )
@@ -313,7 +309,7 @@ impl SNARK {
           // Might need to create dummy variables
           R1CSProof::prove(
             &inst.inst,
-            if inst.vars_pad > 0 { inst.pad_variables(&vars.assignment) } else { vars.assignment },
+            if inst.inst.get_num_vars() > vars.assignment.len() { inst.pad_variables(&vars.assignment) } else { vars.assignment },
             &inputs.assignment,
             &gens.gens_r1cs_sat,
             transcript,
