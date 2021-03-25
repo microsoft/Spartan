@@ -31,8 +31,6 @@ mod timer;
 mod transcript;
 mod unipoly;
 
-use std::cmp::max;
-
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
 use r1csinstance::{
