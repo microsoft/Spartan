@@ -98,7 +98,7 @@ pub type InputsAssignment = Assignment;
 
 /// `Instance` holds the description of R1CS matrices
 pub struct Instance {
-  inst: R1CSInstance
+  inst: R1CSInstance,
 }
 
 impl Instance {
@@ -111,7 +111,6 @@ impl Instance {
     B: &Vec<(usize, usize, [u8; 32])>,
     C: &Vec<(usize, usize, [u8; 32])>,
   ) -> Result<Instance, R1CSError> {
-
     let mut vars_pad = 0;
     let mut cons_pad = 0;
 
@@ -126,7 +125,7 @@ impl Instance {
     }
 
     if num_cons.next_power_of_two() < 2 {
-      cons_pad = 2-num_cons.next_power_of_two();
+      cons_pad = 2 - num_cons.next_power_of_two();
     }
 
     // Make num_vars a multiple of two
@@ -192,11 +191,11 @@ impl Instance {
 
   // Work for any number of variables
   fn pad_variables(&self, vars: &Vec<Scalar>) -> Vec<Scalar> {
-      let vars_pad = self.inst.get_num_vars() - vars.len();
-      let mut padding = vec![Scalar::zero(); vars_pad];
-      let mut padded_assignment = vars.clone();
-      padded_assignment.append(&mut padding);
-      padded_assignment
+    let vars_pad = self.inst.get_num_vars() - vars.len();
+    let mut padding = vec![Scalar::zero(); vars_pad];
+    let mut padded_assignment = vars.clone();
+    padded_assignment.append(&mut padding);
+    padded_assignment
   }
 
   /// Checks if a given R1CSInstance is satisfiable with a given variables and inputs assignments
@@ -211,7 +210,11 @@ impl Instance {
 
     // Might need to create dummy variables
     if self.inst.get_num_vars() > vars.assignment.len() {
-      Ok(self.inst.is_sat(&self.pad_variables(&vars.assignment), &inputs.assignment))
+      Ok(
+        self
+          .inst
+          .is_sat(&self.pad_variables(&vars.assignment), &inputs.assignment),
+      )
     } else {
       Ok(self.inst.is_sat(&vars.assignment, &inputs.assignment))
     }
@@ -313,7 +316,6 @@ impl SNARK {
             transcript,
             &mut random_tape,
           );
-
 
       let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
@@ -591,11 +593,11 @@ mod tests {
     let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
 
     // Create a^2 + b + 13
-    A.push((0, num_vars+2, Scalar::one().to_bytes())); // 1*a
-    B.push((0, num_vars+2, Scalar::one().to_bytes())); // 1*a
-    C.push((0, num_vars+1, Scalar::one().to_bytes())); // 1*z
+    A.push((0, num_vars + 2, Scalar::one().to_bytes())); // 1*a
+    B.push((0, num_vars + 2, Scalar::one().to_bytes())); // 1*a
+    C.push((0, num_vars + 1, Scalar::one().to_bytes())); // 1*z
     C.push((0, num_vars, (-Scalar::from(13u64)).to_bytes())); // -13*1
-    C.push((0, num_vars+3, (-Scalar::one()).to_bytes())); // -1*b
+    C.push((0, num_vars + 3, (-Scalar::one()).to_bytes())); // -1*b
 
     // Var Assignments (Z_0 = 16 is the only output)
     let vars = vec![Scalar::zero().to_bytes(); num_vars];
