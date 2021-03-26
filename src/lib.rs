@@ -129,10 +129,8 @@ impl Instance {
       cons_pad = 2-num_cons.next_power_of_two();
     }
 
-    // check that the number of variables is a power of 2
-    if num_vars.next_power_of_two() != num_vars + vars_pad {
-      vars_pad = max(num_vars.next_power_of_two() - num_vars, vars_pad);
-    }
+    // Make num_vars a multiple of two
+    vars_pad += (num_vars + vars_pad).next_power_of_two() - (num_vars + vars_pad);
 
     let bytes_to_scalar =
       |tups: &Vec<(usize, usize, [u8; 32])>| -> Result<Vec<(usize, usize, Scalar)>, R1CSError> {
