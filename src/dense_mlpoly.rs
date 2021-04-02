@@ -149,7 +149,7 @@ impl DensePolynomial {
     assert_eq!(L_size * R_size, self.Z.len());
     let C = (0..L_size)
       .into_par_iter()
-      .map(|&i| {
+      .map(|i| {
         self.Z[R_size * i..R_size * (i + 1)]
           .commit(&blinds[i], gens)
           .compress()
