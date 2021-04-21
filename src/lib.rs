@@ -150,9 +150,9 @@ impl Instance {
           let val = Scalar::from_bytes(&val_bytes);
           if val.is_some().unwrap_u8() == 1 {
             if col >= num_vars {
-                mat.push((row, col + vars_pad, val.unwrap()));
+              mat.push((row, col + vars_pad, val.unwrap()));
             } else {
-                mat.push((row, col, val.unwrap()));
+              mat.push((row, col, val.unwrap()));
             }
           } else {
             return Err(R1CSError::InvalidScalar);
