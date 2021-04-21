@@ -111,25 +111,38 @@ impl Instance {
     B: &Vec<(usize, usize, [u8; 32])>,
     C: &Vec<(usize, usize, [u8; 32])>,
   ) -> Result<Instance, R1CSError> {
-    let mut vars_pad = 0;
-    let mut cons_pad = 0;
+    let (num_vars_padded, num_cons_padded) = {
+      let num_vars_padded = {
+        let mut num_vars_padded = 0;
+        // check that num_inputs + 1 <= num_vars
+        if num_inputs >= num_vars {
+          num_vars_padded = num_inputs + 1;
+        }
 
-    // check that num_inputs + 1 <= num_vars
-    if num_inputs >= num_vars {
-      vars_pad = num_inputs - num_vars + 1;
-    }
+        // ensure that num_vars_padded a power of two
+        if num_vars_padded.next_power_of_two() != num_vars_padded {
+          num_vars_padded = num_vars_padded.next_power_of_two();
+        }
+        num_vars_padded
+      };
 
-    // check that num_cons is power of 2
-    if num_cons.next_power_of_two() != num_cons {
-      cons_pad = num_cons.next_power_of_two() - num_cons;
-    }
+      let num_cons_padded = {
+        let mut num_cons_padded = 0;
 
-    if num_cons.next_power_of_two() < 2 {
-      cons_pad = 2 - num_cons.next_power_of_two();
-    }
+        // ensure that num_cons_padded is power of 2
+        if num_cons.next_power_of_two() != num_cons {
+          num_cons_padded = num_cons.next_power_of_two();
+        }
 
-    // Make num_vars a multiple of two
-    vars_pad += (num_vars + vars_pad).next_power_of_two() - (num_vars + vars_pad);
+        // ensure that num_cons_padded is at least 2
+        if num_cons_padded == 0 || num_cons_padded == 1 {
+          num_cons_padded = 2;
+        }
+        num_cons_padded
+      };
+
+      (num_vars_padded, num_cons_padded)
+    };
 
     let bytes_to_scalar =
       |tups: &Vec<(usize, usize, [u8; 32])>| -> Result<Vec<(usize, usize, Scalar)>, R1CSError> {
@@ -149,8 +162,10 @@ impl Instance {
 
           let val = Scalar::from_bytes(&val_bytes);
           if val.is_some().unwrap_u8() == 1 {
+            // if col >= num_vars, it means that it is referencing a 1 or input in the satisfying
+            // assignment
             if col >= num_vars {
-              mat.push((row, col + vars_pad, val.unwrap()));
+              mat.push((row, col + num_vars_padded - num_vars, val.unwrap()));
             } else {
               mat.push((row, col, val.unwrap()));
             }
@@ -159,10 +174,11 @@ impl Instance {
           }
         }
 
-        // Pad with additional constraints up until a power of 2
-        for i in tups.len()..(num_cons + cons_pad) {
+        // pad with additional constraints up until num_cons_padded
+        for i in tups.len()..num_cons_padded {
           mat.push((i, num_vars, Scalar::zero()));
         }
+
         Ok(mat)
       };
 
@@ -182,8 +198,8 @@ impl Instance {
     }
 
     let inst = R1CSInstance::new(
-      num_cons + cons_pad,
-      num_vars + vars_pad,
+      num_cons_padded,
+      num_vars_padded,
       num_inputs,
       &A_scalar.unwrap(),
       &B_scalar.unwrap(),
