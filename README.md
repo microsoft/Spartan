@@ -102,6 +102,7 @@ Here is another example to use the NIZK variant of the Spartan proof system:
 
 Finally, we provide an example that specifies a custom R1CS instance instead of using a synthetic instance
 ```rust
+#![allow(non_snake_case)]
 # extern crate curve25519_dalek;
 # extern crate libspartan;
 # extern crate merlin;

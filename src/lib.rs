@@ -88,6 +88,22 @@ impl Assignment {
       assignment: assignment_scalar.unwrap(),
     })
   }
+
+  /// pads Assignment to the specified length
+  fn pad(&self, len: usize) -> VarsAssignment {
+    // check that the new length is higher than current length
+    assert!(len > self.assignment.len());
+
+    let padded_assignment = {
+      let mut padded_assignment = self.assignment.clone();
+      padded_assignment.extend(vec![Scalar::zero(); len - self.assignment.len()]);
+      padded_assignment
+    };
+
+    VarsAssignment {
+      assignment: padded_assignment,
+    }
+  }
 }
 
 /// `VarsAssignment` holds an assignment of values to variables in an `Instance`
@@ -113,7 +129,7 @@ impl Instance {
   ) -> Result<Instance, R1CSError> {
     let (num_vars_padded, num_cons_padded) = {
       let num_vars_padded = {
-        let mut num_vars_padded = 0;
+        let mut num_vars_padded = num_vars;
         // check that num_inputs + 1 <= num_vars
         if num_inputs >= num_vars {
           num_vars_padded = num_inputs + 1;
@@ -127,7 +143,7 @@ impl Instance {
       };
 
       let num_cons_padded = {
-        let mut num_cons_padded = 0;
+        let mut num_cons_padded = num_cons;
 
         // ensure that num_cons_padded is power of 2
         if num_cons.next_power_of_two() != num_cons {
@@ -209,15 +225,6 @@ impl Instance {
     Ok(Instance { inst })
   }
 
-  // Work for any number of variables
-  fn pad_variables(&self, vars: &Vec<Scalar>) -> Vec<Scalar> {
-    let vars_pad = self.inst.get_num_vars() - vars.len();
-    let mut padding = vec![Scalar::zero(); vars_pad];
-    let mut padded_assignment = vars.clone();
-    padded_assignment.append(&mut padding);
-    padded_assignment
-  }
-
   /// Checks if a given R1CSInstance is satisfiable with a given variables and inputs assignments
   pub fn is_sat(
     &self,
@@ -231,9 +238,12 @@ impl Instance {
     // Might need to create dummy variables
     if self.inst.get_num_vars() > vars.assignment.len() {
       Ok(
-        self
-          .inst
-          .is_sat(&self.pad_variables(&vars.assignment), &inputs.assignment),
+        self.inst.is_sat(
+          &vars
+            .pad(self.inst.get_num_vars() - vars.assignment.len())
+            .assignment,
+          &inputs.assignment,
+        ),
       )
     } else {
       Ok(self.inst.is_sat(&vars.assignment, &inputs.assignment))
@@ -326,16 +336,28 @@ impl SNARK {
     let mut random_tape = RandomTape::new(b"proof");
     transcript.append_protocol_name(SNARK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
-      let (proof, rx, ry) =
-          // Might need to create dummy variables
-          R1CSProof::prove(
-            &inst.inst,
-            if inst.inst.get_num_vars() > vars.assignment.len() { inst.pad_variables(&vars.assignment) } else { vars.assignment },
-            &inputs.assignment,
-            &gens.gens_r1cs_sat,
-            transcript,
-            &mut random_tape,
-          );
+      let (proof, rx, ry) = {
+        // we might need to padd variables
+        let padded_vars = {
+          let num_padded_vars = inst.inst.get_num_vars();
+          let num_vars = vars.assignment.len();
+          let padded_vars = if num_padded_vars > num_vars {
+            vars.pad(num_padded_vars - num_vars)
+          } else {
+            vars
+          };
+          padded_vars
+        };
+
+        R1CSProof::prove(
+          &inst.inst,
+          padded_vars.assignment,
+          &inputs.assignment,
+          &gens.gens_r1cs_sat,
+          transcript,
+          &mut random_tape,
+        )
+      };
 
       let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
