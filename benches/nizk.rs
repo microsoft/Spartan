@@ -24,7 +24,7 @@ fn nizk_prove_benchmark(c: &mut Criterion) {
 
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
-    let gens = NIZKGens::new(num_cons, num_vars);
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     let name = format!("NIZK_prove_{}", num_vars);
     group.bench_function(&name, move |b| {
@@ -54,7 +54,7 @@ fn nizk_verify_benchmark(c: &mut Criterion) {
     let num_inputs = 10;
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
-    let gens = NIZKGens::new(num_cons, num_vars);
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"example");

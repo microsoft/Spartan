@@ -10,9 +10,11 @@ extern crate curve25519_dalek;
 extern crate digest;
 extern crate merlin;
 extern crate rand;
-extern crate rayon;
 extern crate sha3;
 extern crate test;
+
+#[cfg(feature = "multicore")]
+extern crate rayon;
 
 mod commitments;
 mod dense_mlpoly;
@@ -31,6 +33,7 @@ mod timer;
 mod transcript;
 mod unipoly;
 
+use core::cmp::max;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
 use r1csinstance::{
@@ -86,6 +89,22 @@ impl Assignment {
       assignment: assignment_scalar.unwrap(),
     })
   }
+
+  /// pads Assignment to the specified length
+  fn pad(&self, len: usize) -> VarsAssignment {
+    // check that the new length is higher than current length
+    assert!(len > self.assignment.len());
+
+    let padded_assignment = {
+      let mut padded_assignment = self.assignment.clone();
+      padded_assignment.extend(vec![Scalar::zero(); len - self.assignment.len()]);
+      padded_assignment
+    };
+
+    VarsAssignment {
+      assignment: padded_assignment,
+    }
+  }
 }
 
 /// `VarsAssignment` holds an assignment of values to variables in an `Instance`
@@ -109,20 +128,37 @@ impl Instance {
     B: &Vec<(usize, usize, [u8; 32])>,
     C: &Vec<(usize, usize, [u8; 32])>,
   ) -> Result<Instance, R1CSError> {
-    // check that num_cons is power of 2
-    if num_cons.next_power_of_two() != num_cons {
-      return Err(R1CSError::NonPowerOfTwoCons);
-    }
+    let (num_vars_padded, num_cons_padded) = {
+      let num_vars_padded = {
+        let mut num_vars_padded = num_vars;
 
-    // check that the number of variables is a power of 2
-    if num_vars.next_power_of_two() != num_vars {
-      return Err(R1CSError::NonPowerOfTwoVars);
-    }
+        // ensure that num_inputs + 1 <= num_vars
+        num_vars_padded = max(num_vars_padded, num_inputs + 1);
 
-    // check that num_inputs + 1 <= num_vars
-    if num_inputs >= num_vars {
-      return Err(R1CSError::InvalidNumberOfInputs);
-    }
+        // ensure that num_vars_padded a power of two
+        if num_vars_padded.next_power_of_two() != num_vars_padded {
+          num_vars_padded = num_vars_padded.next_power_of_two();
+        }
+        num_vars_padded
+      };
+
+      let num_cons_padded = {
+        let mut num_cons_padded = num_cons;
+
+        // ensure that num_cons_padded is at least 2
+        if num_cons_padded == 0 || num_cons_padded == 1 {
+          num_cons_padded = 2;
+        }
+
+        // ensure that num_cons_padded is power of 2
+        if num_cons.next_power_of_two() != num_cons {
+          num_cons_padded = num_cons.next_power_of_two();
+        }
+        num_cons_padded
+      };
+
+      (num_vars_padded, num_cons_padded)
+    };
 
     let bytes_to_scalar =
       |tups: &Vec<(usize, usize, [u8; 32])>| -> Result<Vec<(usize, usize, Scalar)>, R1CSError> {
@@ -142,11 +178,26 @@ impl Instance {
 
           let val = Scalar::from_bytes(&val_bytes);
           if val.is_some().unwrap_u8() == 1 {
-            mat.push((row, col, val.unwrap()));
+            // if col >= num_vars, it means that it is referencing a 1 or input in the satisfying
+            // assignment
+            if col >= num_vars {
+              mat.push((row, col + num_vars_padded - num_vars, val.unwrap()));
+            } else {
+              mat.push((row, col, val.unwrap()));
+            }
           } else {
             return Err(R1CSError::InvalidScalar);
           }
         }
+
+        // pad with additional constraints up until num_cons_padded if the original constraints were 0 or 1
+        // we do not need to pad otherwise because the dummy constraints are implicit in the sum-check protocol
+        if num_cons == 0 || num_cons == 1 {
+          for i in tups.len()..num_cons_padded {
+            mat.push((i, num_vars, Scalar::zero()));
+          }
+        }
+
         Ok(mat)
       };
 
@@ -166,8 +217,8 @@ impl Instance {
     }
 
     let inst = R1CSInstance::new(
-      num_cons,
-      num_vars,
+      num_cons_padded,
+      num_vars_padded,
       num_inputs,
       &A_scalar.unwrap(),
       &B_scalar.unwrap(),
@@ -183,15 +234,31 @@ impl Instance {
     vars: &VarsAssignment,
     inputs: &InputsAssignment,
   ) -> Result<bool, R1CSError> {
-    if vars.assignment.len() != self.inst.get_num_vars() {
-      return Err(R1CSError::InvalidNumberOfVars);
+    if vars.assignment.len() > self.inst.get_num_vars() {
+      return Err(R1CSError::InvalidNumberOfInputs);
     }
 
     if inputs.assignment.len() != self.inst.get_num_inputs() {
       return Err(R1CSError::InvalidNumberOfInputs);
     }
 
-    Ok(self.inst.is_sat(&vars.assignment, &inputs.assignment))
+    // we might need to pad variables
+    let padded_vars = {
+      let num_padded_vars = self.inst.get_num_vars();
+      let num_vars = vars.assignment.len();
+      let padded_vars = if num_padded_vars > num_vars {
+        vars.pad(num_padded_vars)
+      } else {
+        vars.clone()
+      };
+      padded_vars
+    };
+
+    Ok(
+      self
+        .inst
+        .is_sat(&padded_vars.assignment, &inputs.assignment),
+    )
   }
 
   /// Constructs a new synthetic R1CS `Instance` and an associated satisfying assignment
@@ -217,12 +284,21 @@ pub struct SNARKGens {
 
 impl SNARKGens {
   /// Constructs a new `SNARKGens` given the size of the R1CS statement
+  /// `num_nz_entries` specifies the maximum number of non-zero entries in any of the three R1CS matrices
   pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize, num_nz_entries: usize) -> Self {
-    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars);
+    let num_vars_padded = {
+      let mut num_vars_padded = max(num_vars, num_inputs + 1);
+      if num_vars_padded != num_vars_padded.next_power_of_two() {
+        num_vars_padded = num_vars_padded.next_power_of_two();
+      }
+      num_vars_padded
+    };
+
+    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars_padded);
     let gens_r1cs_eval = R1CSCommitmentGens::new(
       b"gens_r1cs_eval",
       num_cons,
-      num_vars,
+      num_vars_padded,
       num_inputs,
       num_nz_entries,
     );
@@ -276,14 +352,29 @@ impl SNARK {
     let mut random_tape = RandomTape::new(b"proof");
     transcript.append_protocol_name(SNARK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
-      let (proof, rx, ry) = R1CSProof::prove(
-        &inst.inst,
-        vars.assignment,
-        &inputs.assignment,
-        &gens.gens_r1cs_sat,
-        transcript,
-        &mut random_tape,
-      );
+      let (proof, rx, ry) = {
+        // we might need to pad variables
+        let padded_vars = {
+          let num_padded_vars = inst.inst.get_num_vars();
+          let num_vars = vars.assignment.len();
+          let padded_vars = if num_padded_vars > num_vars {
+            vars.pad(num_padded_vars)
+          } else {
+            vars
+          };
+          padded_vars
+        };
+
+        R1CSProof::prove(
+          &inst.inst,
+          padded_vars.assignment,
+          &inputs.assignment,
+          &gens.gens_r1cs_sat,
+          transcript,
+          &mut random_tape,
+        )
+      };
+
       let proof_encoded: Vec<u8> = bincode::serialize(&proof).unwrap();
       Timer::print(&format!("len_r1cs_sat_proof {:?}", proof_encoded.len()));
 
@@ -378,8 +469,16 @@ pub struct NIZKGens {
 
 impl NIZKGens {
   /// Constructs a new `NIZKGens` given the size of the R1CS statement
-  pub fn new(num_cons: usize, num_vars: usize) -> Self {
-    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars);
+  pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize) -> Self {
+    let num_vars_padded = {
+      let mut num_vars_padded = max(num_vars, num_inputs + 1);
+      if num_vars_padded != num_vars_padded.next_power_of_two() {
+        num_vars_padded = num_vars_padded.next_power_of_two();
+      }
+      num_vars_padded
+    };
+
+    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars_padded);
     NIZKGens { gens_r1cs_sat }
   }
 }
@@ -410,9 +509,21 @@ impl NIZK {
     let mut random_tape = RandomTape::new(b"proof");
     transcript.append_protocol_name(NIZK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
+      // we might need to pad variables
+      let padded_vars = {
+        let num_padded_vars = inst.inst.get_num_vars();
+        let num_vars = vars.assignment.len();
+        let padded_vars = if num_padded_vars > num_vars {
+          vars.pad(num_padded_vars)
+        } else {
+          vars
+        };
+        padded_vars
+      };
+
       let (proof, rx, ry) = R1CSProof::prove(
         &inst.inst,
-        vars.assignment,
+        padded_vars.assignment,
         &input.assignment,
         &gens.gens_r1cs_sat,
         transcript,
@@ -543,5 +654,86 @@ mod tests {
     let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
     assert_eq!(inst.is_err(), true);
     assert_eq!(inst.err(), Some(R1CSError::InvalidScalar));
+  }
+
+  #[test]
+  fn test_padded_constraints() {
+    // parameters of the R1CS instance
+    let num_cons = 1;
+    let num_vars = 0;
+    let num_inputs = 3;
+    let num_non_zero_entries = 3;
+
+    // We will encode the above constraints into three matrices, where
+    // the coefficients in the matrix are in the little-endian byte order
+    let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
+    let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
+    let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
+
+    // Create a^2 + b + 13
+    A.push((0, num_vars + 2, Scalar::one().to_bytes())); // 1*a
+    B.push((0, num_vars + 2, Scalar::one().to_bytes())); // 1*a
+    C.push((0, num_vars + 1, Scalar::one().to_bytes())); // 1*z
+    C.push((0, num_vars, (-Scalar::from(13u64)).to_bytes())); // -13*1
+    C.push((0, num_vars + 3, (-Scalar::one()).to_bytes())); // -1*b
+
+    // Var Assignments (Z_0 = 16 is the only output)
+    let vars = vec![Scalar::zero().to_bytes(); num_vars];
+
+    // create an InputsAssignment (a = 1, b = 2)
+    let mut inputs = vec![Scalar::zero().to_bytes(); num_inputs];
+    inputs[0] = Scalar::from(16u64).to_bytes();
+    inputs[1] = Scalar::from(1u64).to_bytes();
+    inputs[2] = Scalar::from(2u64).to_bytes();
+
+    let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
+    let assignment_vars = VarsAssignment::new(&vars).unwrap();
+
+    // Check if instance is satisfiable
+    let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
+    let res = inst.is_sat(&assignment_vars, &assignment_inputs);
+    assert_eq!(res.unwrap(), true, "should be satisfied");
+
+    // SNARK public params
+    let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
+
+    // create a commitment to the R1CS instance
+    let (comm, decomm) = SNARK::encode(&inst, &gens);
+
+    // produce a SNARK
+    let mut prover_transcript = Transcript::new(b"snark_example");
+    let proof = SNARK::prove(
+      &inst,
+      &decomm,
+      assignment_vars.clone(),
+      &assignment_inputs,
+      &gens,
+      &mut prover_transcript,
+    );
+
+    // verify the SNARK
+    let mut verifier_transcript = Transcript::new(b"snark_example");
+    assert!(proof
+      .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
+      .is_ok());
+
+    // NIZK public params
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+
+    // produce a NIZK
+    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let proof = NIZK::prove(
+      &inst,
+      assignment_vars,
+      &assignment_inputs,
+      &gens,
+      &mut prover_transcript,
+    );
+
+    // verify the NIZK
+    let mut verifier_transcript = Transcript::new(b"nizk_example");
+    assert!(proof
+      .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
+      .is_ok());
   }
 }

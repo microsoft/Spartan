@@ -27,7 +27,7 @@ pub fn main() {
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // produce public generators
-    let gens = NIZKGens::new(num_cons, num_vars);
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"nizk_example");

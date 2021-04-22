@@ -82,7 +82,7 @@ Here is another example to use the NIZK variant of the Spartan proof system:
     let num_inputs = 10;
 
     // produce public parameters
-    let gens = NIZKGens::new(num_cons, num_vars);
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // ask the library to produce a synthentic R1CS instance
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
@@ -102,6 +102,7 @@ Here is another example to use the NIZK variant of the Spartan proof system:
 
 Finally, we provide an example that specifies a custom R1CS instance instead of using a synthetic instance
 ```rust
+#![allow(non_snake_case)]
 # extern crate curve25519_dalek;
 # extern crate libspartan;
 # extern crate merlin;
@@ -163,9 +164,9 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 
   // parameters of the R1CS instance rounded to the nearest power of two
   let num_cons = 4;
-  let num_vars = 8;
+  let num_vars = 5;
   let num_inputs = 2;
-  let num_non_zero_entries = 8;
+  let num_non_zero_entries = 5;
 
   // We will encode the above constraints into three matrices, where
   // the coefficients in the matrix are in the little-endian byte order
