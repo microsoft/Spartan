@@ -42,6 +42,7 @@ use r1csproof::{R1CSGens, R1CSProof};
 use random::RandomTape;
 use scalar::Scalar;
 use serde::{Deserialize, Serialize};
+use std::cmp::max;
 use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
 
@@ -231,6 +232,10 @@ impl Instance {
     vars: &VarsAssignment,
     inputs: &InputsAssignment,
   ) -> Result<bool, R1CSError> {
+    if vars.assignment.len() > self.inst.get_num_vars() {
+      return Err(R1CSError::InvalidNumberOfInputs);
+    }
+
     if inputs.assignment.len() != self.inst.get_num_inputs() {
       return Err(R1CSError::InvalidNumberOfInputs);
     }
@@ -278,15 +283,12 @@ pub struct SNARKGens {
 impl SNARKGens {
   /// Constructs a new `SNARKGens` given the size of the R1CS statement
   pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize, num_nz_entries: usize) -> Self {
-    let mut vars_pad = 0;
-    if num_inputs >= num_vars {
-      vars_pad = num_inputs - num_vars + 1;
-    }
-    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars + vars_pad);
+    let vars_padded = max(num_vars, num_inputs + 1);
+    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, vars_padded);
     let gens_r1cs_eval = R1CSCommitmentGens::new(
       b"gens_r1cs_eval",
       num_cons,
-      num_vars + vars_pad,
+      vars_padded,
       num_inputs,
       num_nz_entries,
     );
