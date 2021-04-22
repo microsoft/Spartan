@@ -166,7 +166,7 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
   let num_cons = 4;
   let num_vars = 5;
   let num_inputs = 2;
-  let num_non_zero_entries = 8;
+  let num_non_zero_entries = 5;
 
   // We will encode the above constraints into three matrices, where
   // the coefficients in the matrix are in the little-endian byte order

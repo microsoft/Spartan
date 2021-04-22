@@ -284,6 +284,7 @@ pub struct SNARKGens {
 
 impl SNARKGens {
   /// Constructs a new `SNARKGens` given the size of the R1CS statement
+  /// `num_nz_entries` specifies the maximum number of non-zero entries in any of the three R1CS matrices
   pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize, num_nz_entries: usize) -> Self {
     let num_vars_padded = {
       let mut num_vars_padded = max(num_vars, num_inputs + 1);
