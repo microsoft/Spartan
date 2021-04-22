@@ -1,6 +1,6 @@
 [package]
 name = "spartan"
-version = "0.2.1"
+version = "0.3.0"
 authors = ["Srinath Setty <srinath@microsoft.com>"]
 edition = "2018"
 description = "High-speed zkSNARKs without trusted setup"
@@ -12,7 +12,7 @@ keywords = ["zkSNARKs", "cryptography", "proofs"]
 
 [dependencies]
 curve25519-dalek = {version = "3.0.0", features = ["serde", "simd_backend"]}
-merlin = "2.0.0"
+merlin = "3.0.0"
 rand = "0.7.3"
 digest = "0.8.1"
 sha3 = "0.8.2"
@@ -23,8 +23,8 @@ bincode = "1.2.1"
 subtle = { version = "^2.2.3", default-features = false }
 rand_core = { version = "0.5", default-features = false }
 zeroize = { version = "1", default-features = false }
-itertools = "0.9.0"
-colored = "1.9.3"
+itertools = "0.10.0"
+colored = "2.0.0"
 flate2 = "1.0.14"
 thiserror = "1.0"
 
