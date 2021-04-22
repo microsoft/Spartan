@@ -164,7 +164,7 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 
   // parameters of the R1CS instance rounded to the nearest power of two
   let num_cons = 4;
-  let num_vars = 8;
+  let num_vars = 5;
   let num_inputs = 2;
   let num_non_zero_entries = 8;
 

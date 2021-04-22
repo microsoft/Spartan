@@ -247,7 +247,7 @@ impl Instance {
       let num_padded_vars = self.inst.get_num_vars();
       let num_vars = vars.assignment.len();
       let padded_vars = if num_padded_vars > num_vars {
-        vars.pad(num_padded_vars - num_vars)
+        vars.pad(num_padded_vars)
       } else {
         vars.clone()
       };
@@ -285,7 +285,14 @@ pub struct SNARKGens {
 impl SNARKGens {
   /// Constructs a new `SNARKGens` given the size of the R1CS statement
   pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize, num_nz_entries: usize) -> Self {
-    let num_vars_padded = max(num_vars, num_inputs + 1);
+    let num_vars_padded = {
+      let mut num_vars_padded = max(num_vars, num_inputs + 1);
+      if num_vars_padded != num_vars_padded.next_power_of_two() {
+        num_vars_padded = num_vars_padded.next_power_of_two();
+      }
+      num_vars_padded
+    };
+
     let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars_padded);
     let gens_r1cs_eval = R1CSCommitmentGens::new(
       b"gens_r1cs_eval",
@@ -350,7 +357,7 @@ impl SNARK {
           let num_padded_vars = inst.inst.get_num_vars();
           let num_vars = vars.assignment.len();
           let padded_vars = if num_padded_vars > num_vars {
-            vars.pad(num_padded_vars - num_vars)
+            vars.pad(num_padded_vars)
           } else {
             vars
           };
