@@ -33,6 +33,7 @@ mod timer;
 mod transcript;
 mod unipoly;
 
+use core::cmp::max;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
 use r1csinstance::{
@@ -42,7 +43,6 @@ use r1csproof::{R1CSGens, R1CSProof};
 use random::RandomTape;
 use scalar::Scalar;
 use serde::{Deserialize, Serialize};
-use std::cmp::max;
 use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
 
@@ -131,10 +131,9 @@ impl Instance {
     let (num_vars_padded, num_cons_padded) = {
       let num_vars_padded = {
         let mut num_vars_padded = num_vars;
-        // check that num_inputs + 1 <= num_vars
-        if num_inputs >= num_vars {
-          num_vars_padded = num_inputs + 1;
-        }
+
+        // ensure that num_inputs + 1 <= num_vars
+        num_vars_padded = max(num_vars_padded, num_inputs + 1);
 
         // ensure that num_vars_padded a power of two
         if num_vars_padded.next_power_of_two() != num_vars_padded {
@@ -146,14 +145,14 @@ impl Instance {
       let num_cons_padded = {
         let mut num_cons_padded = num_cons;
 
-        // ensure that num_cons_padded is power of 2
-        if num_cons.next_power_of_two() != num_cons {
-          num_cons_padded = num_cons.next_power_of_two();
-        }
-
         // ensure that num_cons_padded is at least 2
         if num_cons_padded == 0 || num_cons_padded == 1 {
           num_cons_padded = 2;
+        }
+
+        // ensure that num_cons_padded is power of 2
+        if num_cons.next_power_of_two() != num_cons {
+          num_cons_padded = num_cons.next_power_of_two();
         }
         num_cons_padded
       };
@@ -283,12 +282,12 @@ pub struct SNARKGens {
 impl SNARKGens {
   /// Constructs a new `SNARKGens` given the size of the R1CS statement
   pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize, num_nz_entries: usize) -> Self {
-    let vars_padded = max(num_vars, num_inputs + 1);
-    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, vars_padded);
+    let num_vars_padded = max(num_vars, num_inputs + 1);
+    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars_padded);
     let gens_r1cs_eval = R1CSCommitmentGens::new(
       b"gens_r1cs_eval",
       num_cons,
-      vars_padded,
+      num_vars_padded,
       num_inputs,
       num_nz_entries,
     );
