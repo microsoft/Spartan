@@ -16,6 +16,7 @@ use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::iter;
 use merlin::Transcript;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -274,6 +275,7 @@ impl R1CSProof {
       assert_eq!(evals_A.len(), evals_B.len());
       assert_eq!(evals_A.len(), evals_C.len());
       (0..evals_A.len())
+        .into_par_iter()
         .map(|i| r_A * evals_A[i] + r_B * evals_B[i] + r_C * evals_C[i])
         .collect::<Vec<Scalar>>()
     };

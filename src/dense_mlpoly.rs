@@ -11,7 +11,6 @@ use core::ops::Index;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[cfg(feature = "multicore")]
 use rayon::prelude::*;
 
 #[derive(Debug)]
@@ -66,6 +65,9 @@ impl EqPolynomial {
 
   pub fn evals(&self) -> Vec<Scalar> {
     let ell = self.r.len();
+    let mut evals: Vec<Scalar> = vec![Scalar::zero(); ell.pow2()];
+
+    /*let ell = self.r.len();
 
     let mut evals: Vec<Scalar> = vec![Scalar::one(); ell.pow2()];
     let mut size = 1;
@@ -78,6 +80,24 @@ impl EqPolynomial {
         evals[i] = scalar * self.r[j];
         evals[i - 1] = scalar - evals[i];
       }
+    }
+    evals
+    */
+
+    // in each iteration, we double the size of chis
+    let mut size = 1;
+    evals[0] = Scalar::one();
+    for r in self.r.iter().rev() {
+      let (evals_left, evals_right) = evals.split_at_mut(size);
+      let (evals_right, _) = evals_right.split_at_mut(size);
+
+      let iter = evals_left.par_iter_mut().zip(evals_right.par_iter_mut());
+      // copy each element from the prior iteration twice
+      iter.for_each(|(x, y)| {
+        *y = *x * r;
+        *x -= &*y;
+      });
+      size *= 2;
     }
     evals
   }
@@ -142,28 +162,12 @@ impl DensePolynomial {
     )
   }
 
-  #[cfg(feature = "multicore")]
   fn commit_inner(&self, blinds: &Vec<Scalar>, gens: &MultiCommitGens) -> PolyCommitment {
     let L_size = blinds.len();
     let R_size = self.Z.len() / L_size;
     assert_eq!(L_size * R_size, self.Z.len());
     let C = (0..L_size)
       .into_par_iter()
-      .map(|i| {
-        self.Z[R_size * i..R_size * (i + 1)]
-          .commit(&blinds[i], gens)
-          .compress()
-      })
-      .collect();
-    PolyCommitment { C }
-  }
-
-  #[cfg(not(feature = "multicore"))]
-  fn commit_inner(&self, blinds: &[Scalar], gens: &MultiCommitGens) -> PolyCommitment {
-    let L_size = blinds.len();
-    let R_size = self.Z.len() / L_size;
-    assert_eq!(L_size * R_size, self.Z.len());
-    let C = (0..L_size)
       .map(|i| {
         self.Z[R_size * i..R_size * (i + 1)]
           .commit(&blinds[i], gens)
@@ -211,9 +215,18 @@ impl DensePolynomial {
 
   pub fn bound_poly_var_top(&mut self, r: &Scalar) {
     let n = self.len() / 2;
-    for i in 0..n {
-      self.Z[i] = self.Z[i] + r * (self.Z[i + n] - self.Z[i]);
-    }
+
+    // The following code is a parallel version of this code snippet
+    // for i in 0..n {
+    //  self.Z[i] = self.Z[i] + r * (self.Z[i + n] - self.Z[i]);
+    // }
+    let (left, right) = self.Z.split_at_mut(n);
+    let (right, _) = right.split_at(n);
+    let iter = left.par_iter_mut().zip(right.par_iter());
+    iter.for_each(|(a, b)| {
+      *a += r * (b - *a);
+    });
+
     self.num_vars -= 1;
     self.len = n;
   }

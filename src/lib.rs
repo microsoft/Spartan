@@ -10,11 +10,9 @@ extern crate curve25519_dalek;
 extern crate digest;
 extern crate merlin;
 extern crate rand;
+extern crate rayon;
 extern crate sha3;
 extern crate test;
-
-#[cfg(feature = "multicore")]
-extern crate rayon;
 
 mod commitments;
 mod dense_mlpoly;

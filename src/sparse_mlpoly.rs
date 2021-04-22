@@ -14,6 +14,7 @@ use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::cmp::Ordering;
 use merlin::Transcript;
+use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug)]
@@ -423,6 +424,7 @@ impl SparseMatPolynomial {
     assert_eq!(self.num_vars_y.pow2(), eval_table_ry.len());
 
     (0..self.M.len())
+      .into_par_iter()
       .map(|i| {
         let row = self.M[i].row;
         let col = self.M[i].col;
