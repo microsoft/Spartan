@@ -190,9 +190,12 @@ impl Instance {
           }
         }
 
-        // pad with additional constraints up until num_cons_padded
-        for i in tups.len()..num_cons_padded {
-          mat.push((i, num_vars, Scalar::zero()));
+        // pad with additional constraints up until num_cons_padded if the original constraints were 0 or 1
+        // we do not need to pad otherwise because the dummy constraints are implicit in the sum-check protocol
+        if num_cons == 0 || num_cons == 1 {
+          for i in tups.len()..num_cons_padded {
+            mat.push((i, num_vars, Scalar::zero()));
+          }
         }
 
         Ok(mat)
