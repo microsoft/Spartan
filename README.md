@@ -82,7 +82,7 @@ Here is another example to use the NIZK variant of the Spartan proof system:
     let num_inputs = 10;
 
     // produce public parameters
-    let gens = NIZKGens::new(num_cons, num_vars);
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     // ask the library to produce a synthentic R1CS instance
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);

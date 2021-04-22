@@ -469,8 +469,16 @@ pub struct NIZKGens {
 
 impl NIZKGens {
   /// Constructs a new `NIZKGens` given the size of the R1CS statement
-  pub fn new(num_cons: usize, num_vars: usize) -> Self {
-    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars);
+  pub fn new(num_cons: usize, num_vars: usize, num_inputs: usize) -> Self {
+    let num_vars_padded = {
+      let mut num_vars_padded = max(num_vars, num_inputs + 1);
+      if num_vars_padded != num_vars_padded.next_power_of_two() {
+        num_vars_padded = num_vars_padded.next_power_of_two();
+      }
+      num_vars_padded
+    };
+
+    let gens_r1cs_sat = R1CSGens::new(b"gens_r1cs_sat", num_cons, num_vars_padded);
     NIZKGens { gens_r1cs_sat }
   }
 }
@@ -501,9 +509,21 @@ impl NIZK {
     let mut random_tape = RandomTape::new(b"proof");
     transcript.append_protocol_name(NIZK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
+      // we might need to pad variables
+      let padded_vars = {
+        let num_padded_vars = inst.inst.get_num_vars();
+        let num_vars = vars.assignment.len();
+        let padded_vars = if num_padded_vars > num_vars {
+          vars.pad(num_padded_vars)
+        } else {
+          vars
+        };
+        padded_vars
+      };
+
       let (proof, rx, ry) = R1CSProof::prove(
         &inst.inst,
-        vars.assignment,
+        padded_vars.assignment,
         &input.assignment,
         &gens.gens_r1cs_sat,
         transcript,
@@ -666,7 +686,6 @@ mod tests {
     inputs[1] = Scalar::from(1u64).to_bytes();
     inputs[2] = Scalar::from(2u64).to_bytes();
 
-    // Now compute proof
     let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
     let assignment_vars = VarsAssignment::new(&vars).unwrap();
 
@@ -675,27 +694,46 @@ mod tests {
     let res = inst.is_sat(&assignment_vars, &assignment_inputs);
     assert_eq!(res.unwrap(), true, "should be satisfied");
 
-    // Crypto proof public params
+    // SNARK public params
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
 
     // create a commitment to the R1CS instance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
-    // produce a proof of satisfiability
+    // produce a SNARK
     let mut prover_transcript = Transcript::new(b"snark_example");
     let proof = SNARK::prove(
       &inst,
       &decomm,
+      assignment_vars.clone(),
+      &assignment_inputs,
+      &gens,
+      &mut prover_transcript,
+    );
+
+    // verify the SNARK
+    let mut verifier_transcript = Transcript::new(b"snark_example");
+    assert!(proof
+      .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
+      .is_ok());
+
+    // NIZK public params
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+
+    // produce a NIZK
+    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let proof = NIZK::prove(
+      &inst,
       assignment_vars,
       &assignment_inputs,
       &gens,
       &mut prover_transcript,
     );
 
-    // verify the proof of satisfiability
-    let mut verifier_transcript = Transcript::new(b"snark_example");
+    // verify the NIZK
+    let mut verifier_transcript = Transcript::new(b"nizk_example");
     assert!(proof
-      .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
+      .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
       .is_ok());
   }
 }
