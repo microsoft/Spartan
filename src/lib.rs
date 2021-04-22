@@ -235,19 +235,23 @@ impl Instance {
       return Err(R1CSError::InvalidNumberOfInputs);
     }
 
-    // Might need to create dummy variables
-    if self.inst.get_num_vars() > vars.assignment.len() {
-      Ok(
-        self.inst.is_sat(
-          &vars
-            .pad(self.inst.get_num_vars() - vars.assignment.len())
-            .assignment,
-          &inputs.assignment,
-        ),
-      )
-    } else {
-      Ok(self.inst.is_sat(&vars.assignment, &inputs.assignment))
-    }
+    // we might need to pad variables
+    let padded_vars = {
+      let num_padded_vars = self.inst.get_num_vars();
+      let num_vars = vars.assignment.len();
+      let padded_vars = if num_padded_vars > num_vars {
+        vars.pad(num_padded_vars - num_vars)
+      } else {
+        vars.clone()
+      };
+      padded_vars
+    };
+
+    Ok(
+      self
+        .inst
+        .is_sat(&padded_vars.assignment, &inputs.assignment),
+    )
   }
 
   /// Constructs a new synthetic R1CS `Instance` and an associated satisfying assignment
@@ -337,7 +341,7 @@ impl SNARK {
     transcript.append_protocol_name(SNARK::protocol_name());
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = {
-        // we might need to padd variables
+        // we might need to pad variables
         let padded_vars = {
           let num_padded_vars = inst.inst.get_num_vars();
           let num_vars = vars.assignment.len();
