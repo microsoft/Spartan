@@ -29,7 +29,7 @@ Among transparent SNARKs, Spartan offers the fastest prover with speedups of 36â
 ## Examples
 To import `libspartan` into your Rust project, add the following dependency to `Cargo.toml`:
 ```text
-spartan = "0.2.1"
+spartan = "0.3.0"
 ```
 
 The following example shows how to use `libspartan` to create and verify a SNARK proof.
