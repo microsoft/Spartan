@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
 #![feature(test)]
+#![feature(int_log)]
+#![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
-#![feature(external_doc)]
-#![doc(include = "../README.md")]
 
 extern crate byteorder;
 extern crate core;
@@ -64,11 +64,11 @@ pub struct Assignment {
 
 impl Assignment {
   /// Constructs a new `Assignment` from a vector
-  pub fn new(assignment: &Vec<[u8; 32]>) -> Result<Assignment, R1CSError> {
-    let bytes_to_scalar = |vec: &Vec<[u8; 32]>| -> Result<Vec<Scalar>, R1CSError> {
+  pub fn new(assignment: &[[u8; 32]]) -> Result<Assignment, R1CSError> {
+    let bytes_to_scalar = |vec: &[[u8; 32]]| -> Result<Vec<Scalar>, R1CSError> {
       let mut vec_scalar: Vec<Scalar> = Vec::new();
-      for i in 0..vec.len() {
-        let val = Scalar::from_bytes(&vec[i]);
+      for v in vec {
+        let val = Scalar::from_bytes(v);
         if val.is_some().unwrap_u8() == 1 {
           vec_scalar.push(val.unwrap());
         } else {
@@ -124,9 +124,9 @@ impl Instance {
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
-    A: &Vec<(usize, usize, [u8; 32])>,
-    B: &Vec<(usize, usize, [u8; 32])>,
-    C: &Vec<(usize, usize, [u8; 32])>,
+    A: &[(usize, usize, [u8; 32])],
+    B: &[(usize, usize, [u8; 32])],
+    C: &[(usize, usize, [u8; 32])],
   ) -> Result<Instance, R1CSError> {
     let (num_vars_padded, num_cons_padded) = {
       let num_vars_padded = {
@@ -161,11 +161,9 @@ impl Instance {
     };
 
     let bytes_to_scalar =
-      |tups: &Vec<(usize, usize, [u8; 32])>| -> Result<Vec<(usize, usize, Scalar)>, R1CSError> {
+      |tups: &[(usize, usize, [u8; 32])]| -> Result<Vec<(usize, usize, Scalar)>, R1CSError> {
         let mut mat: Vec<(usize, usize, Scalar)> = Vec::new();
-        for i in 0..tups.len() {
-          let (row, col, val_bytes) = tups[i];
-
+        for &(row, col, val_bytes) in tups {
           // row must be smaller than num_cons
           if row >= num_cons {
             return Err(R1CSError::InvalidIndex);
@@ -246,12 +244,11 @@ impl Instance {
     let padded_vars = {
       let num_padded_vars = self.inst.get_num_vars();
       let num_vars = vars.assignment.len();
-      let padded_vars = if num_padded_vars > num_vars {
+      if num_padded_vars > num_vars {
         vars.pad(num_padded_vars)
       } else {
         vars.clone()
-      };
-      padded_vars
+      }
     };
 
     Ok(
@@ -357,12 +354,11 @@ impl SNARK {
         let padded_vars = {
           let num_padded_vars = inst.inst.get_num_vars();
           let num_vars = vars.assignment.len();
-          let padded_vars = if num_padded_vars > num_vars {
+          if num_padded_vars > num_vars {
             vars.pad(num_padded_vars)
           } else {
             vars
-          };
-          padded_vars
+          }
         };
 
         R1CSProof::prove(
@@ -513,12 +509,11 @@ impl NIZK {
       let padded_vars = {
         let num_padded_vars = inst.inst.get_num_vars();
         let num_vars = vars.assignment.len();
-        let padded_vars = if num_padded_vars > num_vars {
+        if num_padded_vars > num_vars {
           vars.pad(num_padded_vars)
         } else {
           vars
-        };
-        padded_vars
+        }
       };
 
       let (proof, rx, ry) = R1CSProof::prove(
@@ -627,7 +622,7 @@ mod tests {
     let C = vec![(1, 1, zero)];
 
     let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
-    assert_eq!(inst.is_err(), true);
+    assert!(inst.is_err());
     assert_eq!(inst.err(), Some(R1CSError::InvalidIndex));
   }
 
@@ -652,7 +647,7 @@ mod tests {
     let C = vec![(1, 1, zero)];
 
     let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
-    assert_eq!(inst.is_err(), true);
+    assert!(inst.is_err());
     assert_eq!(inst.err(), Some(R1CSError::InvalidScalar));
   }
 
@@ -692,7 +687,7 @@ mod tests {
     // Check if instance is satisfiable
     let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
     let res = inst.is_sat(&assignment_vars, &assignment_inputs);
-    assert_eq!(res.unwrap(), true, "should be satisfied");
+    assert!(res.unwrap(), "should be satisfied");
 
     // SNARK public params
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);

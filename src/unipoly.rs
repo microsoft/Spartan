@@ -25,7 +25,7 @@ impl UniPoly {
     assert!(evals.len() == 3 || evals.len() == 4);
     let coeffs = if evals.len() == 3 {
       // ax^2 + bx + c
-      let two_inv = (2 as usize).to_scalar().invert().unwrap();
+      let two_inv = (2_usize).to_scalar().invert().unwrap();
 
       let c = evals[0];
       let a = two_inv * (evals[2] - evals[1] - evals[1] + c);
@@ -33,8 +33,8 @@ impl UniPoly {
       vec![c, b, a]
     } else {
       // ax^3 + bx^2 + cx + d
-      let two_inv = (2 as usize).to_scalar().invert().unwrap();
-      let six_inv = (6 as usize).to_scalar().invert().unwrap();
+      let two_inv = (2_usize).to_scalar().invert().unwrap();
+      let six_inv = (6_usize).to_scalar().invert().unwrap();
 
       let d = evals[0];
       let a = six_inv
@@ -102,9 +102,7 @@ impl CompressedUniPoly {
       linear_term -= self.coeffs_except_linear_term[i];
     }
 
-    let mut coeffs: Vec<Scalar> = Vec::new();
-    coeffs.push(self.coeffs_except_linear_term[0]);
-    coeffs.push(linear_term);
+    let mut coeffs = vec![self.coeffs_except_linear_term[0], linear_term];
     coeffs.extend(&self.coeffs_except_linear_term[1..]);
     assert_eq!(self.coeffs_except_linear_term.len() + 1, coeffs.len());
     UniPoly { coeffs }
@@ -130,8 +128,8 @@ mod tests {
   fn test_from_evals_quad() {
     // polynomial is 2x^2 + 3x + 1
     let e0 = Scalar::one();
-    let e1 = (6 as usize).to_scalar();
-    let e2 = (15 as usize).to_scalar();
+    let e1 = (6_usize).to_scalar();
+    let e2 = (15_usize).to_scalar();
     let evals = vec![e0, e1, e2];
     let poly = UniPoly::from_evals(&evals);
 
@@ -139,8 +137,8 @@ mod tests {
     assert_eq!(poly.eval_at_one(), e1);
     assert_eq!(poly.coeffs.len(), 3);
     assert_eq!(poly.coeffs[0], Scalar::one());
-    assert_eq!(poly.coeffs[1], (3 as usize).to_scalar());
-    assert_eq!(poly.coeffs[2], (2 as usize).to_scalar());
+    assert_eq!(poly.coeffs[1], (3_usize).to_scalar());
+    assert_eq!(poly.coeffs[2], (2_usize).to_scalar());
 
     let hint = e0 + e1;
     let compressed_poly = poly.compress();
@@ -149,17 +147,17 @@ mod tests {
       assert_eq!(decompressed_poly.coeffs[i], poly.coeffs[i]);
     }
 
-    let e3 = (28 as usize).to_scalar();
-    assert_eq!(poly.evaluate(&(3 as usize).to_scalar()), e3);
+    let e3 = (28_usize).to_scalar();
+    assert_eq!(poly.evaluate(&(3_usize).to_scalar()), e3);
   }
 
   #[test]
   fn test_from_evals_cubic() {
     // polynomial is x^3 + 2x^2 + 3x + 1
     let e0 = Scalar::one();
-    let e1 = (7 as usize).to_scalar();
-    let e2 = (23 as usize).to_scalar();
-    let e3 = (55 as usize).to_scalar();
+    let e1 = (7_usize).to_scalar();
+    let e2 = (23_usize).to_scalar();
+    let e3 = (55_usize).to_scalar();
     let evals = vec![e0, e1, e2, e3];
     let poly = UniPoly::from_evals(&evals);
 
@@ -167,9 +165,9 @@ mod tests {
     assert_eq!(poly.eval_at_one(), e1);
     assert_eq!(poly.coeffs.len(), 4);
     assert_eq!(poly.coeffs[0], Scalar::one());
-    assert_eq!(poly.coeffs[1], (3 as usize).to_scalar());
-    assert_eq!(poly.coeffs[2], (2 as usize).to_scalar());
-    assert_eq!(poly.coeffs[3], (1 as usize).to_scalar());
+    assert_eq!(poly.coeffs[1], (3_usize).to_scalar());
+    assert_eq!(poly.coeffs[2], (2_usize).to_scalar());
+    assert_eq!(poly.coeffs[3], (1_usize).to_scalar());
 
     let hint = e0 + e1;
     let compressed_poly = poly.compress();
@@ -178,7 +176,7 @@ mod tests {
       assert_eq!(decompressed_poly.coeffs[i], poly.coeffs[i]);
     }
 
-    let e4 = (109 as usize).to_scalar();
-    assert_eq!(poly.evaluate(&(4 as usize).to_scalar()), e4);
+    let e4 = (109_usize).to_scalar();
+    assert_eq!(poly.evaluate(&(4_usize).to_scalar()), e4);
   }
 }

@@ -93,7 +93,7 @@ fn produce_r1cs() -> (
 
   // check if the instance we created is satisfiable
   let res = inst.is_sat(&assignment_vars, &assignment_inputs);
-  assert_eq!(res.unwrap(), true, "should be satisfied");
+  assert!(res.unwrap(), "should be satisfied");
 
   (
     num_cons,

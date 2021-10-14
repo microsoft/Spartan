@@ -5,7 +5,6 @@
 #![allow(clippy::too_many_arguments)]
 use super::super::errors::ProofVerifyError;
 use super::super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
-use super::super::math::Math;
 use super::super::scalar::Scalar;
 use super::super::transcript::ProofTranscript;
 use core::iter;
@@ -56,18 +55,13 @@ impl BulletReductionProof {
     // All of the input vectors must have a length that is a power of two.
     let mut n = G.len();
     assert!(n.is_power_of_two());
-    let lg_n = n.log2();
-
-    let G_factors: Vec<Scalar> = iter::repeat(Scalar::one()).take(n).collect();
+    let lg_n = n.log2() as usize;
 
     // All of the input vectors must have the same length.
     assert_eq!(G.len(), n);
     assert_eq!(a.len(), n);
     assert_eq!(b.len(), n);
-    assert_eq!(G_factors.len(), n);
     assert_eq!(blinds_vec.len(), 2 * lg_n);
-
-    //transcript.innerproduct_domain_sep(n as u64);
 
     let mut L_vec = Vec::with_capacity(lg_n);
     let mut R_vec = Vec::with_capacity(lg_n);
@@ -80,8 +74,8 @@ impl BulletReductionProof {
       let (b_L, b_R) = b.split_at_mut(n);
       let (G_L, G_R) = G.split_at_mut(n);
 
-      let c_L = inner_product(&a_L, &b_R);
-      let c_R = inner_product(&a_R, &b_L);
+      let c_L = inner_product(a_L, b_R);
+      let c_R = inner_product(a_R, b_L);
 
       let (blind_L, blind_R) = blinds_iter.next().unwrap();
 
@@ -236,10 +230,11 @@ impl BulletReductionProof {
 /// \\]
 /// Panics if the lengths of \\(\mathbf{a}\\) and \\(\mathbf{b}\\) are not equal.
 pub fn inner_product(a: &[Scalar], b: &[Scalar]) -> Scalar {
+  assert!(
+    !(a.len() != b.len()),
+    "inner_product(a,b): lengths of vectors do not match"
+  );
   let mut out = Scalar::zero();
-  if a.len() != b.len() {
-    panic!("inner_product(a,b): lengths of vectors do not match");
-  }
   for i in 0..a.len() {
     out += a[i] * b[i];
   }

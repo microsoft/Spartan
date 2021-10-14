@@ -1,7 +1,6 @@
 pub trait Math {
   fn square_root(self) -> usize;
   fn pow2(self) -> usize;
-  fn log2(self) -> usize;
   fn get_bits(self, num_bits: usize) -> Vec<bool>;
 }
 
@@ -15,11 +14,6 @@ impl Math for usize {
   fn pow2(self) -> usize {
     let base: usize = 2;
     base.pow(self as u32)
-  }
-
-  #[inline]
-  fn log2(self) -> usize {
-    (self as f64).log2() as usize
   }
 
   /// Returns the num_bits from n in a canonical order

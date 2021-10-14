@@ -89,7 +89,10 @@ impl DerefsEvalProof {
     transcript: &mut Transcript,
     random_tape: &mut RandomTape,
   ) -> PolyEvalProof {
-    assert_eq!(joint_poly.get_num_vars(), r.len() + evals.len().log2());
+    assert_eq!(
+      joint_poly.get_num_vars(),
+      r.len() + evals.len().log2() as usize
+    );
 
     // append the claimed evaluations to transcript
     evals.append_to_transcript(b"evals_ops_val", transcript);
@@ -97,7 +100,7 @@ impl DerefsEvalProof {
     // n-to-1 reduction
     let (r_joint, eval_joint) = {
       let challenges =
-        transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log2());
+        transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log2() as usize);
       let mut poly_evals = DensePolynomial::new(evals);
       for i in (0..challenges.len()).rev() {
         poly_evals.bound_poly_var_bot(&challenges[i]);
@@ -162,7 +165,8 @@ impl DerefsEvalProof {
     evals.append_to_transcript(b"evals_ops_val", transcript);
 
     // n-to-1 reduction
-    let challenges = transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log2());
+    let challenges =
+      transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log2() as usize);
     let mut poly_evals = DensePolynomial::new(evals);
     for i in (0..challenges.len()).rev() {
       poly_evals.bound_poly_var_bot(&challenges[i]);
@@ -175,7 +179,7 @@ impl DerefsEvalProof {
     // decommit the joint polynomial at r_joint
     joint_claim_eval.append_to_transcript(b"joint_claim_eval", transcript);
     assert!(proof
-      .verify_plain(gens, transcript, &r_joint, &joint_claim_eval, &comm)
+      .verify_plain(gens, transcript, &r_joint, &joint_claim_eval, comm)
       .is_ok());
 
     Ok(())
@@ -249,7 +253,7 @@ impl AddrTimestamps {
         audit_ts[addr] = w_ts;
       }
 
-      ops_addr_vec.push(DensePolynomial::from_usize(&ops_addr_inst));
+      ops_addr_vec.push(DensePolynomial::from_usize(ops_addr_inst));
       read_ts_vec.push(DensePolynomial::from_usize(&read_ts));
     }
 
@@ -302,15 +306,15 @@ impl SparseMatPolyCommitmentGens {
     num_nz_entries: usize,
     batch_size: usize,
   ) -> SparseMatPolyCommitmentGens {
-    let num_vars_ops =
-      num_nz_entries.next_power_of_two().log2() + (batch_size * 5).next_power_of_two().log2();
+    let num_vars_ops = num_nz_entries.next_power_of_two().log2() as usize
+      + (batch_size * 5).next_power_of_two().log2() as usize;
     let num_vars_mem = if num_vars_x > num_vars_y {
       num_vars_x
     } else {
       num_vars_y
     } + 1;
-    let num_vars_derefs =
-      num_nz_entries.next_power_of_two().log2() + (batch_size * 2).next_power_of_two().log2();
+    let num_vars_derefs = num_nz_entries.next_power_of_two().log2() as usize
+      + (batch_size * 2).next_power_of_two().log2() as usize;
 
     let gens_ops = PolyCommitmentGens::new(num_vars_ops, label);
     let gens_mem = PolyCommitmentGens::new(num_vars_mem, label);
@@ -511,14 +515,6 @@ impl MultiSparseMatPolynomialAsDense {
 }
 
 #[derive(Debug)]
-struct HashLayer {
-  init: DensePolynomial,
-  read_vec: Vec<DensePolynomial>,
-  write_vec: Vec<DensePolynomial>,
-  audit: DensePolynomial,
-}
-
-#[derive(Debug)]
 struct ProductLayer {
   init: ProductCircuit,
   read_vec: Vec<ProductCircuit>,
@@ -528,7 +524,6 @@ struct ProductLayer {
 
 #[derive(Debug)]
 struct Layers {
-  hash_layer: HashLayer,
   prod_layer: ProductLayer,
 }
 
@@ -623,7 +618,7 @@ impl Layers {
         poly_ops_val,
         &addr_timestamps.read_ts,
         &addr_timestamps.audit_ts,
-        &r_mem_check,
+        r_mem_check,
       );
 
     let prod_init = ProductCircuit::new(&poly_init_hashed);
@@ -655,13 +650,6 @@ impl Layers {
         read_vec: prod_read_vec,
         write_vec: prod_write_vec,
         audit: prod_audit,
-      },
-
-      hash_layer: HashLayer {
-        init: poly_init_hashed,
-        read_vec: poly_read_hashed_vec,
-        write_vec: poly_write_hashed_vec,
-        audit: poly_audit_hashed,
       },
     }
   }
@@ -747,16 +735,16 @@ impl HashLayerProof {
 
     // decommit derefs at rand_ops
     let eval_row_ops_val = (0..derefs.row_ops_val.len())
-      .map(|i| derefs.row_ops_val[i].evaluate(&rand_ops))
+      .map(|i| derefs.row_ops_val[i].evaluate(rand_ops))
       .collect::<Vec<Scalar>>();
     let eval_col_ops_val = (0..derefs.col_ops_val.len())
-      .map(|i| derefs.col_ops_val[i].evaluate(&rand_ops))
+      .map(|i| derefs.col_ops_val[i].evaluate(rand_ops))
       .collect::<Vec<Scalar>>();
     let proof_derefs = DerefsEvalProof::prove(
       derefs,
       &eval_row_ops_val,
       &eval_col_ops_val,
-      &rand_ops,
+      rand_ops,
       &gens.gens_derefs,
       transcript,
       random_tape,
@@ -766,11 +754,11 @@ impl HashLayerProof {
     // evaluate row_addr, row_read-ts, col_addr, col_read-ts, val at rand_ops
     // evaluate row_audit_ts and col_audit_ts at rand_mem
     let (eval_row_addr_vec, eval_row_read_ts_vec, eval_row_audit_ts) =
-      HashLayerProof::prove_helper((&rand_mem, &rand_ops), &dense.row);
+      HashLayerProof::prove_helper((rand_mem, rand_ops), &dense.row);
     let (eval_col_addr_vec, eval_col_read_ts_vec, eval_col_audit_ts) =
-      HashLayerProof::prove_helper((&rand_mem, &rand_ops), &dense.col);
+      HashLayerProof::prove_helper((rand_mem, rand_ops), &dense.col);
     let eval_val_vec = (0..dense.val.len())
-      .map(|i| dense.val[i].evaluate(&rand_ops))
+      .map(|i| dense.val[i].evaluate(rand_ops))
       .collect::<Vec<Scalar>>();
 
     // form a single decommitment using comm_comb_ops
@@ -782,8 +770,10 @@ impl HashLayerProof {
     evals_ops.extend(&eval_val_vec);
     evals_ops.resize(evals_ops.len().next_power_of_two(), Scalar::zero());
     evals_ops.append_to_transcript(b"claim_evals_ops", transcript);
-    let challenges_ops =
-      transcript.challenge_vector(b"challenge_combine_n_to_one", evals_ops.len().log2());
+    let challenges_ops = transcript.challenge_vector(
+      b"challenge_combine_n_to_one",
+      evals_ops.len().log2() as usize,
+    );
 
     let mut poly_evals_ops = DensePolynomial::new(evals_ops);
     for i in (0..challenges_ops.len()).rev() {
@@ -809,8 +799,10 @@ impl HashLayerProof {
     // form a single decommitment using comb_comb_mem at rand_mem
     let evals_mem: Vec<Scalar> = vec![eval_row_audit_ts, eval_col_audit_ts];
     evals_mem.append_to_transcript(b"claim_evals_mem", transcript);
-    let challenges_mem =
-      transcript.challenge_vector(b"challenge_combine_two_to_one", evals_mem.len().log2());
+    let challenges_mem = transcript.challenge_vector(
+      b"challenge_combine_two_to_one",
+      evals_mem.len().log2() as usize,
+    );
 
     let mut poly_evals_mem = DensePolynomial::new(evals_mem);
     for i in (0..challenges_mem.len()).rev() {
@@ -889,7 +881,7 @@ impl HashLayerProof {
     let eval_audit_addr = eval_init_addr;
     let eval_audit_val = eval_init_val;
     let hash_audit_at_rand_mem =
-      hash_func(&eval_audit_addr, &eval_audit_val, &eval_audit_ts) - r_multiset_check;
+      hash_func(&eval_audit_addr, &eval_audit_val, eval_audit_ts) - r_multiset_check;
     assert_eq!(&hash_audit_at_rand_mem, claim_audit); // verify the last step of the sum-check for audit
 
     Ok(())
@@ -921,9 +913,9 @@ impl HashLayerProof {
     assert!(self
       .proof_derefs
       .verify(
-        &rand_ops,
-        &eval_row_ops_val,
-        &eval_col_ops_val,
+        rand_ops,
+        eval_row_ops_val,
+        eval_col_ops_val,
         &gens.gens_derefs,
         comm_derefs,
         transcript
@@ -955,8 +947,10 @@ impl HashLayerProof {
     evals_ops.extend(eval_val_vec);
     evals_ops.resize(evals_ops.len().next_power_of_two(), Scalar::zero());
     evals_ops.append_to_transcript(b"claim_evals_ops", transcript);
-    let challenges_ops =
-      transcript.challenge_vector(b"challenge_combine_n_to_one", evals_ops.len().log2());
+    let challenges_ops = transcript.challenge_vector(
+      b"challenge_combine_n_to_one",
+      evals_ops.len().log2() as usize,
+    );
 
     let mut poly_evals_ops = DensePolynomial::new(evals_ops);
     for i in (0..challenges_ops.len()).rev() {
@@ -982,8 +976,10 @@ impl HashLayerProof {
     // form a single decommitment using comb_comb_mem at rand_mem
     let evals_mem: Vec<Scalar> = vec![*eval_row_audit_ts, *eval_col_audit_ts];
     evals_mem.append_to_transcript(b"claim_evals_mem", transcript);
-    let challenges_mem =
-      transcript.challenge_vector(b"challenge_combine_two_to_one", evals_mem.len().log2());
+    let challenges_mem = transcript.challenge_vector(
+      b"challenge_combine_two_to_one",
+      evals_mem.len().log2() as usize,
+    );
 
     let mut poly_evals_mem = DensePolynomial::new(evals_mem);
     for i in (0..challenges_mem.len()).rev() {
@@ -1009,11 +1005,11 @@ impl HashLayerProof {
     let (eval_ops_addr, eval_read_ts, eval_audit_ts) = &self.eval_row;
     assert!(HashLayerProof::verify_helper(
       &(rand_mem, rand_ops),
-      &claims_row,
-      &eval_row_ops_val,
-      &eval_ops_addr,
-      &eval_read_ts,
-      &eval_audit_ts,
+      claims_row,
+      eval_row_ops_val,
+      eval_ops_addr,
+      eval_read_ts,
+      eval_audit_ts,
       rx,
       r_hash,
       r_multiset_check,
@@ -1023,11 +1019,11 @@ impl HashLayerProof {
     let (eval_ops_addr, eval_read_ts, eval_audit_ts) = &self.eval_col;
     assert!(HashLayerProof::verify_helper(
       &(rand_mem, rand_ops),
-      &claims_col,
-      &eval_col_ops_val,
-      &eval_ops_addr,
-      &eval_read_ts,
-      &eval_audit_ts,
+      claims_col,
+      eval_col_ops_val,
+      eval_ops_addr,
+      eval_read_ts,
+      eval_audit_ts,
       ry,
       r_hash,
       r_multiset_check,
@@ -1523,7 +1519,7 @@ impl SparseMatPolyEvalProof {
       let timer_eval_network = Timer::new("evalproof_layered_network");
       let poly_eval_network_proof = PolyEvalNetworkProof::prove(
         &mut net,
-        &dense,
+        dense,
         &derefs,
         evals,
         gens,
@@ -1641,11 +1637,11 @@ mod tests {
   fn check_sparse_polyeval_proof() {
     let mut csprng: OsRng = OsRng;
 
-    let num_nz_entries = 256;
-    let num_rows = 256;
-    let num_cols = 256;
-    let num_vars_x = num_rows.log2();
-    let num_vars_y = num_cols.log2();
+    let num_nz_entries: usize = 256;
+    let num_rows: usize = 256;
+    let num_cols: usize = 256;
+    let num_vars_x: usize = num_rows.log2() as usize;
+    let num_vars_y: usize = num_cols.log2() as usize;
 
     let mut M: Vec<SparseMatEntry> = Vec::new();
 
@@ -1667,8 +1663,7 @@ mod tests {
     );
 
     // commitment
-    let (poly_comm, dense) =
-      SparseMatPolynomial::multi_commit(&vec![&poly_M, &poly_M, &poly_M], &gens);
+    let (poly_comm, dense) = SparseMatPolynomial::multi_commit(&[&poly_M, &poly_M, &poly_M], &gens);
 
     // evaluation
     let rx: Vec<Scalar> = (0..num_vars_x)
