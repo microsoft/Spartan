@@ -245,7 +245,6 @@ impl ProductCircuitEvalProof {
       // produce a random challenge
       let r_layer = transcript.challenge_scalar(b"challenge_r_layer");
       claim = (Scalar::one() - r_layer) * claims_prod[0] + r_layer * claims_prod[1];
-      //num_rounds += 1;
       let mut ext = vec![r_layer];
       ext.extend(rand_prod);
       rand = ext;
@@ -477,7 +476,6 @@ impl ProductCircuitEvalProofBatched {
         }
       }
 
-      //num_rounds += 1;
       let mut ext = vec![r_layer];
       ext.extend(rand_prod);
       rand = ext;
