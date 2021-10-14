@@ -443,7 +443,7 @@ impl ZKSumcheckInstanceProof {
       random_tape.random_vector(b"blinds_evals", num_rounds),
     );
     let mut claim_per_round = *claim;
-    let mut comm_claim_per_round = claim_per_round.commit(&blind_claim, &gens_1).compress();
+    let mut comm_claim_per_round = claim_per_round.commit(blind_claim, gens_1).compress();
 
     let mut r: Vec<Scalar> = Vec::new();
     let mut comm_polys: Vec<CompressedGroup> = Vec::new();
@@ -526,7 +526,7 @@ impl ZKSumcheckInstanceProof {
 
           w[0] * blind_sc + w[1] * blind_eval
         };
-        assert_eq!(target.commit(&blind, &gens_1).compress(), comm_target);
+        assert_eq!(target.commit(&blind, gens_1).compress(), comm_target);
 
         let a = {
           // the vector to use to decommit for sum-check test
@@ -606,7 +606,7 @@ impl ZKSumcheckInstanceProof {
     );
 
     let mut claim_per_round = *claim;
-    let mut comm_claim_per_round = claim_per_round.commit(&blind_claim, &gens_1).compress();
+    let mut comm_claim_per_round = claim_per_round.commit(blind_claim, gens_1).compress();
 
     let mut r: Vec<Scalar> = Vec::new();
     let mut comm_polys: Vec<CompressedGroup> = Vec::new();
@@ -717,7 +717,7 @@ impl ZKSumcheckInstanceProof {
           w[0] * blind_sc + w[1] * blind_eval
         };
 
-        assert_eq!(target.commit(&blind, &gens_1).compress(), comm_target);
+        assert_eq!(target.commit(&blind, gens_1).compress(), comm_target);
 
         let a = {
           // the vector to use to decommit for sum-check test

@@ -19,7 +19,7 @@ pub fn main() {
 
   println!("Profiler:: NIZK");
   for &s in inst_sizes.iter() {
-    let num_vars = (2 as usize).pow(s as u32);
+    let num_vars = (2_usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
 

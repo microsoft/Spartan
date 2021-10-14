@@ -5,7 +5,6 @@ use super::dense_mlpoly::{
 };
 use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
-use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
 use super::r1csinstance::R1CSInstance;
 use super::random::RandomTape;
@@ -64,7 +63,7 @@ pub struct R1CSGens {
 
 impl R1CSGens {
   pub fn new(label: &'static [u8], _num_cons: usize, num_vars: usize) -> Self {
-    let num_poly_vars = num_vars.log2();
+    let num_poly_vars = num_vars.log2() as usize;
     let gens_pc = PolyCommitmentGens::new(num_poly_vars, label);
     let gens_sc = R1CSSumcheckGens::new(label, &gens_pc.gens.gens_1);
     R1CSGens { gens_sc, gens_pc }
@@ -181,7 +180,8 @@ impl R1CSProof {
     };
 
     // derive the verifier's challenge tau
-    let (num_rounds_x, num_rounds_y) = (inst.get_num_cons().log2(), z.len().log2());
+    let (num_rounds_x, num_rounds_y) =
+      (inst.get_num_cons().log2() as usize, z.len().log2() as usize);
     let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
     // compute the initial evaluation table for R(\tau, x)
     let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
@@ -218,7 +218,7 @@ impl R1CSProof {
         &gens.gens_sc.gens_1,
         transcript,
         random_tape,
-        &Cz_claim,
+        Cz_claim,
         &Cz_blind,
       )
     };
@@ -229,9 +229,9 @@ impl R1CSProof {
         &gens.gens_sc.gens_1,
         transcript,
         random_tape,
-        &Az_claim,
+        Az_claim,
         &Az_blind,
-        &Bz_claim,
+        Bz_claim,
         &Bz_blind,
         &prod,
         &prod_Az_Bz_blind,
@@ -361,7 +361,7 @@ impl R1CSProof {
       .comm_vars
       .append_to_transcript(b"poly_commitment", transcript);
 
-    let (num_rounds_x, num_rounds_y) = (num_cons.log2(), (2 * num_vars).log2());
+    let (num_rounds_x, num_rounds_y) = (num_cons.log2() as usize, (2 * num_vars).log2() as usize);
 
     // derive the verifier's challenge tau
     let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
@@ -383,15 +383,15 @@ impl R1CSProof {
     let (pok_Cz_claim, proof_prod) = &self.pok_claims_phase2;
 
     assert!(pok_Cz_claim
-      .verify(&gens.gens_sc.gens_1, transcript, &comm_Cz_claim)
+      .verify(&gens.gens_sc.gens_1, transcript, comm_Cz_claim)
       .is_ok());
     assert!(proof_prod
       .verify(
         &gens.gens_sc.gens_1,
         transcript,
-        &comm_Az_claim,
-        &comm_Bz_claim,
-        &comm_prod_Az_Bz_claims
+        comm_Az_claim,
+        comm_Bz_claim,
+        comm_prod_Az_Bz_claims
       )
       .is_ok());
 
@@ -467,7 +467,8 @@ impl R1CSProof {
           .map(|i| SparsePolyEntry::new(i + 1, input[i]))
           .collect::<Vec<SparsePolyEntry>>(),
       );
-      SparsePolynomial::new(n.log2(), input_as_sparse_poly_entries).evaluate(&ry[1..].to_vec())
+      SparsePolynomial::new(n.log2() as usize, input_as_sparse_poly_entries)
+        .evaluate(&ry[1..].to_vec())
     };
 
     // compute commitment to eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
@@ -563,14 +564,14 @@ mod tests {
   fn test_tiny_r1cs() {
     let (inst, vars, input) = tests::produce_tiny_r1cs();
     let is_sat = inst.is_sat(&vars, &input);
-    assert_eq!(is_sat, true);
+    assert!(is_sat);
   }
 
   #[test]
   fn test_synthetic_r1cs() {
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(1024, 1024, 10);
     let is_sat = inst.is_sat(&vars, &input);
-    assert_eq!(is_sat, true);
+    assert!(is_sat);
   }
 
   #[test]

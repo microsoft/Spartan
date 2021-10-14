@@ -12,7 +12,7 @@ fn snark_encode_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("SNARK_encode_benchmark");
     group.plot_config(plot_config);
 
-    let num_vars = (2 as usize).pow(s as u32);
+    let num_vars = (2_usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
     let (inst, _vars, _inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
@@ -37,7 +37,7 @@ fn snark_prove_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("SNARK_prove_benchmark");
     group.plot_config(plot_config);
 
-    let num_vars = (2 as usize).pow(s as u32);
+    let num_vars = (2_usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
 
@@ -74,7 +74,7 @@ fn snark_verify_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("SNARK_verify_benchmark");
     group.plot_config(plot_config);
 
-    let num_vars = (2 as usize).pow(s as u32);
+    let num_vars = (2_usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);

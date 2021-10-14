@@ -2,7 +2,6 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, CompressedGroupExt};
-use super::math::Math;
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
@@ -37,7 +36,7 @@ impl KnowledgeProof {
     let t1 = random_tape.random_scalar(b"t1");
     let t2 = random_tape.random_scalar(b"t2");
 
-    let C = x.commit(&r, gens_n).compress();
+    let C = x.commit(r, gens_n).compress();
     C.append_to_transcript(b"C", transcript);
 
     let alpha = t1.commit(&t2, gens_n).compress();
@@ -99,10 +98,10 @@ impl EqualityProof {
     // produce a random Scalar
     let r = random_tape.random_scalar(b"r");
 
-    let C1 = v1.commit(&s1, gens_n).compress();
+    let C1 = v1.commit(s1, gens_n).compress();
     C1.append_to_transcript(b"C1", transcript);
 
-    let C2 = v2.commit(&s2, gens_n).compress();
+    let C2 = v2.commit(s2, gens_n).compress();
     C2.append_to_transcript(b"C2", transcript);
 
     let alpha = (r * gens_n.h).compress();
@@ -181,13 +180,13 @@ impl ProductProof {
     let b4 = random_tape.random_scalar(b"b4");
     let b5 = random_tape.random_scalar(b"b5");
 
-    let X = x.commit(&rX, gens_n).compress();
+    let X = x.commit(rX, gens_n).compress();
     X.append_to_transcript(b"X", transcript);
 
-    let Y = y.commit(&rY, gens_n).compress();
+    let Y = y.commit(rY, gens_n).compress();
     Y.append_to_transcript(b"Y", transcript);
 
-    let Z = z.commit(&rZ, gens_n).compress();
+    let Z = z.commit(rZ, gens_n).compress();
     Z.append_to_transcript(b"Z", transcript);
 
     let alpha = b1.commit(&b2, gens_n).compress();
@@ -237,7 +236,7 @@ impl ProductProof {
     z2: &Scalar,
   ) -> bool {
     let lhs = (P.decompress().unwrap() + c * X.decompress().unwrap()).compress();
-    let rhs = z1.commit(&z2, gens_n).compress();
+    let rhs = z1.commit(z2, gens_n).compress();
 
     lhs == rhs
   }
@@ -267,11 +266,11 @@ impl ProductProof {
 
     let c = transcript.challenge_scalar(b"c");
 
-    if ProductProof::check_equality(&self.alpha, &X, &c, &gens_n, &z1, &z2)
-      && ProductProof::check_equality(&self.beta, &Y, &c, &gens_n, &z3, &z4)
+    if ProductProof::check_equality(&self.alpha, X, &c, gens_n, &z1, &z2)
+      && ProductProof::check_equality(&self.beta, Y, &c, gens_n, &z3, &z4)
       && ProductProof::check_equality(
         &self.delta,
-        &Z,
+        Z,
         &c,
         &MultiCommitGens {
           n: 1,
@@ -331,16 +330,16 @@ impl DotProductProof {
     let r_delta = random_tape.random_scalar(b"r_delta");
     let r_beta = random_tape.random_scalar(b"r_beta");
 
-    let Cx = x_vec.commit(&blind_x, gens_n).compress();
+    let Cx = x_vec.commit(blind_x, gens_n).compress();
     Cx.append_to_transcript(b"Cx", transcript);
 
-    let Cy = y.commit(&blind_y, gens_1).compress();
+    let Cy = y.commit(blind_y, gens_1).compress();
     Cy.append_to_transcript(b"Cy", transcript);
 
     let delta = d_vec.commit(&r_delta, gens_n).compress();
     delta.append_to_transcript(b"delta", transcript);
 
-    let dotproduct_a_d = DotProductProof::compute_dotproduct(&a_vec, &d_vec);
+    let dotproduct_a_d = DotProductProof::compute_dotproduct(a_vec, &d_vec);
 
     let beta = dotproduct_a_d.commit(&r_beta, gens_1).compress();
     beta.append_to_transcript(b"beta", transcript);
@@ -390,7 +389,7 @@ impl DotProductProof {
     let mut result =
       c * Cx.unpack()? + self.delta.unpack()? == self.z.commit(&self.z_delta, gens_n);
 
-    let dotproduct_z_a = DotProductProof::compute_dotproduct(&self.z, &a);
+    let dotproduct_z_a = DotProductProof::compute_dotproduct(&self.z, a);
     result &= c * Cy.unpack()? + self.beta.unpack()? == dotproduct_z_a.commit(&self.z_beta, gens_1);
 
     if result {
@@ -454,17 +453,17 @@ impl DotProductProofLog {
     let r_delta = random_tape.random_scalar(b"r_delta");
     let r_beta = random_tape.random_scalar(b"r_delta");
     let blinds_vec = {
-      let v1 = random_tape.random_vector(b"blinds_vec_1", 2 * n.log2());
-      let v2 = random_tape.random_vector(b"blinds_vec_2", 2 * n.log2());
+      let v1 = random_tape.random_vector(b"blinds_vec_1", 2 * n.log2() as usize);
+      let v2 = random_tape.random_vector(b"blinds_vec_2", 2 * n.log2() as usize);
       (0..v1.len())
         .map(|i| (v1[i], v2[i]))
         .collect::<Vec<(Scalar, Scalar)>>()
     };
 
-    let Cx = x_vec.commit(&blind_x, &gens.gens_n).compress();
+    let Cx = x_vec.commit(blind_x, &gens.gens_n).compress();
     Cx.append_to_transcript(b"Cx", transcript);
 
-    let Cy = y.commit(&blind_y, &gens.gens_1).compress();
+    let Cy = y.commit(blind_y, &gens.gens_1).compress();
     Cy.append_to_transcript(b"Cy", transcript);
 
     let blind_Gamma = blind_x + blind_y;

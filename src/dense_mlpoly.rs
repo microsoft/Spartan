@@ -117,9 +117,11 @@ impl IdentityPolynomial {
 
 impl DensePolynomial {
   pub fn new(Z: Vec<Scalar>) -> Self {
-    let len = Z.len();
-    let num_vars = len.log2();
-    DensePolynomial { num_vars, Z, len }
+    DensePolynomial {
+      num_vars: Z.len().log2() as usize,
+      len: Z.len(),
+      Z,
+    }
   }
 
   pub fn get_num_vars(&self) -> usize {
@@ -143,7 +145,7 @@ impl DensePolynomial {
   }
 
   #[cfg(feature = "multicore")]
-  fn commit_inner(&self, blinds: &Vec<Scalar>, gens: &MultiCommitGens) -> PolyCommitment {
+  fn commit_inner(&self, blinds: &[Scalar], gens: &MultiCommitGens) -> PolyCommitment {
     let L_size = blinds.len();
     let R_size = self.Z.len() / L_size;
     assert_eq!(L_size * R_size, self.Z.len());
@@ -187,9 +189,9 @@ impl DensePolynomial {
     let R_size = right_num_vars.pow2();
     assert_eq!(L_size * R_size, n);
 
-    let blinds = if random_tape.is_some() {
+    let blinds = if let Some(t) = random_tape {
       PolyCommitmentBlinds {
-        blinds: random_tape.unwrap().random_vector(b"poly_blinds", L_size),
+        blinds: t.random_vector(b"poly_blinds", L_size),
       }
     } else {
       PolyCommitmentBlinds {
@@ -352,7 +354,7 @@ impl PolyEvalProof {
       &LZ,
       &LZ_blind,
       &R,
-      &Zr,
+      Zr,
       blind_Zr,
     );
 
@@ -404,7 +406,7 @@ mod tests {
   use super::*;
   use rand::rngs::OsRng;
 
-  fn evaluate_with_LR(Z: &Vec<Scalar>, r: &Vec<Scalar>) -> Scalar {
+  fn evaluate_with_LR(Z: &[Scalar], r: &[Scalar]) -> Scalar {
     let eq = EqPolynomial::new(r.to_vec());
     let (L, R) = eq.compute_factored_evals();
 
@@ -427,25 +429,26 @@ mod tests {
 
   #[test]
   fn check_polynomial_evaluation() {
-    let mut Z: Vec<Scalar> = Vec::new(); // Z = [1, 2, 1, 4]
-    Z.push(Scalar::one());
-    Z.push((2 as usize).to_scalar());
-    Z.push((1 as usize).to_scalar());
-    Z.push((4 as usize).to_scalar());
+    // Z = [1, 2, 1, 4]
+    let Z = vec![
+      Scalar::one(),
+      (2_usize).to_scalar(),
+      (1_usize).to_scalar(),
+      (4_usize).to_scalar(),
+    ];
+
     // r = [4,3]
-    let mut r: Vec<Scalar> = Vec::new();
-    r.push((4 as usize).to_scalar());
-    r.push((3 as usize).to_scalar());
+    let r = vec![(4_usize).to_scalar(), (3_usize).to_scalar()];
 
     let eval_with_LR = evaluate_with_LR(&Z, &r);
     let poly = DensePolynomial::new(Z);
 
     let eval = poly.evaluate(&r);
-    assert_eq!(eval, (28 as usize).to_scalar());
+    assert_eq!(eval, (28_usize).to_scalar());
     assert_eq!(eval_with_LR, eval);
   }
 
-  pub fn compute_factored_chis_at_r(r: &Vec<Scalar>) -> (Vec<Scalar>, Vec<Scalar>) {
+  pub fn compute_factored_chis_at_r(r: &[Scalar]) -> (Vec<Scalar>, Vec<Scalar>) {
     let mut L: Vec<Scalar> = Vec::new();
     let mut R: Vec<Scalar> = Vec::new();
 
@@ -484,7 +487,7 @@ mod tests {
     (L, R)
   }
 
-  pub fn compute_chis_at_r(r: &Vec<Scalar>) -> Vec<Scalar> {
+  pub fn compute_chis_at_r(r: &[Scalar]) -> Vec<Scalar> {
     let ell = r.len();
     let n = ell.pow2();
     let mut chis: Vec<Scalar> = Vec::new();
@@ -505,15 +508,12 @@ mod tests {
 
   pub fn compute_outerproduct(L: Vec<Scalar>, R: Vec<Scalar>) -> Vec<Scalar> {
     assert_eq!(L.len(), R.len());
-
-    let mut O: Vec<Scalar> = Vec::new();
-    let m = L.len();
-    for i in 0..m {
-      for j in 0..m {
-        O.push(L[i] * R[j]);
-      }
-    }
-    O
+    (0..L.len())
+      .map(|i| (0..R.len()).map(|j| L[i] * R[j]).collect::<Vec<Scalar>>())
+      .collect::<Vec<Vec<Scalar>>>()
+      .into_iter()
+      .flatten()
+      .collect::<Vec<Scalar>>()
   }
 
   #[test]
@@ -563,20 +563,18 @@ mod tests {
 
   #[test]
   fn check_polynomial_commit() {
-    let mut Z: Vec<Scalar> = Vec::new(); // Z = [1, 2, 1, 4]
-    Z.push((1 as usize).to_scalar());
-    Z.push((2 as usize).to_scalar());
-    Z.push((1 as usize).to_scalar());
-    Z.push((4 as usize).to_scalar());
-
+    let Z = vec![
+      (1_usize).to_scalar(),
+      (2_usize).to_scalar(),
+      (1_usize).to_scalar(),
+      (4_usize).to_scalar(),
+    ];
     let poly = DensePolynomial::new(Z);
 
     // r = [4,3]
-    let mut r: Vec<Scalar> = Vec::new();
-    r.push((4 as usize).to_scalar());
-    r.push((3 as usize).to_scalar());
+    let r = vec![(4_usize).to_scalar(), (3_usize).to_scalar()];
     let eval = poly.evaluate(&r);
-    assert_eq!(eval, (28 as usize).to_scalar());
+    assert_eq!(eval, (28_usize).to_scalar());
 
     let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
     let (poly_commitment, blinds) = poly.commit(&gens, None);
