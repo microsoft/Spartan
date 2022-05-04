@@ -382,18 +382,14 @@ impl R1CSProof {
     let (comm_Az_claim, comm_Bz_claim, comm_Cz_claim, comm_prod_Az_Bz_claims) = &self.claims_phase2;
     let (pok_Cz_claim, proof_prod) = &self.pok_claims_phase2;
 
-    assert!(pok_Cz_claim
-      .verify(&gens.gens_sc.gens_1, transcript, comm_Cz_claim)
-      .is_ok());
-    assert!(proof_prod
-      .verify(
-        &gens.gens_sc.gens_1,
-        transcript,
-        comm_Az_claim,
-        comm_Bz_claim,
-        comm_prod_Az_Bz_claims
-      )
-      .is_ok());
+    pok_Cz_claim.verify(&gens.gens_sc.gens_1, transcript, comm_Cz_claim)?;
+    proof_prod.verify(
+      &gens.gens_sc.gens_1,
+      transcript,
+      comm_Az_claim,
+      comm_Bz_claim,
+      comm_prod_Az_Bz_claims,
+    )?;
 
     comm_Az_claim.append_to_transcript(b"comm_Az_claim", transcript);
     comm_Bz_claim.append_to_transcript(b"comm_Bz_claim", transcript);
@@ -408,15 +404,12 @@ impl R1CSProof {
     .compress();
 
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
-    assert!(self
-      .proof_eq_sc_phase1
-      .verify(
-        &gens.gens_sc.gens_1,
-        transcript,
-        &expected_claim_post_phase1,
-        &comm_claim_post_phase1,
-      )
-      .is_ok());
+    self.proof_eq_sc_phase1.verify(
+      &gens.gens_sc.gens_1,
+      transcript,
+      &expected_claim_post_phase1,
+      &comm_claim_post_phase1,
+    )?;
 
     // derive three public challenges and then derive a joint claim
     let r_A = transcript.challenge_scalar(b"challenege_Az");
@@ -447,16 +440,13 @@ impl R1CSProof {
     )?;
 
     // verify Z(ry) proof against the initial commitment
-    assert!(self
-      .proof_eval_vars_at_ry
-      .verify(
-        &gens.gens_pc,
-        transcript,
-        &ry[1..].to_vec(),
-        &self.comm_vars_at_ry,
-        &self.comm_vars
-      )
-      .is_ok());
+    self.proof_eval_vars_at_ry.verify(
+      &gens.gens_pc,
+      transcript,
+      &ry[1..].to_vec(),
+      &self.comm_vars_at_ry,
+      &self.comm_vars,
+    )?;
 
     let poly_input_eval = {
       // constant term
@@ -484,15 +474,12 @@ impl R1CSProof {
     let expected_claim_post_phase2 =
       ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r) * comm_eval_Z_at_ry).compress();
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
-    assert!(self
-      .proof_eq_sc_phase2
-      .verify(
-        &gens.gens_sc.gens_1,
-        transcript,
-        &expected_claim_post_phase2,
-        &comm_claim_post_phase2,
-      )
-      .is_ok());
+    self.proof_eq_sc_phase2.verify(
+      &gens.gens_sc.gens_1,
+      transcript,
+      &expected_claim_post_phase2,
+      &comm_claim_post_phase2,
+    )?;
 
     Ok((rx, ry))
   }
