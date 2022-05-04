@@ -168,7 +168,9 @@ impl ZKSumcheckInstanceProof {
           )
           .is_ok()
       };
-      assert!(res);
+      if !res {
+        return Err(ProofVerifyError::InternalError);
+      }
 
       r.push(r_i);
     }

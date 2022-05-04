@@ -441,17 +441,14 @@ impl SNARK {
     Ar.append_to_transcript(b"Ar_claim", transcript);
     Br.append_to_transcript(b"Br_claim", transcript);
     Cr.append_to_transcript(b"Cr_claim", transcript);
-    assert!(self
-      .r1cs_eval_proof
-      .verify(
-        &comm.comm,
-        &rx,
-        &ry,
-        &self.inst_evals,
-        &gens.gens_r1cs_eval,
-        transcript
-      )
-      .is_ok());
+    self.r1cs_eval_proof.verify(
+      &comm.comm,
+      &rx,
+      &ry,
+      &self.inst_evals,
+      &gens.gens_r1cs_eval,
+      transcript,
+    )?;
     timer_eval_proof.stop();
     timer_verify.stop();
     Ok(())

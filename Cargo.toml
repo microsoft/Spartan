@@ -1,6 +1,6 @@
 [package]
 name = "spartan"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Srinath Setty <srinath@microsoft.com>"]
 edition = "2018"
 description = "High-speed zkSNARKs without trusted setup"

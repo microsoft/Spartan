@@ -9,7 +9,7 @@ use merlin::Transcript;
 
 fn print(msg: &str) {
   let star = "* ";
-  println!("{:indent$}{}{}", "", star, msg.to_string(), indent = 2);
+  println!("{:indent$}{}{}", "", star, msg, indent = 2);
 }
 
 pub fn main() {

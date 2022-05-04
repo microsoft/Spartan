@@ -178,11 +178,8 @@ impl DerefsEvalProof {
 
     // decommit the joint polynomial at r_joint
     joint_claim_eval.append_to_transcript(b"joint_claim_eval", transcript);
-    assert!(proof
-      .verify_plain(gens, transcript, &r_joint, &joint_claim_eval, comm)
-      .is_ok());
 
-    Ok(())
+    proof.verify_plain(gens, transcript, &r_joint, &joint_claim_eval, comm)
   }
 
   // verify evaluations of both polynomials at r
@@ -200,7 +197,7 @@ impl DerefsEvalProof {
     evals.extend(eval_col_ops_val_vec);
     evals.resize(evals.len().next_power_of_two(), Scalar::zero());
 
-    assert!(DerefsEvalProof::verify_single(
+    DerefsEvalProof::verify_single(
       &self.proof_derefs,
       &comm.comm_ops_val,
       r,
@@ -208,9 +205,6 @@ impl DerefsEvalProof {
       gens,
       transcript,
     )
-    .is_ok());
-
-    Ok(())
   }
 }
 
@@ -910,17 +904,14 @@ impl HashLayerProof {
     // verify derefs at rand_ops
     let (eval_row_ops_val, eval_col_ops_val) = &self.eval_derefs;
     assert_eq!(eval_row_ops_val.len(), eval_col_ops_val.len());
-    assert!(self
-      .proof_derefs
-      .verify(
-        rand_ops,
-        eval_row_ops_val,
-        eval_col_ops_val,
-        &gens.gens_derefs,
-        comm_derefs,
-        transcript
-      )
-      .is_ok());
+    self.proof_derefs.verify(
+      rand_ops,
+      eval_row_ops_val,
+      eval_col_ops_val,
+      &gens.gens_derefs,
+      comm_derefs,
+      transcript,
+    )?;
 
     // verify the decommitments used in evaluation sum-check
     let eval_val_vec = &self.eval_val;
@@ -990,20 +981,17 @@ impl HashLayerProof {
     let mut r_joint_mem = challenges_mem;
     r_joint_mem.extend(rand_mem);
     joint_claim_eval_mem.append_to_transcript(b"joint_claim_eval_mem", transcript);
-    assert!(self
-      .proof_mem
-      .verify_plain(
-        &gens.gens_mem,
-        transcript,
-        &r_joint_mem,
-        &joint_claim_eval_mem,
-        &comm.comm_comb_mem
-      )
-      .is_ok());
+    self.proof_mem.verify_plain(
+      &gens.gens_mem,
+      transcript,
+      &r_joint_mem,
+      &joint_claim_eval_mem,
+      &comm.comm_comb_mem,
+    )?;
 
     // verify the claims from the product layer
     let (eval_ops_addr, eval_read_ts, eval_audit_ts) = &self.eval_row;
-    assert!(HashLayerProof::verify_helper(
+    HashLayerProof::verify_helper(
       &(rand_mem, rand_ops),
       claims_row,
       eval_row_ops_val,
@@ -1013,11 +1001,10 @@ impl HashLayerProof {
       rx,
       r_hash,
       r_multiset_check,
-    )
-    .is_ok());
+    )?;
 
     let (eval_ops_addr, eval_read_ts, eval_audit_ts) = &self.eval_col;
-    assert!(HashLayerProof::verify_helper(
+    HashLayerProof::verify_helper(
       &(rand_mem, rand_ops),
       claims_col,
       eval_col_ops_val,
@@ -1027,8 +1014,7 @@ impl HashLayerProof {
       ry,
       r_hash,
       r_multiset_check,
-    )
-    .is_ok());
+    )?;
 
     timer.stop();
     Ok(())
@@ -1562,22 +1548,17 @@ impl SparseMatPolyEvalProof {
     // produce a random element from the transcript for hash function
     let r_mem_check = transcript.challenge_vector(b"challenge_r_hash", 2);
 
-    assert!(self
-      .poly_eval_network_proof
-      .verify(
-        comm,
-        &self.comm_derefs,
-        evals,
-        gens,
-        &rx_ext,
-        &ry_ext,
-        &(r_mem_check[0], r_mem_check[1]),
-        nz,
-        transcript,
-      )
-      .is_ok());
-
-    Ok(())
+    self.poly_eval_network_proof.verify(
+      comm,
+      &self.comm_derefs,
+      evals,
+      gens,
+      &rx_ext,
+      &ry_ext,
+      &(r_mem_check[0], r_mem_check[1]),
+      nz,
+      transcript,
+    )
   }
 }
 

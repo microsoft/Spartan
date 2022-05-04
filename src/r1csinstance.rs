@@ -336,18 +336,13 @@ impl R1CSEvalProof {
     gens: &R1CSCommitmentGens,
     transcript: &mut Transcript,
   ) -> Result<(), ProofVerifyError> {
-    assert!(self
-      .proof
-      .verify(
-        &comm.comm,
-        rx,
-        ry,
-        &[evals.0, evals.1, evals.2],
-        &gens.gens,
-        transcript
-      )
-      .is_ok());
-
-    Ok(())
+    self.proof.verify(
+      &comm.comm,
+      rx,
+      ry,
+      &[evals.0, evals.1, evals.2],
+      &gens.gens,
+      transcript,
+    )
   }
 }
