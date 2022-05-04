@@ -231,7 +231,7 @@ impl BulletReductionProof {
 /// Panics if the lengths of \\(\mathbf{a}\\) and \\(\mathbf{b}\\) are not equal.
 pub fn inner_product(a: &[Scalar], b: &[Scalar]) -> Scalar {
   assert!(
-    !(a.len() != b.len()),
+    a.len() == b.len(),
     "inner_product(a,b): lengths of vectors do not match"
   );
   let mut out = Scalar::zero();
