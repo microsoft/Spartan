@@ -1,7 +1,7 @@
 # Spartan: High-speed zkSNARKs without trusted setup
 
 ![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)
-[![](https://img.shields.io/crates/v/spartan.svg)]((https://crates.io/crates/curve25519-dalek))
+[![](https://img.shields.io/crates/v/spartan.svg)]((https://crates.io/crates/spartan))
 
 Spartan is a high-speed zero-knowledge proof system, a cryptographic primitive that enables a prover to prove a mathematical statement to a verifier without revealing anything besides the validity of the statement. This repository provides `libspartan,` a Rust library that implements a zero-knowledge succinct non-interactive argument of knowledge (zkSNARK), which is a type of zero-knowledge proof system with short proofs and fast verification times. The details of the Spartan proof system are described in our [paper](https://eprint.iacr.org/2019/550) published at [CRYPTO 2020](https://crypto.iacr.org/2020/). The security of the Spartan variant implemented in this library is based on the discrete logarithm problem in the random oracle model.
 
@@ -16,7 +16,7 @@ We now highlight Spartan's distinctive features.
 
 * **General-purpose:** Spartan produces proofs for arbitrary NP statements. `libspartan` supports NP statements expressed as rank-1 constraint satisfiability (R1CS) instances, a popular language for which there exists efficient transformations and compiler toolchains from high-level programs of interest.
 
-* **Sub-linear verification costs and linear-time proving costs:** Spartan is the first transparent proof system with sub-linear verification costs for arbitrary NP statements (e.g., R1CS). Spartan also features a linear-time prover, a property that has remained elusive for nearly all zkSNARKs in the literature.
+* **Sub-linear verification costs:** Spartan is the first transparent proof system with sub-linear verification costs for arbitrary NP statements (e.g., R1CS).
 
 * **Standardized security:** Spartan's security relies on the hardness of computing discrete logarithms (a standard cryptographic assumption) in the random oracle model. `libspartan` uses `ristretto255`, a prime-order group abstraction atop `curve25519` (a high-speed elliptic curve). We use [`curve25519-dalek`](https://docs.rs/curve25519-dalek) for arithmetic over `ristretto255`. 
 
