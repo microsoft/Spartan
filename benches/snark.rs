@@ -47,7 +47,7 @@ fn snark_prove_benchmark(c: &mut Criterion) {
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
     // produce a commitment to R1CS instance
-    let (_comm, decomm) = SNARK::encode(&inst, &gens);
+    let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof
     let name = format!("SNARK_prove_{}", num_cons);
@@ -56,6 +56,7 @@ fn snark_prove_benchmark(c: &mut Criterion) {
         let mut prover_transcript = Transcript::new(b"example");
         SNARK::prove(
           black_box(&inst),
+          black_box(&comm),
           black_box(&decomm),
           black_box(vars.clone()),
           black_box(&inputs),
@@ -87,7 +88,15 @@ fn snark_verify_benchmark(c: &mut Criterion) {
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = SNARK::prove(&inst, &decomm, vars, &inputs, &gens, &mut prover_transcript);
+    let proof = SNARK::prove(
+      &inst,
+      &comm,
+      &decomm,
+      vars,
+      &inputs,
+      &gens,
+      &mut prover_transcript,
+    );
 
     // verify the proof
     let name = format!("SNARK_verify_{}", num_cons);

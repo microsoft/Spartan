@@ -128,6 +128,7 @@ fn main() {
   let mut prover_transcript = Transcript::new(b"snark_example");
   let proof = SNARK::prove(
     &inst,
+    &comm,
     &decomm,
     assignment_vars,
     &assignment_inputs,

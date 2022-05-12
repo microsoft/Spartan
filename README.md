@@ -58,7 +58,7 @@ Some of our public APIs' style is inspired by the underlying crates we use.
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"snark_example");
-    let proof = SNARK::prove(&inst, &decomm, vars, &inputs, &gens, &mut prover_transcript);
+    let proof = SNARK::prove(&inst, &comm, &decomm, vars, &inputs, &gens, &mut prover_transcript);
 
     // verify the proof of satisfiability
     let mut verifier_transcript = Transcript::new(b"snark_example");
@@ -132,6 +132,7 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
   let mut prover_transcript = Transcript::new(b"snark_example");
   let proof = SNARK::prove(
     &inst,
+    &comm,
     &decomm,
     assignment_vars,
     &assignment_inputs,

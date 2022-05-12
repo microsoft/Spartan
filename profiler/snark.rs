@@ -33,7 +33,15 @@ pub fn main() {
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"snark_example");
-    let proof = SNARK::prove(&inst, &decomm, vars, &inputs, &gens, &mut prover_transcript);
+    let proof = SNARK::prove(
+      &inst,
+      &comm,
+      &decomm,
+      vars,
+      &inputs,
+      &gens,
+      &mut prover_transcript,
+    );
 
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
     bincode::serialize_into(&mut encoder, &proof).unwrap();
