@@ -336,6 +336,7 @@ impl SNARK {
   /// A method to produce a SNARK proof of the satisfiability of an R1CS instance
   pub fn prove(
     inst: &Instance,
+    comm: &ComputationCommitment,
     decomm: &ComputationDecommitment,
     vars: VarsAssignment,
     inputs: &InputsAssignment,
@@ -347,7 +348,10 @@ impl SNARK {
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
     let mut random_tape = RandomTape::new(b"proof");
+
     transcript.append_protocol_name(SNARK::protocol_name());
+    comm.comm.append_to_transcript(b"comm", transcript);
+
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = {
         // we might need to pad variables
@@ -423,6 +427,9 @@ impl SNARK {
   ) -> Result<(), ProofVerifyError> {
     let timer_verify = Timer::new("SNARK::verify");
     transcript.append_protocol_name(SNARK::protocol_name());
+
+    // append a commitment to the computation to the transcript
+    comm.comm.append_to_transcript(b"comm", transcript);
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
@@ -500,7 +507,10 @@ impl NIZK {
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
     let mut random_tape = RandomTape::new(b"proof");
+
     transcript.append_protocol_name(NIZK::protocol_name());
+    inst.inst.append_to_transcript(b"inst", transcript);
+
     let (r1cs_sat_proof, rx, ry) = {
       // we might need to pad variables
       let padded_vars = {
@@ -544,6 +554,7 @@ impl NIZK {
     let timer_verify = Timer::new("NIZK::verify");
 
     transcript.append_protocol_name(NIZK::protocol_name());
+    inst.inst.append_to_transcript(b"inst", transcript);
 
     // We send evaluations of A, B, C at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
@@ -594,7 +605,15 @@ mod tests {
 
     // produce a proof
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = SNARK::prove(&inst, &decomm, vars, &inputs, &gens, &mut prover_transcript);
+    let proof = SNARK::prove(
+      &inst,
+      &comm,
+      &decomm,
+      vars,
+      &inputs,
+      &gens,
+      &mut prover_transcript,
+    );
 
     // verify the proof
     let mut verifier_transcript = Transcript::new(b"example");
@@ -696,6 +715,7 @@ mod tests {
     let mut prover_transcript = Transcript::new(b"snark_example");
     let proof = SNARK::prove(
       &inst,
+      &comm,
       &decomm,
       assignment_vars.clone(),
       &assignment_inputs,

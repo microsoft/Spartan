@@ -16,7 +16,7 @@ use core::cmp::Ordering;
 use merlin::Transcript;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SparseMatEntry {
   row: usize,
   col: usize,
@@ -29,7 +29,7 @@ impl SparseMatEntry {
   }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct SparseMatPolynomial {
   num_vars_x: usize,
   num_vars_y: usize,
@@ -328,6 +328,20 @@ pub struct SparseMatPolyCommitment {
   num_mem_cells: usize,
   comm_comb_ops: PolyCommitment,
   comm_comb_mem: PolyCommitment,
+}
+
+impl AppendToTranscript for SparseMatPolyCommitment {
+  fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
+    transcript.append_u64(b"batch_size", self.batch_size as u64);
+    transcript.append_u64(b"num_ops", self.num_ops as u64);
+    transcript.append_u64(b"num_mem_cells", self.num_mem_cells as u64);
+    self
+      .comm_comb_ops
+      .append_to_transcript(b"comm_comb_ops", transcript);
+    self
+      .comm_comb_mem
+      .append_to_transcript(b"comm_comb_mem", transcript);
+  }
 }
 
 impl SparseMatPolynomial {

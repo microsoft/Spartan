@@ -1,3 +1,5 @@
+use crate::transcript::AppendToTranscript;
+
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 use super::math::Math;
@@ -8,11 +10,12 @@ use super::sparse_mlpoly::{
   SparseMatPolyCommitmentGens, SparseMatPolyEvalProof, SparseMatPolynomial,
 };
 use super::timer::Timer;
+use flate2::{write::ZlibEncoder, Compression};
 use merlin::Transcript;
 use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct R1CSInstance {
   num_cons: usize,
   num_vars: usize,
@@ -20,6 +23,15 @@ pub struct R1CSInstance {
   A: SparseMatPolynomial,
   B: SparseMatPolynomial,
   C: SparseMatPolynomial,
+}
+
+impl AppendToTranscript for R1CSInstance {
+  fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    bincode::serialize_into(&mut encoder, &self).unwrap();
+    let bytes = encoder.finish().unwrap();
+    transcript.append_message(b"R1CSInstance", &bytes);
+  }
 }
 
 pub struct R1CSCommitmentGens {
@@ -43,11 +55,21 @@ impl R1CSCommitmentGens {
   }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
 pub struct R1CSCommitment {
   num_cons: usize,
   num_vars: usize,
   num_inputs: usize,
   comm: SparseMatPolyCommitment,
+}
+
+impl AppendToTranscript for R1CSCommitment {
+  fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
+    transcript.append_u64(b"num_cons", self.num_cons as u64);
+    transcript.append_u64(b"num_vars", self.num_vars as u64);
+    transcript.append_u64(b"num_inputs", self.num_inputs as u64);
+    self.comm.append_to_transcript(b"comm", transcript);
+  }
 }
 
 pub struct R1CSDecommitment {
