@@ -152,6 +152,8 @@ impl R1CSProof {
     // we currently require the number of |inputs| + 1 to be at most number of vars
     assert!(input.len() < vars.len());
 
+    input.append_to_transcript(b"input", transcript);
+
     let timer_commit = Timer::new("polycommit");
     let (poly_vars, comm_vars, blinds_vars) = {
       // create a multilinear polynomial using the supplied assignment for variables
@@ -354,6 +356,8 @@ impl R1CSProof {
     gens: &R1CSGens,
   ) -> Result<(Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
     transcript.append_protocol_name(R1CSProof::protocol_name());
+
+    input.append_to_transcript(b"input", transcript);
 
     let n = num_vars;
     // add the commitment to the verifier's transcript

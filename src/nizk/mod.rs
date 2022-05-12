@@ -336,6 +336,8 @@ impl DotProductProof {
     let Cy = y.commit(blind_y, gens_1).compress();
     Cy.append_to_transcript(b"Cy", transcript);
 
+    a_vec.append_to_transcript(b"a", transcript);
+
     let delta = d_vec.commit(&r_delta, gens_n).compress();
     delta.append_to_transcript(b"delta", transcript);
 
@@ -381,6 +383,7 @@ impl DotProductProof {
     transcript.append_protocol_name(DotProductProof::protocol_name());
     Cx.append_to_transcript(b"Cx", transcript);
     Cy.append_to_transcript(b"Cy", transcript);
+    a.append_to_transcript(b"a", transcript);
     self.delta.append_to_transcript(b"delta", transcript);
     self.beta.append_to_transcript(b"beta", transcript);
 
@@ -466,6 +469,8 @@ impl DotProductProofLog {
     let Cy = y.commit(blind_y, &gens.gens_1).compress();
     Cy.append_to_transcript(b"Cy", transcript);
 
+    a_vec.append_to_transcript(b"a", transcript);
+
     let blind_Gamma = blind_x + blind_y;
     let (bullet_reduction_proof, _Gamma_hat, x_hat, a_hat, g_hat, rhat_Gamma) =
       BulletReductionProof::prove(
@@ -526,6 +531,7 @@ impl DotProductProofLog {
     transcript.append_protocol_name(DotProductProofLog::protocol_name());
     Cx.append_to_transcript(b"Cx", transcript);
     Cy.append_to_transcript(b"Cy", transcript);
+    a.append_to_transcript(b"a", transcript);
 
     let Gamma = Cx.unpack()? + Cy.unpack()?;
 
