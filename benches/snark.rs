@@ -88,7 +88,15 @@ fn snark_verify_benchmark(c: &mut Criterion) {
 
     // produce a proof of satisfiability
     let mut prover_transcript = Transcript::new(b"example");
-    let proof = SNARK::prove(&inst, &comm, &decomm, vars, &inputs, &gens, &mut prover_transcript);
+    let proof = SNARK::prove(
+      &inst,
+      &comm,
+      &decomm,
+      vars,
+      &inputs,
+      &gens,
+      &mut prover_transcript,
+    );
 
     // verify the proof
     let name = format!("SNARK_verify_{}", num_cons);
