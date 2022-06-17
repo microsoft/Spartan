@@ -11,7 +11,7 @@ use core::fmt;
 use core::iter::{Product, Sum};
 use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use rand_core::{CryptoRng, RngCore};
-use serde::{Deserialize, Serialize};
+use ark_serialize::*;
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
 use zeroize::Zeroize;
 
@@ -196,7 +196,7 @@ macro_rules! impl_binops_multiplicative {
 // The internal representation of this type is four 64-bit unsigned
 // integers in little-endian order. `Scalar` values are always in
 // Montgomery form; i.e., Scalar(a) = aR mod q, with R = 2^256.
-#[derive(Clone, Copy, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Eq, CanonicalSerialize, CanonicalDeserialize)]
 pub struct Scalar(pub(crate) [u64; 4]);
 
 impl fmt::Debug for Scalar {
@@ -634,7 +634,7 @@ impl Scalar {
     debug_assert!(acc != Scalar::zero());
 
     // Compute the inverse of all products
-    acc = acc.invert().unwrap();
+    acc = acc.inverse().unwrap();
 
     // We need to return the product of all inverses later
     let ret = acc;
@@ -1140,14 +1140,14 @@ mod tests {
 
   #[test]
   fn test_inversion() {
-    assert_eq!(Scalar::zero().invert().is_none().unwrap_u8(), 1);
-    assert_eq!(Scalar::one().invert().unwrap(), Scalar::one());
-    assert_eq!((-&Scalar::one()).invert().unwrap(), -&Scalar::one());
+    assert_eq!(Scalar::zero().inverse().is_none().unwrap_u8(), 1);
+    assert_eq!(Scalar::one().inverse().unwrap(), Scalar::one());
+    assert_eq!((-&Scalar::one()).inverse().unwrap(), -&Scalar::one());
 
     let mut tmp = R2;
 
     for _ in 0..100 {
-      let mut tmp2 = tmp.invert().unwrap();
+      let mut tmp2 = tmp.inverse().unwrap();
       tmp2.mul_assign(&tmp);
 
       assert_eq!(tmp2, Scalar::one());
@@ -1170,7 +1170,7 @@ mod tests {
     let mut r3 = R;
 
     for _ in 0..100 {
-      r1 = r1.invert().unwrap();
+      r1 = r1.inverse().unwrap();
       r2 = r2.pow_vartime(&q_minus_2);
       r3 = r3.pow(&q_minus_2);
 

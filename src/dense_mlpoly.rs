@@ -9,7 +9,10 @@ use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::ops::Index;
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+use ark_serialize::*;
+use ark_ff::{One,Zero};
+
+
 
 #[cfg(feature = "multicore")]
 use rayon::prelude::*;
@@ -38,12 +41,12 @@ pub struct PolyCommitmentBlinds {
   blinds: Vec<Scalar>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct PolyCommitment {
   C: Vec<CompressedGroup>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct ConstPolyCommitment {
   C: CompressedGroup,
 }
@@ -296,7 +299,7 @@ impl AppendToTranscript for PolyCommitment {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct PolyEvalProof {
   proof: DotProductProofLog,
 }
@@ -402,9 +405,8 @@ impl PolyEvalProof {
 
 #[cfg(test)]
 mod tests {
-  use super::super::scalar::ScalarFromPrimitives;
   use super::*;
-  use rand::rngs::OsRng;
+  use ark_std::{UniformRand};
 
   fn evaluate_with_LR(Z: &[Scalar], r: &[Scalar]) -> Scalar {
     let eq = EqPolynomial::new(r.to_vec());
@@ -432,19 +434,19 @@ mod tests {
     // Z = [1, 2, 1, 4]
     let Z = vec![
       Scalar::one(),
-      (2_usize).to_scalar(),
-      (1_usize).to_scalar(),
-      (4_usize).to_scalar(),
+      Scalar::from(2),
+      Scalar::from(1),
+      Scalar::from(4)
     ];
 
     // r = [4,3]
-    let r = vec![(4_usize).to_scalar(), (3_usize).to_scalar()];
+    let r = vec![Scalar::from(4), Scalar::from(3)];
 
     let eval_with_LR = evaluate_with_LR(&Z, &r);
     let poly = DensePolynomial::new(Z);
 
     let eval = poly.evaluate(&r);
-    assert_eq!(eval, (28_usize).to_scalar());
+    assert_eq!(eval, Scalar::from(28));
     assert_eq!(eval_with_LR, eval);
   }
 
@@ -518,12 +520,12 @@ mod tests {
 
   #[test]
   fn check_memoized_chis() {
-    let mut csprng: OsRng = OsRng;
+    let mut rng = ark_std::rand::thread_rng();
 
     let s = 10;
     let mut r: Vec<Scalar> = Vec::new();
     for _i in 0..s {
-      r.push(Scalar::random(&mut csprng));
+      r.push(Scalar::rand(&mut rng));
     }
     let chis = tests::compute_chis_at_r(&r);
     let chis_m = EqPolynomial::new(r).evals();
@@ -532,12 +534,12 @@ mod tests {
 
   #[test]
   fn check_factored_chis() {
-    let mut csprng: OsRng = OsRng;
+    let mut rng = ark_std::rand::thread_rng();
 
     let s = 10;
     let mut r: Vec<Scalar> = Vec::new();
     for _i in 0..s {
-      r.push(Scalar::random(&mut csprng));
+      r.push(Scalar::rand(&mut rng));
     }
     let chis = EqPolynomial::new(r.clone()).evals();
     let (L, R) = EqPolynomial::new(r).compute_factored_evals();
@@ -547,12 +549,12 @@ mod tests {
 
   #[test]
   fn check_memoized_factored_chis() {
-    let mut csprng: OsRng = OsRng;
+    let mut rng = ark_std::rand::thread_rng();
 
     let s = 10;
     let mut r: Vec<Scalar> = Vec::new();
     for _i in 0..s {
-      r.push(Scalar::random(&mut csprng));
+      r.push(Scalar::rand(&mut rng));
     }
     let (L, R) = tests::compute_factored_chis_at_r(&r);
     let eq = EqPolynomial::new(r);
@@ -564,17 +566,17 @@ mod tests {
   #[test]
   fn check_polynomial_commit() {
     let Z = vec![
-      (1_usize).to_scalar(),
-      (2_usize).to_scalar(),
-      (1_usize).to_scalar(),
-      (4_usize).to_scalar(),
+      Scalar::from(1),
+      Scalar::from(2),
+      Scalar::from(1),
+      Scalar::from(4)
     ];
     let poly = DensePolynomial::new(Z);
 
     // r = [4,3]
-    let r = vec![(4_usize).to_scalar(), (3_usize).to_scalar()];
+    let r = vec![Scalar::from(4), Scalar::from(3)];
     let eval = poly.evaluate(&r);
-    assert_eq!(eval, (28_usize).to_scalar());
+    assert_eq!(eval, Scalar::from(28));
 
     let gens = PolyCommitmentGens::new(poly.get_num_vars(), b"test-two");
     let (poly_commitment, blinds) = poly.commit(&gens, None);

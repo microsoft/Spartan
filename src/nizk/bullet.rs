@@ -9,9 +9,11 @@ use super::super::scalar::Scalar;
 use super::super::transcript::ProofTranscript;
 use core::iter;
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+use ark_serialize::*;
+use ark_ff::{Field, fields};
+use ark_std::{One, Zero}; 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct BulletReductionProof {
   L_vec: Vec<CompressedGroup>,
   R_vec: Vec<CompressedGroup>,
@@ -99,7 +101,7 @@ impl BulletReductionProof {
       transcript.append_point(b"R", &R.compress());
 
       let u = transcript.challenge_scalar(b"u");
-      let u_inv = u.invert().unwrap();
+      let u_inv = u.inverse().unwrap();
 
       for i in 0..n {
         a_L[i] = a_L[i] * u + u_inv * a_R[i];
@@ -158,7 +160,7 @@ impl BulletReductionProof {
 
     // 2. Compute 1/(u_k...u_1) and 1/u_k, ..., 1/u_1
     let mut challenges_inv = challenges.clone();
-    let allinv = Scalar::batch_invert(&mut challenges_inv);
+    let allinv = ark_ff::fields::batch_inversion(&mut challenges_inv);
 
     // 3. Compute u_i^2 and (1/u_i)^2
     for i in 0..lg_n {

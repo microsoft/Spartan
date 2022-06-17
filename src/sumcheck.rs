@@ -12,9 +12,10 @@ use super::unipoly::{CompressedUniPoly, UniPoly};
 use core::iter;
 use itertools::izip;
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+use ark_serialize::*;
+use ark_ff::{One,Zero};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct SumcheckInstanceProof {
   compressed_polys: Vec<CompressedUniPoly>,
 }
@@ -61,7 +62,7 @@ impl SumcheckInstanceProof {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct ZKSumcheckInstanceProof {
   comm_polys: Vec<CompressedGroup>,
   comm_evals: Vec<CompressedGroup>,
