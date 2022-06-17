@@ -8,7 +8,7 @@
 //! `(Z3 + 5) * 1 - I0 = 0`
 //!
 //! [here]: https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649
-use curve25519_dalek::scalar::Scalar;
+use ark_bls12_377::Fr as Scalar;
 use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
 use merlin::Transcript;
 use rand::rngs::OsRng;
@@ -71,8 +71,8 @@ fn produce_r1cs() -> (
   let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
 
   // compute a satisfying assignment
-  let mut csprng: OsRng = OsRng;
-  let z0 = Scalar::random(&mut csprng);
+let mut rng = ark_std::rand::thread_rng();
+  let z0 = Scalar::rand(&mut rng);
   let z1 = z0 * z0; // constraint 0
   let z2 = z1 * z0; // constraint 1
   let z3 = z2 + z0; // constraint 2

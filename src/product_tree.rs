@@ -5,7 +5,8 @@ use super::scalar::Scalar;
 use super::sumcheck::SumcheckInstanceProof;
 use super::transcript::ProofTranscript;
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+use ark_serialize::*;
+use ark_std::{One};
 
 #[derive(Debug)]
 pub struct ProductCircuit {
@@ -107,7 +108,7 @@ impl DotProductCircuit {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct LayerProof {
   pub proof: SumcheckInstanceProof,
   pub claims: Vec<Scalar>,
@@ -130,7 +131,7 @@ impl LayerProof {
 }
 
 #[allow(dead_code)]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct LayerProofBatched {
   pub proof: SumcheckInstanceProof,
   pub claims_prod_left: Vec<Scalar>,
@@ -153,12 +154,12 @@ impl LayerProofBatched {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct ProductCircuitEvalProof {
   proof: Vec<LayerProof>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct ProductCircuitEvalProofBatched {
   proof: Vec<LayerProofBatched>,
   claims_dotp: (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>),

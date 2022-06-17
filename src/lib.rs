@@ -9,9 +9,10 @@ extern crate core;
 extern crate curve25519_dalek;
 extern crate digest;
 extern crate merlin;
-extern crate rand;
 extern crate sha3;
 extern crate test;
+extern crate lazy_static;
+extern crate ark_std;
 
 #[cfg(feature = "multicore")]
 extern crate rayon;
@@ -42,7 +43,7 @@ use r1csinstance::{
 use r1csproof::{R1CSGens, R1CSProof};
 use random::RandomTape;
 use scalar::Scalar;
-use serde::{Deserialize, Serialize};
+use ark_serialize::*;
 use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
 
@@ -307,7 +308,7 @@ impl SNARKGens {
 }
 
 /// `SNARK` holds a proof produced by Spartan SNARK
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct SNARK {
   r1cs_sat_proof: R1CSProof,
   inst_evals: (Scalar, Scalar, Scalar),
@@ -484,7 +485,7 @@ impl NIZKGens {
 }
 
 /// `NIZK` holds a proof produced by Spartan NIZK
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct NIZK {
   r1cs_sat_proof: R1CSProof,
   r: (Vec<Scalar>, Vec<Scalar>),

@@ -1,33 +1,37 @@
 # Spartan: High-speed zkSNARKs without trusted setup
 
 ![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)
-[![](https://img.shields.io/crates/v/spartan.svg)]((https://crates.io/crates/spartan))
+[![](https://img.shields.io/crates/v/spartan.svg)](<(https://crates.io/crates/spartan)>)
 
 Spartan is a high-speed zero-knowledge proof system, a cryptographic primitive that enables a prover to prove a mathematical statement to a verifier without revealing anything besides the validity of the statement. This repository provides `libspartan,` a Rust library that implements a zero-knowledge succinct non-interactive argument of knowledge (zkSNARK), which is a type of zero-knowledge proof system with short proofs and fast verification times. The details of the Spartan proof system are described in our [paper](https://eprint.iacr.org/2019/550) published at [CRYPTO 2020](https://crypto.iacr.org/2020/). The security of the Spartan variant implemented in this library is based on the discrete logarithm problem in the random oracle model.
 
 A simple example application is proving the knowledge of a secret s such that H(s) == d for a public d, where H is a cryptographic hash function (e.g., SHA-256, Keccak). A more complex application is a database-backed cloud service that produces proofs of correct state machine transitions for auditability. See this [paper](https://eprint.iacr.org/2020/758.pdf) for an overview and this [paper](https://eprint.iacr.org/2018/907.pdf) for details.
 
-Note that this library has *not* received a security review or audit.
+Note that this library has _not_ received a security review or audit.
 
 ## Highlights
+
 We now highlight Spartan's distinctive features.
 
-* **No "toxic" waste:** Spartan is a *transparent* zkSNARK and does not require a trusted setup. So, it does not involve any trapdoors that must be kept secret or require a multi-party ceremony to produce public parameters.
+- **No "toxic" waste:** Spartan is a _transparent_ zkSNARK and does not require a trusted setup. So, it does not involve any trapdoors that must be kept secret or require a multi-party ceremony to produce public parameters.
 
-* **General-purpose:** Spartan produces proofs for arbitrary NP statements. `libspartan` supports NP statements expressed as rank-1 constraint satisfiability (R1CS) instances, a popular language for which there exists efficient transformations and compiler toolchains from high-level programs of interest.
+- **General-purpose:** Spartan produces proofs for arbitrary NP statements. `libspartan` supports NP statements expressed as rank-1 constraint satisfiability (R1CS) instances, a popular language for which there exists efficient transformations and compiler toolchains from high-level programs of interest.
 
-* **Sub-linear verification costs:** Spartan is the first transparent proof system with sub-linear verification costs for arbitrary NP statements (e.g., R1CS).
+- **Sub-linear verification costs:** Spartan is the first transparent proof system with sub-linear verification costs for arbitrary NP statements (e.g., R1CS).
 
-* **Standardized security:** Spartan's security relies on the hardness of computing discrete logarithms (a standard cryptographic assumption) in the random oracle model. `libspartan` uses `ristretto255`, a prime-order group abstraction atop `curve25519` (a high-speed elliptic curve). We use [`curve25519-dalek`](https://docs.rs/curve25519-dalek) for arithmetic over `ristretto255`. 
+- **Standardized security:** Spartan's security relies on the hardness of computing discrete logarithms (a standard cryptographic assumption) in the random oracle model. `libspartan` uses `ristretto255`, a prime-order group abstraction atop `curve25519` (a high-speed elliptic curve). We use [`curve25519-dalek`](https://docs.rs/curve25519-dalek) for arithmetic over `ristretto255`.
 
-* **State-of-the-art performance:** 
-Among transparent SNARKs, Spartan offers the fastest prover with speedups of 36–152× depending on the baseline, produces proofs that are shorter by 1.2–416×, and incurs the lowest verification times with speedups of 3.6–1326×. The only exception is proof sizes under Bulletproofs, but Bulletproofs incurs slower verification both asymptotically and concretely. When compared to the state-of-the-art zkSNARK with trusted setup, Spartan’s prover is 2× faster for arbitrary R1CS instances and 16× faster for data-parallel workloads.
+- **State-of-the-art performance:**
+  Among transparent SNARKs, Spartan offers the fastest prover with speedups of 36–152× depending on the baseline, produces proofs that are shorter by 1.2–416×, and incurs the lowest verification times with speedups of 3.6–1326×. The only exception is proof sizes under Bulletproofs, but Bulletproofs incurs slower verification both asymptotically and concretely. When compared to the state-of-the-art zkSNARK with trusted setup, Spartan’s prover is 2× faster for arbitrary R1CS instances and 16× faster for data-parallel workloads.
 
 ### Implementation details
-`libspartan` uses [`merlin`](https://docs.rs/merlin/) to automate the Fiat-Shamir transform. We also introduce a new type called `RandomTape` that extends a `Transcript` in `merlin` to allow the prover's internal methods to produce private randomness using its private transcript without having to create `OsRng` objects throughout the code. An object of type `RandomTape` is initialized with a new random seed from `OsRng` for each proof produced by the library. 
+
+`libspartan` uses [`merlin`](https://docs.rs/merlin/) to automate the Fiat-Shamir transform. We also introduce a new type called `RandomTape` that extends a `Transcript` in `merlin` to allow the prover's internal methods to produce private randomness using its private transcript without having to create `OsRng` objects throughout the code. An object of type `RandomTape` is initialized with a new random seed from `OsRng` for each proof produced by the library.
 
 ## Examples
+
 To import `libspartan` into your Rust project, add the following dependency to `Cargo.toml`:
+
 ```text
 spartan = "0.4.1"
 ```
@@ -70,6 +74,7 @@ Some of our public APIs' style is inspired by the underlying crates we use.
 ```
 
 Here is another example to use the NIZK variant of the Spartan proof system:
+
 ```rust
 # extern crate libspartan;
 # extern crate merlin;
@@ -101,6 +106,7 @@ Here is another example to use the NIZK variant of the Spartan proof system:
 ```
 
 Finally, we provide an example that specifies a custom R1CS instance instead of using a synthetic instance
+
 ```rust
 #![allow(non_snake_case)]
 # extern crate curve25519_dalek;
@@ -182,7 +188,7 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
   // a variable that holds a byte representation of 1
   let one = Scalar::one().to_bytes();
 
-  // R1CS is a set of three sparse matrices A B C, where is a row for every 
+  // R1CS is a set of three sparse matrices A B C, where is a row for every
   // constraint and a column for every entry in z = (vars, 1, inputs)
   // An R1CS instance is satisfiable iff:
   // Az \circ Bz = Cz, where z = (vars, 1, inputs)
@@ -210,11 +216,11 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
   let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
 
   // compute a satisfying assignment
-  let mut csprng: OsRng = OsRng;
-  let i0 = Scalar::random(&mut csprng);
-  let i1 = Scalar::random(&mut csprng);
-  let z0 = Scalar::random(&mut csprng);
-  let z1 = Scalar::random(&mut csprng);
+let mut rng = ark_std::rand::thread_rng();
+  let i0 = Scalar::rand(&mut rng);
+  let i1 = Scalar::rand(&mut rng);
+  let z0 = Scalar::rand(&mut rng);
+  let z1 = Scalar::rand(&mut rng);
   let z2 = (z0 + z1) * i0; // constraint 0
   let z3 = (z0 + i1) * z2; // constraint 1
   let z4 = Scalar::zero(); //constraint 2
@@ -233,7 +239,7 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
   inputs[0] = i0.to_bytes();
   inputs[1] = i1.to_bytes();
   let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
-  
+
   // check if the instance we created is satisfiable
   let res = inst.is_sat(&assignment_vars, &assignment_inputs);
   assert_eq!(res.unwrap(), true);
@@ -253,30 +259,36 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 For more examples, see [`examples/`](examples) directory in this repo.
 
 ## Building `libspartan`
+
 Install [`rustup`](https://rustup.rs/)
 
 Switch to nightly Rust using `rustup`:
+
 ```text
 rustup default nightly
 ```
 
 Clone the repository:
+
 ```text
 git clone https://github.com/Microsoft/Spartan
 cd Spartan
 ```
 
 To build docs for public APIs of `libspartan`:
+
 ```text
 cargo doc
 ```
 
 To run tests:
+
 ```text
 RUSTFLAGS="-C target_cpu=native" cargo test
 ```
 
 To build `libspartan`:
+
 ```text
 RUSTFLAGS="-C target_cpu=native" cargo build --release
 ```
@@ -284,19 +296,23 @@ RUSTFLAGS="-C target_cpu=native" cargo build --release
 > NOTE: We enable SIMD instructions in `curve25519-dalek` by default, so if it fails to build remove the "simd_backend" feature argument in `Cargo.toml`.
 
 ### Supported features
-* `profile`: enables fine-grained profiling information (see below for its use)
+
+- `profile`: enables fine-grained profiling information (see below for its use)
 
 ## Performance
 
 ### End-to-end benchmarks
+
 `libspartan` includes two benches: `benches/nizk.rs` and `benches/snark.rs`. If you report the performance of Spartan in a research paper, we recommend using these benches for higher accuracy instead of fine-grained profiling (listed below).
 
 To run end-to-end benchmarks:
-```text 
+
+```text
 RUSTFLAGS="-C target_cpu=native" cargo bench
 ```
 
 ### Fine-grained profiling
+
 Build `libspartan` with `profile` feature enabled. It creates two profilers: `./target/release/snark` and `./target/release/nizk`.
 
 These profilers report performance as depicted below (for varying R1CS instance sizes). The reported
@@ -304,7 +320,7 @@ performance is from running the profilers on a Microsoft Surface Laptop 3 on a s
 See Section 9 in our [paper](https://eprint.iacr.org/2019/550) to see how this compares with other zkSNARKs in the literature.
 
 ```text
-$ ./target/release/snark 
+$ ./target/release/snark
 Profiler:: SNARK
   * number_of_constraints 1048576
   * number_of_variables 1048576
@@ -355,7 +371,7 @@ Profiler:: SNARK
 ```
 
 ```text
-$ ./target/release/nizk 
+$ ./target/release/nizk
 Profiler:: NIZK
   * number_of_constraints 1048576
   * number_of_variables 1048576

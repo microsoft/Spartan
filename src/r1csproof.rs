@@ -15,9 +15,10 @@ use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::iter;
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+use ark_serialize::*;
+use ark_std::{Zero, One};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct R1CSProof {
   comm_vars: PolyCommitment,
   sc_proof_phase1: ZKSumcheckInstanceProof,
@@ -492,7 +493,7 @@ impl R1CSProof {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use rand::rngs::OsRng;
+use ark_std::{UniformRand};
 
   fn produce_tiny_r1cs() -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
     // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
@@ -528,11 +529,11 @@ mod tests {
     let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
 
     // compute a satisfying assignment
-    let mut csprng: OsRng = OsRng;
-    let i0 = Scalar::random(&mut csprng);
-    let i1 = Scalar::random(&mut csprng);
-    let z1 = Scalar::random(&mut csprng);
-    let z2 = Scalar::random(&mut csprng);
+  let mut rng = ark_std::rand::thread_rng();
+    let i0 = Scalar::rand(&mut rng);
+    let i1 = Scalar::rand(&mut rng);
+    let z1 = Scalar::rand(&mut rng);
+    let z2 = Scalar::rand(&mut rng);
     let z3 = (z1 + z2) * i0; // constraint 1: (Z1 + Z2) * I0 - Z3 = 0;
     let z4 = (z1 + i1) * z3; // constraint 2: (Z1 + I1) * (Z3) - Z4 = 0
     let z5 = Scalar::zero(); //constraint 3

@@ -6,12 +6,12 @@ use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use merlin::Transcript;
-use serde::{Deserialize, Serialize};
+use ark_serialize::*;
 
 mod bullet;
 use bullet::BulletReductionProof;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct KnowledgeProof {
   alpha: CompressedGroup,
   z1: Scalar,
@@ -73,7 +73,7 @@ impl KnowledgeProof {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct EqualityProof {
   alpha: CompressedGroup,
   z: Scalar,
@@ -142,7 +142,7 @@ impl EqualityProof {
   }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct ProductProof {
   alpha: CompressedGroup,
   beta: CompressedGroup,
@@ -288,7 +288,7 @@ impl ProductProof {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct DotProductProof {
   delta: CompressedGroup,
   beta: CompressedGroup,
@@ -416,7 +416,7 @@ impl DotProductProofGens {
   }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct DotProductProofLog {
   bullet_reduction_proof: BulletReductionProof,
   delta: CompressedGroup,
@@ -567,15 +567,15 @@ impl DotProductProofLog {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use rand::rngs::OsRng;
+use ark_std::{UniformRand};
   #[test]
   fn check_knowledgeproof() {
-    let mut csprng: OsRng = OsRng;
+  let mut rng = ark_std::rand::thread_rng();
 
     let gens_1 = MultiCommitGens::new(1, b"test-knowledgeproof");
 
-    let x = Scalar::random(&mut csprng);
-    let r = Scalar::random(&mut csprng);
+    let x = Scalar::rand(&mut rng);
+    let r = Scalar::rand(&mut rng);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
@@ -590,13 +590,13 @@ mod tests {
 
   #[test]
   fn check_equalityproof() {
-    let mut csprng: OsRng = OsRng;
+  let mut rng = ark_std::rand::thread_rng();
 
     let gens_1 = MultiCommitGens::new(1, b"test-equalityproof");
-    let v1 = Scalar::random(&mut csprng);
+    let v1 = Scalar::rand(&mut rng);
     let v2 = v1;
-    let s1 = Scalar::random(&mut csprng);
-    let s2 = Scalar::random(&mut csprng);
+    let s1 = Scalar::rand(&mut rng);
+    let s2 = Scalar::rand(&mut rng);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
@@ -618,15 +618,15 @@ mod tests {
 
   #[test]
   fn check_productproof() {
-    let mut csprng: OsRng = OsRng;
+  let mut rng = ark_std::rand::thread_rng();
 
     let gens_1 = MultiCommitGens::new(1, b"test-productproof");
-    let x = Scalar::random(&mut csprng);
-    let rX = Scalar::random(&mut csprng);
-    let y = Scalar::random(&mut csprng);
-    let rY = Scalar::random(&mut csprng);
+    let x = Scalar::rand(&mut rng);
+    let rX = Scalar::rand(&mut rng);
+    let y = Scalar::rand(&mut rng);
+    let rY = Scalar::rand(&mut rng);
     let z = x * y;
-    let rZ = Scalar::random(&mut csprng);
+    let rZ = Scalar::rand(&mut rng);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
@@ -650,7 +650,7 @@ mod tests {
 
   #[test]
   fn check_dotproductproof() {
-    let mut csprng: OsRng = OsRng;
+  let mut rng = ark_std::rand::thread_rng();
 
     let n = 1024;
 
@@ -660,12 +660,12 @@ mod tests {
     let mut x: Vec<Scalar> = Vec::new();
     let mut a: Vec<Scalar> = Vec::new();
     for _ in 0..n {
-      x.push(Scalar::random(&mut csprng));
-      a.push(Scalar::random(&mut csprng));
+      x.push(Scalar::rand(&mut rng));
+      a.push(Scalar::rand(&mut rng));
     }
     let y = DotProductProofLog::compute_dotproduct(&x, &a);
-    let r_x = Scalar::random(&mut csprng);
-    let r_y = Scalar::random(&mut csprng);
+    let r_x = Scalar::rand(&mut rng);
+    let r_y = Scalar::rand(&mut rng);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
@@ -689,18 +689,18 @@ mod tests {
 
   #[test]
   fn check_dotproductproof_log() {
-    let mut csprng: OsRng = OsRng;
+  let mut rng = ark_std::rand::thread_rng();
 
     let n = 1024;
 
     let gens = DotProductProofGens::new(n, b"test-1024");
 
-    let x: Vec<Scalar> = (0..n).map(|_i| Scalar::random(&mut csprng)).collect();
-    let a: Vec<Scalar> = (0..n).map(|_i| Scalar::random(&mut csprng)).collect();
+    let x: Vec<Scalar> = (0..n).map(|_i| Scalar::rand(&mut rng)).collect();
+    let a: Vec<Scalar> = (0..n).map(|_i| Scalar::rand(&mut rng)).collect();
     let y = DotProductProof::compute_dotproduct(&x, &a);
 
-    let r_x = Scalar::random(&mut csprng);
-    let r_y = Scalar::random(&mut csprng);
+    let r_x = Scalar::rand(&mut rng);
+    let r_y = Scalar::rand(&mut rng);
 
     let mut random_tape = RandomTape::new(b"proof");
     let mut prover_transcript = Transcript::new(b"example");
