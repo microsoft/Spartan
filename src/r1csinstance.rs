@@ -147,9 +147,9 @@ impl R1CSInstance {
   }
 
   pub fn get_digest(&self) -> Vec<u8> {
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    bincode::serialize_into(&mut encoder, &self).unwrap();
-    encoder.finish().unwrap()
+    let mut bytes = Vec::new();
+    self.serialize(&mut bytes).unwrap();
+    bytes
   }
 
   pub fn produce_synthetic_r1cs(

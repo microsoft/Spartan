@@ -829,6 +829,7 @@ impl ZKSumcheckInstanceProof {
         // add two claims to transcript
         comm_claim_per_round.append_to_transcript(b"comm_claim_per_round", transcript);
         comm_eval.append_to_transcript(b"comm_eval", transcript);
+     
 
         // produce two weights
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);

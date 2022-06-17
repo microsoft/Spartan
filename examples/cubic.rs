@@ -8,6 +8,8 @@
 //! `(Z3 + 5) * 1 - I0 = 0`
 //!
 //! [here]: https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649
+use ark_bls12_377::Fr as Scalar;
+use ark_ff::{BigInteger, PrimeField};
 use ark_std::{One, UniformRand, Zero};
 use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
 use merlin::Transcript;

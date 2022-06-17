@@ -1,6 +1,7 @@
 #![allow(non_snake_case)]
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
+#![feature(test)]
 #![allow(clippy::assertions_on_result_states)]
 
 extern crate ark_std;
@@ -120,7 +121,6 @@ pub type VarsAssignment = Assignment;
 /// `InputsAssignment` holds an assignment of values to variables in an `Instance`
 pub type InputsAssignment = Assignment;
 
-/// `Instance` holds the description of R1CS matrices
 /// `Instance` holds the description of R1CS matrices and a hash of the matrices
 #[derive(Debug)]
 pub struct Instance {

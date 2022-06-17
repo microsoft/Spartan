@@ -1,4 +1,6 @@
 #![allow(clippy::too_many_arguments)]
+use crate::math::Math;
+
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::{

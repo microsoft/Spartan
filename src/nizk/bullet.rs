@@ -3,6 +3,8 @@
 #![allow(non_snake_case)]
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
+use crate::math::Math;
+
 use super::super::errors::ProofVerifyError;
 use super::super::group::{
   CompressGroupElement, CompressedGroup, DecompressGroupElement, GroupElement,
