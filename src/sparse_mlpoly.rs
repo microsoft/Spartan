@@ -15,7 +15,7 @@ use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::cmp::Ordering;
 use merlin::Transcript;
 use ark_serialize::*;
-use ark_ff::{One, Zero};
+use ark_ff::{One, Zero, Field};
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct SparseMatEntry {
@@ -466,9 +466,9 @@ impl SparseMatPolynomial {
         let row = self.M[i].row;
         let col = self.M[i].col;
         let val = &self.M[i].val;
-        (row, val * z[col])
+        (row, z[col] * val)
       })
-      .fold(vec![Scalar::zero(); num_rows], |mut Mz, (r, v)| {
+      .fold(vec![Scalar::zero(); num_rows], |mut  Mz, (r, v)| {
         Mz[r] += v;
         Mz
       })
@@ -553,9 +553,9 @@ impl Layers {
     let (r_hash, r_multiset_check) = r_mem_check;
 
     //hash(addr, val, ts) = ts * r_hash_sqr + val * r_hash + addr
-    let r_hash_sqr = r_hash * r_hash;
+    let r_hash_sqr = r_hash.square();
     let hash_func = |addr: &Scalar, val: &Scalar, ts: &Scalar| -> Scalar {
-      ts * r_hash_sqr + val * r_hash + addr
+      r_hash_sqr * ts + (*val) * r_hash + addr
     };
 
     // hash init and audit that does not depend on #instances
@@ -856,9 +856,9 @@ impl HashLayerProof {
     r_hash: &Scalar,
     r_multiset_check: &Scalar,
   ) -> Result<(), ProofVerifyError> {
-    let r_hash_sqr = r_hash * r_hash;
+    let r_hash_sqr = r_hash.square();
     let hash_func = |addr: &Scalar, val: &Scalar, ts: &Scalar| -> Scalar {
-      ts * r_hash_sqr + val * r_hash + addr
+      r_hash_sqr * ts + (*val) * r_hash + addr
     };
 
     let (rand_mem, _rand_ops) = rand;
@@ -1220,7 +1220,8 @@ impl ProductLayerProof {
       proof_ops,
     };
 
-    let product_layer_proof_encoded: Vec<u8> = bincode::serialize(&product_layer_proof).unwrap();
+    let mut product_layer_proof_encoded: Vec<u8> = Vec::new();
+    product_layer_proof.serialize(&mut product_layer_proof_encoded).unwrap();
     let msg = format!(
       "len_product_layer_proof {:?}",
       product_layer_proof_encoded.len()
@@ -1259,7 +1260,7 @@ impl ProductLayerProof {
       .map(|i| row_eval_write[i])
       .product();
     let rs: Scalar = (0..row_eval_read.len()).map(|i| row_eval_read[i]).product();
-    assert_eq!(row_eval_init * ws, rs * row_eval_audit);
+    assert_eq!( ws * row_eval_init , rs * row_eval_audit);
 
     row_eval_init.append_to_transcript(b"claim_row_eval_init", transcript);
     row_eval_read.append_to_transcript(b"claim_row_eval_read", transcript);
@@ -1274,7 +1275,7 @@ impl ProductLayerProof {
       .map(|i| col_eval_write[i])
       .product();
     let rs: Scalar = (0..col_eval_read.len()).map(|i| col_eval_read[i]).product();
-    assert_eq!(col_eval_init * ws, rs * col_eval_audit);
+    assert_eq!(ws * col_eval_init, rs * col_eval_audit);
 
     col_eval_init.append_to_transcript(b"claim_col_eval_init", transcript);
     col_eval_read.append_to_transcript(b"claim_col_eval_read", transcript);
@@ -1628,7 +1629,8 @@ impl SparsePolynomial {
 mod tests {
   use super::*;
 use ark_std::{UniformRand};
-  use rand::RngCore;
+use rand::RngCore;
+
   #[test]
   fn check_sparse_polyeval_proof() {
   let mut rng = ark_std::rand::thread_rng();
@@ -1643,8 +1645,8 @@ use ark_std::{UniformRand};
 
     for _i in 0..num_nz_entries {
       M.push(SparseMatEntry::new(
-        (csprng.next_u64() % (num_rows as u64)) as usize,
-        (csprng.next_u64() % (num_cols as u64)) as usize,
+        (rng.next_u64()% (num_rows as u64)) as usize,
+        (rng.next_u64() % (num_cols as u64)) as usize,
         Scalar::rand(&mut rng),
       ));
     }

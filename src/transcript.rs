@@ -1,6 +1,8 @@
-use super::group::CompressedGroup;
+use crate::group::CompressedGroup;
 use super::scalar::Scalar;
 use merlin::Transcript;
+use ark_ff::{PrimeField, BigInteger};
+use ark_serialize::{CanonicalSerialize};
 
 pub trait ProofTranscript {
   fn append_protocol_name(&mut self, protocol_name: &'static [u8]);
@@ -16,17 +18,19 @@ impl ProofTranscript for Transcript {
   }
 
   fn append_scalar(&mut self, label: &'static [u8], scalar: &Scalar) {
-    self.append_message(label, &scalar.to_bytes());
+    self.append_message(label, &scalar.into_repr().to_bytes_le().as_slice());
   }
 
   fn append_point(&mut self, label: &'static [u8], point: &CompressedGroup) {
-    self.append_message(label, point.as_bytes());
+    let mut point_encoded = Vec::new();
+    point.serialize(&mut point_encoded).unwrap();
+    self.append_message(label, point_encoded.as_slice());
   }
 
   fn challenge_scalar(&mut self, label: &'static [u8]) -> Scalar {
     let mut buf = [0u8; 64];
     self.challenge_bytes(label, &mut buf);
-    Scalar::from_bytes_wide(&buf)
+    Scalar::from_le_bytes_mod_order(&buf)
   }
 
   fn challenge_vector(&mut self, label: &'static [u8], len: usize) -> Vec<Scalar> {

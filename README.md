@@ -109,13 +109,15 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 
 ```rust
 #![allow(non_snake_case)]
-# extern crate curve25519_dalek;
+# extern crate ark_std;
 # extern crate libspartan;
 # extern crate merlin;
-# use curve25519_dalek::scalar::Scalar;
+# mod scalar;
+# use scalar::Scalar;
 # use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
 # use merlin::Transcript;
-# use rand::rngs::OsRng;
+# use ark_ff::{PrimeField, Field, BigInteger};
+# use ark_std::{One, Zero, UniformRand};
 # fn main() {
   // produce a tiny instance
   let (
@@ -177,16 +179,16 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 
   // We will encode the above constraints into three matrices, where
   // the coefficients in the matrix are in the little-endian byte order
-  let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
-  let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
-  let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
+  let mut A: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+  let mut B: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+  let mut C: Vec<(usize, usize, Vec<u8>)> = Vec::new();
 
   // The constraint system is defined over a finite field, which in our case is
   // the scalar field of ristreeto255/curve25519 i.e., p =  2^{252}+27742317777372353535851937790883648493
   // To construct these matrices, we will use `curve25519-dalek` but one can use any other method.
 
   // a variable that holds a byte representation of 1
-  let one = Scalar::one().to_bytes();
+  let one = Scalar::one().into_repr().to_bytes_le();
 
   // R1CS is a set of three sparse matrices A B C, where is a row for every
   // constraint and a column for every entry in z = (vars, 1, inputs)
@@ -198,20 +200,20 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
   // We set 1 in matrix A for columns that correspond to Z0 and Z1
   // We set 1 in matrix B for column that corresponds to I0
   // We set 1 in matrix C for column that corresponds to Z2
-  A.push((0, 0, one));
-  A.push((0, 1, one));
-  B.push((0, num_vars + 1, one));
-  C.push((0, 2, one));
+  A.push((0, 0, one.clone()));
+  A.push((0, 1, one.clone()));
+  B.push((0, num_vars + 1, one.clone()));
+  C.push((0, 2, one.clone()));
 
   // constraint 1 entries in (A,B,C)
-  A.push((1, 0, one));
-  A.push((1, num_vars + 2, one));
-  B.push((1, 2, one));
-  C.push((1, 3, one));
+  A.push((1, 0, one.clone()));
+  A.push((1, num_vars + 2, one.clone()));
+  B.push((1, 2, one.clone()));
+  C.push((1, 3, one.clone()));
 
   // constraint 3 entries in (A,B,C)
-  A.push((2, 4, one));
-  B.push((2, num_vars, one));
+  A.push((2, 4, one.clone()));
+  B.push((2, num_vars, one.clone()));
 
   let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
 
@@ -226,18 +228,18 @@ let mut rng = ark_std::rand::thread_rng();
   let z4 = Scalar::zero(); //constraint 2
 
   // create a VarsAssignment
-  let mut vars = vec![Scalar::zero().to_bytes(); num_vars];
-  vars[0] = z0.to_bytes();
-  vars[1] = z1.to_bytes();
-  vars[2] = z2.to_bytes();
-  vars[3] = z3.to_bytes();
-  vars[4] = z4.to_bytes();
+  let mut vars = vec![Scalar::zero().into_repr().to_bytes_le(); num_vars];
+  vars[0] = z0.into_repr().to_bytes_le();
+  vars[1] = z1.into_repr().to_bytes_le();
+  vars[2] = z2.into_repr().to_bytes_le();
+  vars[3] = z3.into_repr().to_bytes_le();
+  vars[4] = z4.into_repr().to_bytes_le();
   let assignment_vars = VarsAssignment::new(&vars).unwrap();
 
   // create an InputsAssignment
-  let mut inputs = vec![Scalar::zero().to_bytes(); num_inputs];
-  inputs[0] = i0.to_bytes();
-  inputs[1] = i1.to_bytes();
+  let mut inputs = vec![Scalar::zero().into_repr().to_bytes_le(); num_inputs];
+  inputs[0] = i0.into_repr().to_bytes_le();
+  inputs[1] = i1.into_repr().to_bytes_le();
   let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
 
   // check if the instance we created is satisfiable

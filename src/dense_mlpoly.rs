@@ -1,7 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
+use super::group::{GroupElement, CompressedGroup, VartimeMultiscalarMul, CompressGroupElement, DecompressGroupElement};
 use super::math::Math;
 use super::nizk::{DotProductProofGens, DotProductProofLog};
 use super::random::RandomTape;
@@ -217,7 +217,7 @@ impl DensePolynomial {
   pub fn bound_poly_var_top(&mut self, r: &Scalar) {
     let n = self.len() / 2;
     for i in 0..n {
-      self.Z[i] = self.Z[i] + r * (self.Z[i + n] - self.Z[i]);
+      self.Z[i] = self.Z[i] + (self.Z[i + n] - self.Z[i]) * r;
     }
     self.num_vars -= 1;
     self.len = n;
@@ -226,7 +226,7 @@ impl DensePolynomial {
   pub fn bound_poly_var_bot(&mut self, r: &Scalar) {
     let n = self.len() / 2;
     for i in 0..n {
-      self.Z[i] = self.Z[2 * i] + r * (self.Z[2 * i + 1] - self.Z[2 * i]);
+      self.Z[i] = self.Z[2 * i] + (self.Z[2 * i + 1] - self.Z[2 * i]) * r;
     }
     self.num_vars -= 1;
     self.len = n;
@@ -379,9 +379,9 @@ impl PolyEvalProof {
     let (L, R) = eq.compute_factored_evals();
 
     // compute a weighted sum of commitments and L
-    let C_decompressed = comm.C.iter().map(|pt| pt.decompress().unwrap());
+    let C_decompressed = comm.C.iter().map(|pt| GroupElement::decompress(pt).unwrap()).collect::<Vec<GroupElement>>();
 
-    let C_LZ = GroupElement::vartime_multiscalar_mul(&L, C_decompressed).compress();
+    let C_LZ = GroupElement::vartime_multiscalar_mul(&L, C_decompressed.as_slice()).compress();
 
     self
       .proof

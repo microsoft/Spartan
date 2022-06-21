@@ -6,13 +6,13 @@ pub enum ProofVerifyError {
   #[error("Proof verification failed")]
   InternalError,
   #[error("Compressed group element failed to decompress: {0:?}")]
-  DecompressionError([u8; 32]),
+  DecompressionError(Vec<u8>),
 }
 
 impl Default for ProofVerifyError {
   fn default() -> Self {
     ProofVerifyError::InternalError
-  }
+  }  
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

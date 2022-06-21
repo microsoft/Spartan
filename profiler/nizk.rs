@@ -4,9 +4,9 @@ extern crate libspartan;
 extern crate merlin;
 extern crate rand;
 
-use flate2::{write::ZlibEncoder, Compression};
 use libspartan::{Instance, NIZKGens, NIZK};
 use merlin::Transcript;
+use ark_serialize::*;
 
 fn print(msg: &str) {
   let star = "* ";
@@ -33,9 +33,8 @@ pub fn main() {
     let mut prover_transcript = Transcript::new(b"nizk_example");
     let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    bincode::serialize_into(&mut encoder, &proof).unwrap();
-    let proof_encoded = encoder.finish().unwrap();
+    let mut proof_encoded = Vec::new();
+    proof.serialize(&mut proof_encoded).unwrap();
     let msg_proof_len = format!("NIZK::proof_compressed_len {:?}", proof_encoded.len());
     print(&msg_proof_len);
 

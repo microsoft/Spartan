@@ -97,7 +97,7 @@ impl CompressedUniPoly {
   // linear_term = hint - 2 * constant_term - deg2 term - deg3 term
   pub fn decompress(&self, hint: &Scalar) -> UniPoly {
     let mut linear_term =
-      hint - self.coeffs_except_linear_term[0] - self.coeffs_except_linear_term[0];
+      (*hint) - self.coeffs_except_linear_term[0] - self.coeffs_except_linear_term[0];
     for i in 1..self.coeffs_except_linear_term.len() {
       linear_term -= self.coeffs_except_linear_term[i];
     }

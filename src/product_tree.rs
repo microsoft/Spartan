@@ -186,7 +186,7 @@ impl ProductCircuitEvalProof {
       let comb_func_prod = |poly_A_comp: &Scalar,
                             poly_B_comp: &Scalar,
                             poly_C_comp: &Scalar|
-       -> Scalar { poly_A_comp * poly_B_comp * poly_C_comp };
+       -> Scalar { (*poly_A_comp) * poly_B_comp * poly_C_comp };
       let (proof_prod, rand_prod, claims_prod) = SumcheckInstanceProof::prove_cubic(
         &claim,
         num_rounds_prod,
@@ -283,7 +283,7 @@ impl ProductCircuitEvalProofBatched {
       let comb_func_prod = |poly_A_comp: &Scalar,
                             poly_B_comp: &Scalar,
                             poly_C_comp: &Scalar|
-       -> Scalar { poly_A_comp * poly_B_comp * poly_C_comp };
+       -> Scalar { (*poly_A_comp) * poly_B_comp * poly_C_comp };
 
       let mut poly_A_batched_par: Vec<&mut DensePolynomial> = Vec::new();
       let mut poly_B_batched_par: Vec<&mut DensePolynomial> = Vec::new();
@@ -455,7 +455,7 @@ impl ProductCircuitEvalProofBatched {
 
       claims_to_verify = (0..claims_prod_left.len())
         .map(|i| claims_prod_left[i] + r_layer * (claims_prod_right[i] - claims_prod_left[i]))
-        .collect::<Vec<Scalar>>();
+        .collect();
 
       // add claims to verify for dotp circuit
       if i == num_layers - 1 {

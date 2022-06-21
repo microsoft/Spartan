@@ -1,131 +1,84 @@
+use ark_bls12_377::FrParameters;
+use ark_ec::group::Group;
+use ark_ec::{
+  msm::VariableBaseMSM,
+};
+use ark_ff::{PrimeField, Fp256, Zero};
+use digest::DynDigest;
 use lazy_static::lazy_static;
+use num_bigint::BigInt;
+use crate::errors::ProofVerifyError;
+
 use super::scalar::{Scalar};
 use core::borrow::Borrow;
 use core::ops::{Mul, MulAssign};
 use ark_ec::{ProjectiveCurve, AffineCurve};
+use ark_serialize::*;
 
-pub use ark_bls12_377::G1Projective as GroupElement;
-pub use ark_bls12_377::G1Affine as AffineGroupElement;
+pub type GroupElement = ark_bls12_377::G1Projective;
+pub type GroupElementAffine = ark_bls12_377::G1Affine;
 
+#[derive(Clone, Eq, PartialEq, Hash, Debug,  CanonicalSerialize, CanonicalDeserialize)]
+pub struct CompressedGroup(pub Vec<u8>);
 
-
-// pub type CompressedGroup = curve25519_dalek::ristretto::CompressedRistretto;
-
-// pub trait CompressedGroupExt {
-//   type Group;
-//   fn unpack(&self) -> Result<Self::Group, ProofVerifyError>;
-// }
-
-
-// what I should prolly do is implement compression and decompression operation on the GroupAffine
-
-// impl CompressedGroupExt for CompressedGroup {
-//   type Group = curve25519_dalek::ristretto::RistrettoPoint;
-//   fn unpack(&self) -> Result<Self::Group, ProofVerifyError> {
-//     self
-//       .decompress()
-//       .ok_or_else(|| ProofVerifyError::DecompressionError(self.to_bytes()))
-//   }
-// }
-
-// ????
 lazy_static! {
   pub static ref GROUP_BASEPOINT: GroupElement = GroupElement::prime_subgroup_generator();
 }
 
+pub trait CompressGroupElement {
+  fn compress(&self) -> CompressedGroup;
+}
 
-// impl<'b> MulAssign<&'b Scalar> for GroupElement {
-//   fn mul_assign(&mut self, scalar: &'b Scalar) {
-//     let result = (self as &GroupElement).mul( scalar.into_repr());
-//     *self = result;
-//   }
-// }
+pub trait DecompressGroupElement {
+  fn decompress(encoded: &CompressedGroup) -> Option<GroupElement>;
+}
 
-// // This game happens because dalek works with scalars as bytes representation but we want people to have an easy life and not care about this
-// impl<'a, 'b> Mul<&'b Scalar> for &'a GroupElement {
-//   type Output = GroupElement;
-//   fn mul(self, scalar: &'b Scalar) -> GroupElement {
-//     self * Scalar::into_repr(scalar)
-//   }
-// }
+pub trait UnpackGroupElement {
+  fn unpack(&self) -> Result<GroupElement, ProofVerifyError>;
+}
 
-// impl<'a, 'b> Mul<&'b GroupElement> for &'a Scalar {
-//   type Output = GroupElement;
+impl CompressGroupElement for GroupElement {
+  fn compress(&self) -> CompressedGroup {
+    let mut point_encoding = Vec::new();
+    self.serialize(&mut point_encoding).unwrap();
+    // println!("in compress {:?}", point_encoding);;
+    CompressedGroup(point_encoding)
+  }
+}
 
-//   fn mul(self, point: &'b GroupElement) -> GroupElement {
-//     Scalar::into_repr(self) * point
-//   }
-// }
+impl DecompressGroupElement for GroupElement {
+  fn decompress(encoded: &CompressedGroup) -> Option<Self>
+  { 
 
-// macro_rules! define_mul_variants {
-//   (LHS = $lhs:ty, RHS = $rhs:ty, Output = $out:ty) => {
-//     impl<'b> Mul<&'b $rhs> for $lhs {
-//       type Output = $out;
-//       fn mul(self, rhs: &'b $rhs) -> $out {
-//         &self * rhs
-//       }
-//     }
+      let res = GroupElement::deserialize(&*encoded.0);
+      if res.is_err() {
+         println!("{:?}", res);
+        None
+      } else {
+        Some(res.unwrap())
+      }
+  }
+} 
 
-//     impl<'a> Mul<$rhs> for &'a $lhs {
-//       type Output = $out;
-//       fn mul(self, rhs: $rhs) -> $out {
-//         self * &rhs
-//       }
-//     }
+impl UnpackGroupElement for CompressedGroup {
+  fn unpack(&self) -> Result<GroupElement, ProofVerifyError> {
+    let encoded = self.0.clone();
+      GroupElement::decompress(self).ok_or_else(|| ProofVerifyError::DecompressionError(encoded))
+  }
+}
 
-//     impl Mul<$rhs> for $lhs {
-//       type Output = $out;
-//       fn mul(self, rhs: $rhs) -> $out {
-//         &self * &rhs
-//       }
-//     }
-//   };
-// }
+pub trait VartimeMultiscalarMul {
+  fn vartime_multiscalar_mul(scalars: &[Scalar], points: &[GroupElement]) -> GroupElement;
+}
 
-// macro_rules! define_mul_assign_variants {
-//   (LHS = $lhs:ty, RHS = $rhs:ty) => {
-//     impl MulAssign<$rhs> for $lhs {
-//       fn mul_assign(&mut self, rhs: $rhs) {
-//         *self *= &rhs;
-//       }
-//     }
-//   };
-// }
+impl VartimeMultiscalarMul for GroupElement {
+  fn  vartime_multiscalar_mul(
+  scalars: &[Scalar],
+  points: &[GroupElement],
+) -> GroupElement{
+  let repr_scalars= scalars.into_iter().map(|S| S.borrow().into_repr()).collect::<Vec<<Scalar as PrimeField>::BigInt>>();
+  let aff_points = points.into_iter().map(|P| P.borrow().into_affine()).collect::<Vec<GroupElementAffine>>();
+   VariableBaseMSM::multi_scalar_mul(aff_points.as_slice(), repr_scalars.as_slice())
+}
+}
 
-// define_mul_assign_variants!(LHS = GroupElement, RHS = Scalar);
-// define_mul_variants!(LHS = GroupElement, RHS = Scalar, Output = GroupElement);
-// define_mul_variants!(LHS = Scalar, RHS = GroupElement, Output = GroupElement);
-
-
-// TODO
-// pub trait VartimeMultiscalarMul {
-//   type Scalar;
-//   fn vartime_multiscalar_mul<I, J>(scalars: I, points: J) -> Self
-//   where
-//     I: IntoIterator,
-//     I::Item: Borrow<Self::Scalar>,
-//     J: IntoIterator,
-//     J::Item: Borrow<Self>,
-//     Self: Clone;
-// }
-
-// impl VartimeMultiscalarMul for GroupElement {
-//   type Scalar = super::scalar::Scalar;
-//   fn vartime_multiscalar_mul<I, J>(scalars: I, points: J) -> Self
-//   where
-//     I: IntoIterator,
-//     I::Item: Borrow<Self::Scalar>,
-//     J: IntoIterator,
-//     J::Item: Borrow<Self>,
-//     Self: Clone,
-//   {
-//     // use curve25519_dalek::traits::VartimeMultiscalarMul;
-//     <Self as VartimeMultiscalarMul>::vartime_multiscalar_mul(
-//       scalars
-//         .into_iter()
-//         .map(|s| Scalar::into_repr(s.borrow()))
-//         .collect::<Vec<Scalar>>(),
-//       points,
-//     )
-//   }
-// }

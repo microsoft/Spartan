@@ -3,9 +3,9 @@ extern crate flate2;
 extern crate libspartan;
 extern crate merlin;
 
-use flate2::{write::ZlibEncoder, Compression};
 use libspartan::{Instance, SNARKGens, SNARK};
 use merlin::Transcript;
+use ark_serialize::*;
 
 fn print(msg: &str) {
   let star = "* ";
@@ -43,9 +43,8 @@ pub fn main() {
       &mut prover_transcript,
     );
 
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    bincode::serialize_into(&mut encoder, &proof).unwrap();
-    let proof_encoded = encoder.finish().unwrap();
+    let mut proof_encoded = Vec::new();
+    proof.serialize(&mut proof_encoded).unwrap();
     let msg_proof_len = format!("SNARK::proof_compressed_len {:?}", proof_encoded.len());
     print(&msg_proof_len);
 

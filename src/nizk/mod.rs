@@ -1,12 +1,16 @@
 #![allow(clippy::too_many_arguments)]
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, CompressedGroupExt};
+use super::group::{
+  CompressedGroup, CompressGroupElement, UnpackGroupElement, GroupElement, DecompressGroupElement, GroupElementAffine};
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
+use ark_ec::group::Group;
 use merlin::Transcript;
 use ark_serialize::*;
+use ark_ec::ProjectiveCurve;
+use ark_ff::PrimeField;
 
 mod bullet;
 use bullet::BulletReductionProof;
@@ -44,8 +48,8 @@ impl KnowledgeProof {
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z1 = x * c + t1;
-    let z2 = r * c + t2;
+    let z1 = c * x + t1;
+    let z2 =  c * r + t2;
 
     (KnowledgeProof { alpha, z1, z2 }, C)
   }
@@ -54,7 +58,8 @@ impl KnowledgeProof {
     &self,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    C: &CompressedGroup,
+    C: &
+    CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(KnowledgeProof::protocol_name());
     C.append_to_transcript(b"C", transcript);
@@ -63,7 +68,7 @@ impl KnowledgeProof {
     let c = transcript.challenge_scalar(b"c");
 
     let lhs = self.z1.commit(&self.z2, gens_n).compress();
-    let rhs = (c * C.unpack()? + self.alpha.unpack()?).compress();
+    let rhs = ( C.unpack()?.mul(c.into_repr()) + self.alpha.unpack()?).compress();
 
     if lhs == rhs {
       Ok(())
@@ -75,7 +80,8 @@ impl KnowledgeProof {
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct EqualityProof {
-  alpha: CompressedGroup,
+  alpha: 
+  CompressedGroup,
   z: Scalar,
 }
 
@@ -92,7 +98,9 @@ impl EqualityProof {
     s1: &Scalar,
     v2: &Scalar,
     s2: &Scalar,
-  ) -> (EqualityProof, CompressedGroup, CompressedGroup) {
+  ) -> (EqualityProof, 
+    CompressedGroup, 
+  CompressedGroup) {
     transcript.append_protocol_name(EqualityProof::protocol_name());
 
     // produce a random Scalar
@@ -104,12 +112,12 @@ impl EqualityProof {
     let C2 = v2.commit(s2, gens_n).compress();
     C2.append_to_transcript(b"C2", transcript);
 
-    let alpha = (r * gens_n.h).compress();
+    let alpha = gens_n.h.mul(r.into_repr()).compress();
     alpha.append_to_transcript(b"alpha", transcript);
 
     let c = transcript.challenge_scalar(b"c");
 
-    let z = c * (s1 - s2) + r;
+    let z = c * ((*s1) - s2) + r;
 
     (EqualityProof { alpha, z }, C1, C2)
   }
@@ -118,8 +126,10 @@ impl EqualityProof {
     &self,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    C1: &CompressedGroup,
-    C2: &CompressedGroup,
+    C1: &
+    CompressedGroup,
+    C2: &
+    CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(EqualityProof::protocol_name());
     C1.append_to_transcript(b"C1", transcript);
@@ -129,11 +139,12 @@ impl EqualityProof {
     let c = transcript.challenge_scalar(b"c");
     let rhs = {
       let C = C1.unpack()? - C2.unpack()?;
-      (c * C + self.alpha.unpack()?).compress()
+      (C.mul(c.into_repr()) + self.alpha.unpack()?).compress()
     };
+    println!("rhs {:?}", rhs);
 
-    let lhs = (self.z * gens_n.h).compress();
-
+    let lhs = gens_n.h.mul(self.z.into_repr()).compress();
+    println!("lhs {:?}", lhs);
     if lhs == rhs {
       Ok(())
     } else {
@@ -144,10 +155,13 @@ impl EqualityProof {
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct ProductProof {
-  alpha: CompressedGroup,
-  beta: CompressedGroup,
-  delta: CompressedGroup,
-  z: [Scalar; 5],
+  alpha: 
+  CompressedGroup,
+  beta: 
+  CompressedGroup,
+  delta: 
+  CompressedGroup,
+  z: Vec<Scalar>,
 }
 
 impl ProductProof {
@@ -167,8 +181,11 @@ impl ProductProof {
     rZ: &Scalar,
   ) -> (
     ProductProof,
+    
     CompressedGroup,
+    
     CompressedGroup,
+    
     CompressedGroup,
   ) {
     transcript.append_protocol_name(ProductProof::protocol_name());
@@ -180,8 +197,16 @@ impl ProductProof {
     let b4 = random_tape.random_scalar(b"b4");
     let b5 = random_tape.random_scalar(b"b5");
 
-    let X = x.commit(rX, gens_n).compress();
+    let X_unc =  x.commit(rX, gens_n);
+    
+    
+    let X = X_unc.compress();
     X.append_to_transcript(b"X", transcript);
+
+    let X_new = GroupElement::decompress(&X);
+
+    assert_eq!(X_unc, X_new.unwrap());
+   
 
     let Y = y.commit(rY, gens_n).compress();
     Y.append_to_transcript(b"Y", transcript);
@@ -198,7 +223,7 @@ impl ProductProof {
     let delta = {
       let gens_X = &MultiCommitGens {
         n: 1,
-        G: vec![X.decompress().unwrap()],
+        G: vec![GroupElement::decompress(&X).unwrap()],
         h: gens_n.h,
       };
       b3.commit(&b5, gens_X).compress()
@@ -211,8 +236,8 @@ impl ProductProof {
     let z2 = b2 + c * rX;
     let z3 = b3 + c * y;
     let z4 = b4 + c * rY;
-    let z5 = b5 + c * (rZ - rX * y);
-    let z = [z1, z2, z3, z4, z5];
+    let z5 = b5 + c * ((*rZ) - (*rX) * y);
+    let z = [z1, z2, z3, z4, z5].to_vec();
 
     (
       ProductProof {
@@ -228,14 +253,17 @@ impl ProductProof {
   }
 
   fn check_equality(
-    P: &CompressedGroup,
-    X: &CompressedGroup,
+    P: &
+    CompressedGroup,
+    X: &
+    CompressedGroup,
     c: &Scalar,
     gens_n: &MultiCommitGens,
     z1: &Scalar,
     z2: &Scalar,
   ) -> bool {
-    let lhs = (P.decompress().unwrap() + c * X.decompress().unwrap()).compress();
+    println!("{:?}", X);
+    let lhs = (GroupElement::decompress(P).unwrap() + GroupElement::decompress(X).unwrap().mul(c.into_repr())).compress();
     let rhs = z1.commit(z2, gens_n).compress();
 
     lhs == rhs
@@ -245,9 +273,12 @@ impl ProductProof {
     &self,
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
-    X: &CompressedGroup,
-    Y: &CompressedGroup,
-    Z: &CompressedGroup,
+    X: &
+    CompressedGroup,
+    Y: &
+    CompressedGroup,
+    Z: &
+    CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
     transcript.append_protocol_name(ProductProof::protocol_name());
 
@@ -290,8 +321,10 @@ impl ProductProof {
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct DotProductProof {
-  delta: CompressedGroup,
-  beta: CompressedGroup,
+  delta: 
+  CompressedGroup,
+  beta: 
+  CompressedGroup,
   z: Vec<Scalar>,
   z_delta: Scalar,
   z_beta: Scalar,
@@ -317,7 +350,9 @@ impl DotProductProof {
     a_vec: &[Scalar],
     y: &Scalar,
     blind_y: &Scalar,
-  ) -> (DotProductProof, CompressedGroup, CompressedGroup) {
+  ) -> (DotProductProof, 
+    CompressedGroup, 
+  CompressedGroup) {
     transcript.append_protocol_name(DotProductProof::protocol_name());
 
     let n = x_vec.len();
@@ -374,8 +409,10 @@ impl DotProductProof {
     gens_n: &MultiCommitGens,
     transcript: &mut Transcript,
     a: &[Scalar],
-    Cx: &CompressedGroup,
-    Cy: &CompressedGroup,
+    Cx: &
+    CompressedGroup,
+    Cy: &
+    CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
     assert_eq!(gens_n.n, a.len());
     assert_eq!(gens_1.n, 1);
@@ -390,11 +427,10 @@ impl DotProductProof {
     let c = transcript.challenge_scalar(b"c");
 
     let mut result =
-      c * Cx.unpack()? + self.delta.unpack()? == self.z.commit(&self.z_delta, gens_n);
+    Cx.unpack()?.mul(c.into_repr()) + self.delta.unpack()? == self.z.commit(&self.z_delta, gens_n);
 
     let dotproduct_z_a = DotProductProof::compute_dotproduct(&self.z, a);
-    result &= c * Cy.unpack()? + self.beta.unpack()? == dotproduct_z_a.commit(&self.z_beta, gens_1);
-
+    result &= Cy.unpack()?.mul(c.into_repr()) + self.beta.unpack()? == dotproduct_z_a.commit(&self.z_beta, gens_1);
     if result {
       Ok(())
     } else {
@@ -419,8 +455,10 @@ impl DotProductProofGens {
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct DotProductProofLog {
   bullet_reduction_proof: BulletReductionProof,
-  delta: CompressedGroup,
-  beta: CompressedGroup,
+  delta: 
+  CompressedGroup,
+  beta: 
+  CompressedGroup,
   z1: Scalar,
   z2: Scalar,
 }
@@ -444,7 +482,9 @@ impl DotProductProofLog {
     a_vec: &[Scalar],
     y: &Scalar,
     blind_y: &Scalar,
-  ) -> (DotProductProofLog, CompressedGroup, CompressedGroup) {
+  ) -> (DotProductProofLog, 
+    CompressedGroup, 
+  CompressedGroup) {
     transcript.append_protocol_name(DotProductProofLog::protocol_name());
 
     let n = x_vec.len();
@@ -471,7 +511,7 @@ impl DotProductProofLog {
 
     a_vec.append_to_transcript(b"a", transcript);
 
-    let blind_Gamma = blind_x + blind_y;
+    let blind_Gamma = (*blind_x) + blind_y;
     let (bullet_reduction_proof, _Gamma_hat, x_hat, a_hat, g_hat, rhat_Gamma) =
       BulletReductionProof::prove(
         transcript,
@@ -522,8 +562,10 @@ impl DotProductProofLog {
     gens: &DotProductProofGens,
     transcript: &mut Transcript,
     a: &[Scalar],
-    Cx: &CompressedGroup,
-    Cy: &CompressedGroup,
+    Cx: &
+    CompressedGroup,
+    Cy: &
+    CompressedGroup,
   ) -> Result<(), ProofVerifyError> {
     assert_eq!(gens.n, n);
     assert_eq!(a.len(), n);
@@ -551,8 +593,8 @@ impl DotProductProofLog {
     let z1_s = &self.z1;
     let z2_s = &self.z2;
 
-    let lhs = ((Gamma_hat * c_s + beta_s) * a_hat_s + delta_s).compress();
-    let rhs = ((g_hat + gens.gens_1.G[0] * a_hat_s) * z1_s + gens.gens_1.h * z2_s).compress();
+    let lhs = ((Gamma_hat.mul(c_s.into_repr()) + beta_s).mul(a_hat_s.into_repr()) + delta_s).compress();
+    let rhs = ((g_hat + gens.gens_1.G[0].mul(a_hat_s.into_repr())).mul(z1_s.into_repr()) + gens.gens_1.h.mul(z2_s.into_repr())).compress();
 
     assert_eq!(lhs, rhs);
 
@@ -566,7 +608,13 @@ impl DotProductProofLog {
 
 #[cfg(test)]
 mod tests {
-  use super::*;
+  use std::marker::PhantomData;
+
+use crate::group::VartimeMultiscalarMul;
+
+use super::*;
+use ark_bls12_377::{G1Affine, Fq, FqParameters};
+use ark_ff::{Fp384, BigInteger384};
 use ark_std::{UniformRand};
   #[test]
   fn check_knowledgeproof() {
@@ -615,10 +663,14 @@ use ark_std::{UniformRand};
       .verify(&gens_1, &mut verifier_transcript, &C1, &C2)
       .is_ok());
   }
-
+  
   #[test]
   fn check_productproof() {
   let mut rng = ark_std::rand::thread_rng();
+  let pt = GroupElement::rand(&mut rng);
+  let pt_c = pt.compress();
+  let pt2 = GroupElement::decompress(&pt_c).unwrap();
+  assert_eq!(pt, pt2);
 
     let gens_1 = MultiCommitGens::new(1, b"test-productproof");
     let x = Scalar::rand(&mut rng);

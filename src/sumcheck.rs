@@ -3,7 +3,7 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
+use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul, CompressGroupElement, DecompressGroupElement};
 use super::nizk::DotProductProof;
 use super::random::RandomTape;
 use super::scalar::Scalar;
@@ -115,7 +115,7 @@ impl ZKSumcheckInstanceProof {
         } else {
           &self.comm_evals[i - 1]
         };
-        let comm_eval = &self.comm_evals[i];
+        let mut comm_eval = &self.comm_evals[i];
 
         // add two claims to transcript
         comm_claim_per_round.append_to_transcript(b"comm_claim_per_round", transcript);
@@ -126,11 +126,11 @@ impl ZKSumcheckInstanceProof {
 
         // compute a weighted sum of the RHS
         let comm_target = GroupElement::vartime_multiscalar_mul(
-          w.iter(),
+          w.as_slice(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<GroupElement>>(),
+            .map(|pt| GroupElement::decompress(pt).unwrap())
+            .collect::<Vec<GroupElement>>().as_slice(),
         )
         .compress();
 
@@ -176,7 +176,7 @@ impl ZKSumcheckInstanceProof {
       r.push(r_i);
     }
 
-    Ok((self.comm_evals[self.comm_evals.len() - 1], r))
+    Ok((self.comm_evals[&self.comm_evals.len() - 1].clone(), r))
   }
 }
 
@@ -510,11 +510,11 @@ impl ZKSumcheckInstanceProof {
         // compute a weighted sum of the RHS
         let target = w[0] * claim_per_round + w[1] * eval;
         let comm_target = GroupElement::vartime_multiscalar_mul(
-          w.iter(),
+          w.as_slice(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<GroupElement>>(),
+            .map(|pt| GroupElement::decompress(pt).unwrap())
+            .collect::<Vec<GroupElement>>().as_slice(),
         )
         .compress();
 
@@ -575,7 +575,7 @@ impl ZKSumcheckInstanceProof {
 
       proofs.push(proof);
       r.push(r_j);
-      comm_evals.push(comm_claim_per_round);
+      comm_evals.push(comm_claim_per_round.clone());
     }
 
     (
@@ -693,20 +693,21 @@ impl ZKSumcheckInstanceProof {
         // add two claims to transcript
         comm_claim_per_round.append_to_transcript(b"comm_claim_per_round", transcript);
         comm_eval.append_to_transcript(b"comm_eval", transcript);
+     
 
         // produce two weights
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);
 
         // compute a weighted sum of the RHS
         let target = w[0] * claim_per_round + w[1] * eval;
+
         let comm_target = GroupElement::vartime_multiscalar_mul(
-          w.iter(),
+          w.as_slice(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<GroupElement>>(),
-        )
-        .compress();
+            .map(|pt|GroupElement::decompress(&pt).unwrap())
+            .collect::<Vec<GroupElement>>().as_slice(),
+        ).compress();
 
         let blind = {
           let blind_sc = if j == 0 {
@@ -720,7 +721,10 @@ impl ZKSumcheckInstanceProof {
           w[0] * blind_sc + w[1] * blind_eval
         };
 
-        assert_eq!(target.commit(&blind, gens_1).compress(), comm_target);
+        
+        let res = target.commit(&blind, gens_1);
+
+        assert_eq!(res.compress(), comm_target);
 
         let a = {
           // the vector to use to decommit for sum-check test
@@ -765,7 +769,7 @@ impl ZKSumcheckInstanceProof {
       claim_per_round = claim_next_round;
       comm_claim_per_round = comm_claim_next_round;
       r.push(r_j);
-      comm_evals.push(comm_claim_per_round);
+      comm_evals.push(comm_claim_per_round.clone());
     }
 
     (

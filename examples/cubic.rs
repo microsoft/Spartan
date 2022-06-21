@@ -9,9 +9,10 @@
 //!
 //! [here]: https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649
 use ark_bls12_377::Fr as Scalar;
+use ark_ff::{PrimeField, BigInteger};
 use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
 use merlin::Transcript;
-use rand::rngs::OsRng;
+use ark_std::{UniformRand, One, Zero};
 
 #[allow(non_snake_case)]
 fn produce_r1cs() -> (
@@ -31,11 +32,11 @@ fn produce_r1cs() -> (
 
   // We will encode the above constraints into three matrices, where
   // the coefficients in the matrix are in the little-endian byte order
-  let mut A: Vec<(usize, usize, [u8; 32])> = Vec::new();
-  let mut B: Vec<(usize, usize, [u8; 32])> = Vec::new();
-  let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
+  let mut A: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+  let mut B: Vec<(usize, usize, Vec<u8>)> = Vec::new();
+  let mut C: Vec<(usize, usize, Vec<u8>)> = Vec::new();
 
-  let one = Scalar::one().to_bytes();
+  let one = Scalar::one().into_repr().to_bytes_le();
 
   // R1CS is a set of three sparse matrices A B C, where is a row for every
   // constraint and a column for every entry in z = (vars, 1, inputs)
@@ -44,29 +45,29 @@ fn produce_r1cs() -> (
 
   // constraint 0 entries in (A,B,C)
   // constraint 0 is Z0 * Z0 - Z1 = 0.
-  A.push((0, 0, one));
-  B.push((0, 0, one));
-  C.push((0, 1, one));
+  A.push((0, 0, one.clone()));
+  B.push((0, 0, one.clone()));
+  C.push((0, 1, one.clone()));
 
   // constraint 1 entries in (A,B,C)
   // constraint 1 is Z1 * Z0 - Z2 = 0.
-  A.push((1, 1, one));
-  B.push((1, 0, one));
-  C.push((1, 2, one));
+  A.push((1, 1, one.clone()));
+  B.push((1, 0, one.clone()));
+  C.push((1, 2, one.clone()));
 
   // constraint 2 entries in (A,B,C)
   // constraint 2 is (Z2 + Z0) * 1 - Z3 = 0.
-  A.push((2, 2, one));
-  A.push((2, 0, one));
-  B.push((2, num_vars, one));
-  C.push((2, 3, one));
+  A.push((2, 2, one.clone()));
+  A.push((2, 0, one.clone()));
+  B.push((2, num_vars, one.clone()));
+  C.push((2, 3, one.clone()));
 
   // constraint 3 entries in (A,B,C)
   // constraint 3 is (Z3 + 5) * 1 - I0 = 0.
-  A.push((3, 3, one));
-  A.push((3, num_vars, Scalar::from(5u32).to_bytes()));
-  B.push((3, num_vars, one));
-  C.push((3, num_vars + 1, one));
+  A.push((3, 3, one.clone()));
+  A.push((3, num_vars, Scalar::from(5u32).into_repr().to_bytes_le()));
+  B.push((3, num_vars, one.clone()));
+  C.push((3, num_vars + 1, one.clone()));
 
   let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
 
@@ -79,16 +80,16 @@ let mut rng = ark_std::rand::thread_rng();
   let i0 = z3 + Scalar::from(5u32); // constraint 3
 
   // create a VarsAssignment
-  let mut vars = vec![Scalar::zero().to_bytes(); num_vars];
-  vars[0] = z0.to_bytes();
-  vars[1] = z1.to_bytes();
-  vars[2] = z2.to_bytes();
-  vars[3] = z3.to_bytes();
+  let mut vars = vec![Scalar::zero().into_repr().to_bytes_le(); num_vars];
+  vars[0] = z0.into_repr().to_bytes_le();
+  vars[1] = z1.into_repr().to_bytes_le();
+  vars[2] = z2.into_repr().to_bytes_le();
+  vars[3] = z3.into_repr().to_bytes_le();
   let assignment_vars = VarsAssignment::new(&vars).unwrap();
 
   // create an InputsAssignment
-  let mut inputs = vec![Scalar::zero().to_bytes(); num_inputs];
-  inputs[0] = i0.to_bytes();
+  let mut inputs = vec![Scalar::zero().into_repr().to_bytes_le(); num_inputs];
+  inputs[0] = i0.into_repr().to_bytes_le();
   let assignment_inputs = InputsAssignment::new(&inputs).unwrap();
 
   // check if the instance we created is satisfiable

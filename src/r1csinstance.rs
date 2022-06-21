@@ -10,7 +10,6 @@ use super::sparse_mlpoly::{
   SparseMatPolyCommitmentGens, SparseMatPolyEvalProof, SparseMatPolynomial,
 };
 use super::timer::Timer;
-use flate2::{write::ZlibEncoder, Compression};
 use merlin::Transcript;
 use ark_serialize::*;
 use ark_std::{One, Zero, UniformRand};
@@ -28,9 +27,8 @@ pub struct R1CSInstance {
 
 impl AppendToTranscript for R1CSInstance {
   fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    bincode::serialize_into(&mut encoder, &self).unwrap();
-    let bytes = encoder.finish().unwrap();
+    let mut bytes = Vec::new();
+    self.serialize(&mut bytes).unwrap();
     transcript.append_message(b"R1CSInstance", &bytes);
   }
 }

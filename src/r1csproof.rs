@@ -1,10 +1,12 @@
 #![allow(clippy::too_many_arguments)]
+use crate::group::CompressedGroup;
+
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::{
   DensePolynomial, EqPolynomial, PolyCommitment, PolyCommitmentGens, PolyEvalProof,
 };
 use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
+use super::group::{GroupElement, VartimeMultiscalarMul, CompressGroupElement, DecompressGroupElement};
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
 use super::r1csinstance::R1CSInstance;
 use super::random::RandomTape;
@@ -14,19 +16,21 @@ use super::sumcheck::ZKSumcheckInstanceProof;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use core::iter;
+use ark_ff::PrimeField;
 use merlin::Transcript;
 use ark_serialize::*;
 use ark_std::{Zero, One};
+use ark_ec::{ProjectiveCurve};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct R1CSProof {
   comm_vars: PolyCommitment,
   sc_proof_phase1: ZKSumcheckInstanceProof,
   claims_phase2: (
-    CompressedGroup,
-    CompressedGroup,
-    CompressedGroup,
-    CompressedGroup,
+   CompressedGroup,
+   CompressedGroup,
+   CompressedGroup,
+   CompressedGroup,
   ),
   pok_claims_phase2: (KnowledgeProof, ProductProof),
   proof_eq_sc_phase1: EqualityProof,
@@ -86,7 +90,7 @@ impl R1CSProof {
                      poly_B_comp: &Scalar,
                      poly_C_comp: &Scalar,
                      poly_D_comp: &Scalar|
-     -> Scalar { poly_A_comp * (poly_B_comp * poly_C_comp - poly_D_comp) };
+     -> Scalar { (*poly_A_comp) * ((*poly_B_comp) * poly_C_comp - poly_D_comp) };
 
     let (sc_proof_phase_one, r, claims, blind_claim_postsc) =
       ZKSumcheckInstanceProof::prove_cubic_with_additive_term(
@@ -118,7 +122,7 @@ impl R1CSProof {
     random_tape: &mut RandomTape,
   ) -> (ZKSumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>, Scalar) {
     let comb_func =
-      |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { poly_A_comp * poly_B_comp };
+      |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { (*poly_A_comp) * poly_B_comp };
     let (sc_proof_phase_two, r, claims, blind_claim_postsc) = ZKSumcheckInstanceProof::prove_quad(
       claim,
       blind_claim,
@@ -227,7 +231,7 @@ impl R1CSProof {
     };
 
     let (proof_prod, comm_Az_claim, comm_Bz_claim, comm_prod_Az_Bz_claims) = {
-      let prod = Az_claim * Bz_claim;
+      let prod = (*Az_claim) * Bz_claim;
       ProductProof::prove(
         &gens.gens_sc.gens_1,
         transcript,
@@ -248,8 +252,8 @@ impl R1CSProof {
 
     // prove the final step of sum-check #1
     let taus_bound_rx = tau_claim;
-    let blind_expected_claim_postsc1 = taus_bound_rx * (prod_Az_Bz_blind - Cz_blind);
-    let claim_post_phase1 = (Az_claim * Bz_claim - Cz_claim) * taus_bound_rx;
+    let blind_expected_claim_postsc1 = (prod_Az_Bz_blind - Cz_blind) * taus_bound_rx;
+    let claim_post_phase1 = ((*Az_claim) * Bz_claim - Cz_claim) * taus_bound_rx;
     let (proof_eq_sc_phase1, _C1, _C2) = EqualityProof::prove(
       &gens.gens_sc.gens_1,
       transcript,
@@ -404,8 +408,7 @@ impl R1CSProof {
     let taus_bound_rx: Scalar = (0..rx.len())
       .map(|i| rx[i] * tau[i] + (Scalar::one() - rx[i]) * (Scalar::one() - tau[i]))
       .product();
-    let expected_claim_post_phase1 = (taus_bound_rx
-      * (comm_prod_Az_Bz_claims.decompress().unwrap() - comm_Cz_claim.decompress().unwrap()))
+    let expected_claim_post_phase1 = (GroupElement::decompress(comm_prod_Az_Bz_claims).unwrap() - GroupElement::decompress(comm_Cz_claim).unwrap()).mul(taus_bound_rx.into_repr())
     .compress();
 
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
@@ -425,12 +428,12 @@ impl R1CSProof {
     let comm_claim_phase2 = GroupElement::vartime_multiscalar_mul(
       iter::once(&r_A)
         .chain(iter::once(&r_B))
-        .chain(iter::once(&r_C)),
+        .chain(iter::once(&r_C)).map(|s| (*s)).collect::<Vec<Scalar>>().as_slice(),
       iter::once(&comm_Az_claim)
         .chain(iter::once(&comm_Bz_claim))
         .chain(iter::once(&comm_Cz_claim))
-        .map(|pt| pt.decompress().unwrap())
-        .collect::<Vec<GroupElement>>(),
+        .map(|pt| GroupElement::decompress(pt).unwrap())
+        .collect::<Vec<GroupElement>>().as_slice(),
     )
     .compress();
 
@@ -468,16 +471,17 @@ impl R1CSProof {
 
     // compute commitment to eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
     let comm_eval_Z_at_ry = GroupElement::vartime_multiscalar_mul(
-      iter::once(Scalar::one() - ry[0]).chain(iter::once(ry[0])),
-      iter::once(&self.comm_vars_at_ry.decompress().unwrap()).chain(iter::once(
-        &poly_input_eval.commit(&Scalar::zero(), &gens.gens_pc.gens.gens_1),
-      )),
+      iter::once(Scalar::one() - ry[0]).chain(iter::once(ry[0])).collect::<Vec<Scalar>>().as_slice(),
+      iter::once(GroupElement::decompress(&self.comm_vars_at_ry).unwrap()).chain(iter::once(
+        poly_input_eval.commit(&Scalar::zero(), &gens.gens_pc.gens.gens_1),
+      )).collect::<Vec<GroupElement>>().as_slice(),
     );
 
     // perform the final check in the second sum-check protocol
     let (eval_A_r, eval_B_r, eval_C_r) = evals;
+    let scalar = r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r;
     let expected_claim_post_phase2 =
-      ((r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r) * comm_eval_Z_at_ry).compress();
+      comm_eval_Z_at_ry.mul(scalar.into_repr()).compress();
     // verify proof that expected_claim_post_phase1 == claim_post_phase1
     self.proof_eq_sc_phase2.verify(
       &gens.gens_sc.gens_1,
