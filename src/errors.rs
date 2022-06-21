@@ -6,7 +6,7 @@ pub enum ProofVerifyError {
   #[error("Proof verification failed")]
   InternalError,
   #[error("Compressed group element failed to decompress: {0:?}")]
-  DecompressionError([u8; 32]),
+  DecompressionError([u8; 48]),
 }
 
 impl Default for ProofVerifyError {

@@ -3,7 +3,7 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
+use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul, CompressGroupElement, DecompressGroupElement};
 use super::nizk::DotProductProof;
 use super::random::RandomTape;
 use super::scalar::Scalar;
@@ -126,11 +126,11 @@ impl ZKSumcheckInstanceProof {
 
         // compute a weighted sum of the RHS
         let comm_target = GroupElement::vartime_multiscalar_mul(
-          w.iter(),
+          w.as_slice(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<GroupElement>>(),
+            .map(|pt| GroupElement::decompress(pt).unwrap())
+            .collect::<Vec<GroupElement>>().as_slice(),
         )
         .compress();
 
@@ -510,11 +510,11 @@ impl ZKSumcheckInstanceProof {
         // compute a weighted sum of the RHS
         let target = w[0] * claim_per_round + w[1] * eval;
         let comm_target = GroupElement::vartime_multiscalar_mul(
-          w.iter(),
+          w.as_slice(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<GroupElement>>(),
+            .map(|pt| GroupElement::decompress(pt).unwrap())
+            .collect::<Vec<GroupElement>>().as_slice(),
         )
         .compress();
 
@@ -700,11 +700,11 @@ impl ZKSumcheckInstanceProof {
         // compute a weighted sum of the RHS
         let target = w[0] * claim_per_round + w[1] * eval;
         let comm_target = GroupElement::vartime_multiscalar_mul(
-          w.iter(),
+          w.as_slice(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt| pt.decompress().unwrap())
-            .collect::<Vec<GroupElement>>(),
+            .map(|pt| GroupElement::decompress(pt).unwrap())
+            .collect::<Vec<GroupElement>>().as_slice(),
         )
         .compress();
 

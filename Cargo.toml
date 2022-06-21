@@ -32,6 +32,8 @@ ark-std = { version = "^0.3.0"}
 ark-bls12-377 = { version = "^0.3.0", features = ["r1cs","curve"] }
 ark-serialize = { version = "^0.3.0", features = ["derive"] }
 lazy_static = "1.4.0"
+rand = { version = "0.8", features = [ "std", "std_rng" ] }
+num-bigint = { version = "0.4" }
 
 [dev-dependencies]
 criterion = "0.3.1"
