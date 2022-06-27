@@ -52,5 +52,6 @@ name = "nizk"
 harness = false
 
 [features]
+default = ["curve25519-dalek/simd_backend"]
 multicore = ["rayon"]
 profile = []
