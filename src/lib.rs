@@ -14,6 +14,9 @@ extern crate rand;
 extern crate lazy_static;
 extern crate ark_std;
 
+#[macro_use]
+extern crate json;
+
 #[cfg(feature = "multicore")]
 extern crate rayon;
 
@@ -23,6 +26,7 @@ mod errors;
 mod group;
 mod math;
 mod nizk;
+mod parameters;
 mod product_tree;
 mod r1csinstance;
 mod r1csproof;
@@ -33,6 +37,7 @@ mod sumcheck;
 mod timer;
 mod transcript;
 mod unipoly;
+
 
 use core::{cmp::max};
 use std::borrow::Borrow;

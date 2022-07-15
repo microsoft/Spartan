@@ -1,9 +1,7 @@
-use ark_bls12_377::FrParameters;
-use ark_ec::group::Group;
 use ark_ec::{
   msm::VariableBaseMSM,
 };
-use ark_ff::{PrimeField, Fp256, Zero};
+use ark_ff::{PrimeField};
 use digest::DynDigest;
 use lazy_static::lazy_static;
 use num_bigint::BigInt;
@@ -17,6 +15,7 @@ use ark_serialize::*;
 
 pub type GroupElement = ark_bls12_377::G1Projective;
 pub type GroupElementAffine = ark_bls12_377::G1Affine;
+pub type CurveField = ark_bls12_377::Fq;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug,  CanonicalSerialize, CanonicalDeserialize)]
 pub struct CompressedGroup(pub Vec<u8>);
