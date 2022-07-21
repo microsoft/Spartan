@@ -3,17 +3,20 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
-use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul, CompressGroupElement, DecompressGroupElement};
+use super::group::{
+  CompressGroupElement, CompressedGroup, DecompressGroupElement, GroupElement,
+  VartimeMultiscalarMul,
+};
 use super::nizk::DotProductProof;
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use super::unipoly::{CompressedUniPoly, UniPoly};
+use ark_ff::{One, Zero};
+use ark_serialize::*;
 use core::iter;
 use itertools::izip;
 use merlin::Transcript;
-use ark_serialize::*;
-use ark_ff::{One,Zero};
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct SumcheckInstanceProof {
@@ -130,7 +133,8 @@ impl ZKSumcheckInstanceProof {
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
             .map(|pt| GroupElement::decompress(pt).unwrap())
-            .collect::<Vec<GroupElement>>().as_slice(),
+            .collect::<Vec<GroupElement>>()
+            .as_slice(),
         )
         .compress();
 
@@ -181,6 +185,83 @@ impl ZKSumcheckInstanceProof {
 }
 
 impl SumcheckInstanceProof {
+  pub fn prove_cubic_with_additive_term<F>(
+    claim: &Scalar,
+    num_rounds: usize,
+    poly_tau: &mut DensePolynomial,
+    poly_A: &mut DensePolynomial,
+    poly_B: &mut DensePolynomial,
+    poly_C: &mut DensePolynomial,
+    comb_func: F,
+    transcript: &mut Transcript,
+  ) -> (Self, Vec<Scalar>, Vec<Scalar>)
+  where
+    F: Fn(&Scalar, &Scalar, &Scalar, &Scalar) -> Scalar,
+  {
+    let mut e = *claim;
+    let mut r: Vec<Scalar> = Vec::new();
+    let mut cubic_polys: Vec<CompressedUniPoly> = Vec::new();
+    for j in 0..num_rounds {
+      let mut eval_point_0 = Scalar::zero();
+      let mut eval_point_2 = Scalar::zero();
+      let mut eval_point_3 = Scalar::zero();
+
+      let len = poly_tau.len() / 2;
+      for i in 0..len {
+        // eval 0: bound_func is A(low)
+        eval_point_0 += comb_func(&poly_tau[i], &poly_A[i], &poly_B[i], &poly_C[i]);
+
+        // eval 2: bound_func is -A(low) + 2*A(high)
+        let poly_tau_bound_point = poly_tau[len + i] + poly_tau[len + i] - poly_tau[i];
+        let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
+        let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
+        let poly_C_bound_point = poly_C[len + i] + poly_C[len + i] - poly_C[i];
+
+        eval_point_2 += comb_func(
+          &poly_tau_bound_point,
+          &poly_A_bound_point,
+          &poly_B_bound_point,
+          &poly_C_bound_point,
+        );
+
+        // eval 3: bound_func is -2A(low) + 3A(high); computed incrementally with bound_func applied to eval(2)
+        let poly_tau_bound_point = poly_tau_bound_point + poly_tau[len + i] - poly_tau[i];
+        let poly_A_bound_point = poly_A_bound_point + poly_A[len + i] - poly_A[i];
+        let poly_B_bound_point = poly_B_bound_point + poly_B[len + i] - poly_B[i];
+        let poly_C_bound_point = poly_C_bound_point + poly_C[len + i] - poly_C[i];
+
+        eval_point_3 += comb_func(
+          &poly_tau_bound_point,
+          &poly_A_bound_point,
+          &poly_B_bound_point,
+          &poly_C_bound_point,
+        );
+      }
+
+      let evals = vec![eval_point_0, e - eval_point_0, eval_point_2, eval_point_3];
+      let poly = UniPoly::from_evals(&evals);
+
+      // append the prover's message to the transcript
+      poly.append_to_transcript(b"poly", transcript);
+      //derive the verifier's challenge for the next round
+      let r_j = transcript.challenge_scalar(b"challenge_nextround");
+      r.push(r_j);
+
+      // bound all tables to the verifier's challenege
+      poly_tau.bound_poly_var_top(&r_j);
+      poly_A.bound_poly_var_top(&r_j);
+      poly_B.bound_poly_var_top(&r_j);
+      poly_C.bound_poly_var_top(&r_j);
+
+      e = poly.evaluate(&r_j);
+      cubic_polys.push(poly.compress());
+    }
+    (
+      SumcheckInstanceProof::new(cubic_polys),
+      r,
+      vec![poly_tau[0], poly_A[0], poly_B[0], poly_C[0]],
+    )
+  }
   pub fn prove_cubic<F>(
     claim: &Scalar,
     num_rounds: usize,
@@ -423,6 +504,60 @@ impl SumcheckInstanceProof {
       claims_dotp,
     )
   }
+
+  pub fn prove_quad<F>(
+    claim: &Scalar,
+    num_rounds: usize,
+    poly_A: &mut DensePolynomial,
+    poly_B: &mut DensePolynomial,
+    comb_func: F,
+    transcript: &mut Transcript,
+  ) -> (Self, Vec<Scalar>, Vec<Scalar>)
+  where
+    F: Fn(&Scalar, &Scalar) -> Scalar,
+  {
+    let mut e = *claim;
+    let mut r: Vec<Scalar> = Vec::new();
+    let mut quad_polys: Vec<CompressedUniPoly> = Vec::new();
+
+    for j in 0..num_rounds {
+      let mut eval_point_0 = Scalar::zero();
+      let mut eval_point_2 = Scalar::zero();
+
+      let len = poly_A.len() / 2;
+      for i in 0..len {
+        // eval 0: bound_func is A(low)
+        eval_point_0 += comb_func(&poly_A[i], &poly_B[i]);
+
+        // eval 2: bound_func is -A(low) + 2*A(high)
+        let poly_A_bound_point = poly_A[len + i] + poly_A[len + i] - poly_A[i];
+        let poly_B_bound_point = poly_B[len + i] + poly_B[len + i] - poly_B[i];
+        eval_point_2 += comb_func(&poly_A_bound_point, &poly_B_bound_point);
+      }
+
+      let evals = vec![eval_point_0, e - eval_point_0, eval_point_2];
+      let poly = UniPoly::from_evals(&evals);
+
+      // append the prover's message to the transcript
+      poly.append_to_transcript(b"poly", transcript);
+
+      //derive the verifier's challenge for the next round
+      let r_j = transcript.challenge_scalar(b"challenge_nextround");
+      r.push(r_j);
+
+      // bound all tables to the verifier's challenege
+      poly_A.bound_poly_var_top(&r_j);
+      poly_B.bound_poly_var_top(&r_j);
+      e = poly.evaluate(&r_j);
+      quad_polys.push(poly.compress());
+    }
+
+    (
+      SumcheckInstanceProof::new(quad_polys),
+      r,
+      vec![poly_A[0], poly_B[0]],
+    )
+  }
 }
 
 impl ZKSumcheckInstanceProof {
@@ -514,7 +649,8 @@ impl ZKSumcheckInstanceProof {
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
             .map(|pt| GroupElement::decompress(pt).unwrap())
-            .collect::<Vec<GroupElement>>().as_slice(),
+            .collect::<Vec<GroupElement>>()
+            .as_slice(),
         )
         .compress();
 
@@ -693,7 +829,6 @@ impl ZKSumcheckInstanceProof {
         // add two claims to transcript
         comm_claim_per_round.append_to_transcript(b"comm_claim_per_round", transcript);
         comm_eval.append_to_transcript(b"comm_eval", transcript);
-     
 
         // produce two weights
         let w = transcript.challenge_vector(b"combine_two_claims_to_one", 2);
@@ -705,9 +840,11 @@ impl ZKSumcheckInstanceProof {
           w.as_slice(),
           iter::once(&comm_claim_per_round)
             .chain(iter::once(&comm_eval))
-            .map(|pt|GroupElement::decompress(&pt).unwrap())
-            .collect::<Vec<GroupElement>>().as_slice(),
-        ).compress();
+            .map(|pt| GroupElement::decompress(&pt).unwrap())
+            .collect::<Vec<GroupElement>>()
+            .as_slice(),
+        )
+        .compress();
 
         let blind = {
           let blind_sc = if j == 0 {
@@ -721,7 +858,6 @@ impl ZKSumcheckInstanceProof {
           w[0] * blind_sc + w[1] * blind_eval
         };
 
-        
         let res = target.commit(&blind, gens_1);
 
         assert_eq!(res.compress(), comm_target);
