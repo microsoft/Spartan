@@ -1,3 +1,4 @@
+use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
 use crate::transcript::AppendToTranscript;
 
 use super::dense_mlpoly::DensePolynomial;
@@ -60,6 +61,15 @@ impl AppendToTranscript for R1CSCommitment {
     transcript.append_u64(b"num_vars", self.num_vars as u64);
     transcript.append_u64(b"num_inputs", self.num_inputs as u64);
     self.comm.append_to_transcript(b"comm", transcript);
+  }
+}
+
+impl AppendToPoseidon for R1CSCommitment {
+  fn append_to_poseidon(&self, transcript: &mut PoseidonTranscript) {
+    transcript.append_u64(self.num_cons as u64);
+    transcript.append_u64(self.num_vars as u64);
+    transcript.append_u64(self.num_inputs as u64);
+    self.comm.append_to_poseidon(transcript);
   }
 }
 
@@ -328,7 +338,7 @@ impl R1CSEvalProof {
     ry: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     random_tape: &mut RandomTape,
   ) -> R1CSEvalProof {
     let timer = Timer::new("R1CSEvalProof::prove");
@@ -353,7 +363,7 @@ impl R1CSEvalProof {
     ry: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
     gens: &R1CSCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
   ) -> Result<(), ProofVerifyError> {
     self.proof.verify(
       &comm.comm,

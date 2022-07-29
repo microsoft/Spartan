@@ -4,6 +4,7 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 use crate::math::Math;
+use crate::poseidon_transcript::PoseidonTranscript;
 
 use super::super::errors::ProofVerifyError;
 use super::super::group::{
@@ -38,7 +39,7 @@ impl BulletReductionProof {
   /// The lengths of the vectors must all be the same, and must all be
   /// either 0 or a power of 2.
   pub fn prove(
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     Q: &GroupElement,
     G_vec: &[GroupElement],
     H: &GroupElement,
@@ -122,10 +123,10 @@ impl BulletReductionProof {
           .as_slice(),
       );
 
-      transcript.append_point(b"L", &L.compress());
-      transcript.append_point(b"R", &R.compress());
+      transcript.append_point(&L.compress());
+      transcript.append_point(&R.compress());
 
-      let u = transcript.challenge_scalar(b"u");
+      let u = transcript.challenge_scalar();
       let u_inv = u.inverse().unwrap();
 
       for i in 0..n {
@@ -163,7 +164,7 @@ impl BulletReductionProof {
   fn verification_scalars(
     &self,
     n: usize,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
   ) -> Result<(Vec<Scalar>, Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
     let lg_n = self.L_vec.len();
     if lg_n >= 32 {
@@ -178,9 +179,9 @@ impl BulletReductionProof {
     // 1. Recompute x_k,...,x_1 based on the proof transcript
     let mut challenges = Vec::with_capacity(lg_n);
     for (L, R) in self.L_vec.iter().zip(self.R_vec.iter()) {
-      transcript.append_point(b"L", L);
-      transcript.append_point(b"R", R);
-      challenges.push(transcript.challenge_scalar(b"u"));
+      transcript.append_point(L);
+      transcript.append_point(R);
+      challenges.push(transcript.challenge_scalar());
     }
 
     // 2. Compute 1/(u_k...u_1) and 1/u_k, ..., 1/u_1
@@ -224,7 +225,7 @@ impl BulletReductionProof {
     &self,
     n: usize,
     a: &[Scalar],
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     Gamma: &GroupElement,
     G: &[GroupElement],
   ) -> Result<(GroupElement, GroupElement, Scalar), ProofVerifyError> {

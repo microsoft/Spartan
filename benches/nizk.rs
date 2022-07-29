@@ -7,7 +7,9 @@ extern crate libspartan;
 extern crate merlin;
 extern crate sha3;
 
-use libspartan::{Instance, NIZKGens, NIZK};
+use libspartan::{
+  parameters::poseidon_params, poseidon_transcript::PoseidonTranscript, Instance, NIZKGens, NIZK,
+};
 use merlin::Transcript;
 
 use criterion::*;
@@ -22,6 +24,8 @@ fn nizk_prove_benchmark(c: &mut Criterion) {
     let num_cons = num_vars;
     let num_inputs = 10;
 
+    let params = poseidon_params();
+
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
@@ -29,7 +33,7 @@ fn nizk_prove_benchmark(c: &mut Criterion) {
     let name = format!("NIZK_prove_{}", num_vars);
     group.bench_function(&name, move |b| {
       b.iter(|| {
-        let mut prover_transcript = Transcript::new(b"example");
+        let mut prover_transcript = PoseidonTranscript::new(&params);
         NIZK::prove(
           black_box(&inst),
           black_box(vars.clone()),
@@ -55,15 +59,15 @@ fn nizk_verify_benchmark(c: &mut Criterion) {
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
-
+    let params = poseidon_params();
     // produce a proof of satisfiability
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
     let name = format!("NIZK_verify_{}", num_cons);
     group.bench_function(&name, move |b| {
       b.iter(|| {
-        let mut verifier_transcript = Transcript::new(b"example");
+        let mut verifier_transcript = PoseidonTranscript::new(&params);
         assert!(proof
           .verify(
             black_box(&inst),

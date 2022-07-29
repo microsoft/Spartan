@@ -2,7 +2,11 @@
 extern crate libspartan;
 extern crate merlin;
 
-use libspartan::{Instance, SNARKGens, SNARK};
+use libspartan::{
+  parameters::poseidon_params,
+  poseidon_transcript::{self, PoseidonTranscript},
+  Instance, SNARKGens, SNARK,
+};
 use merlin::Transcript;
 
 use criterion::*;
@@ -42,6 +46,8 @@ fn snark_prove_benchmark(c: &mut Criterion) {
     let num_cons = num_vars;
     let num_inputs = 10;
 
+    let params = poseidon_params();
+
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // produce public parameters
@@ -54,7 +60,7 @@ fn snark_prove_benchmark(c: &mut Criterion) {
     let name = format!("SNARK_prove_{}", num_cons);
     group.bench_function(&name, move |b| {
       b.iter(|| {
-        let mut prover_transcript = Transcript::new(b"example");
+        let mut prover_transcript = PoseidonTranscript::new(&params);
         SNARK::prove(
           black_box(&inst),
           black_box(&comm),
@@ -76,6 +82,8 @@ fn snark_verify_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("SNARK_verify_benchmark");
     group.plot_config(plot_config);
 
+    let params = poseidon_params();
+
     let num_vars = (2_usize).pow(s as u32);
     let num_cons = num_vars;
     let num_inputs = 10;
@@ -88,7 +96,7 @@ fn snark_verify_benchmark(c: &mut Criterion) {
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof of satisfiability
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let proof = SNARK::prove(
       &inst,
       &comm,
@@ -103,7 +111,7 @@ fn snark_verify_benchmark(c: &mut Criterion) {
     let name = format!("SNARK_verify_{}", num_cons);
     group.bench_function(&name, move |b| {
       b.iter(|| {
-        let mut verifier_transcript = Transcript::new(b"example");
+        let mut verifier_transcript = PoseidonTranscript::new(&params);
         assert!(proof
           .verify(
             black_box(&comm),

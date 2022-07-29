@@ -1,10 +1,12 @@
+use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
+
 use super::commitments::{Commitments, MultiCommitGens};
 use super::group::GroupElement;
-use super::scalar::{Scalar};
+use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use merlin::Transcript;
+use ark_ff::{Field, One, Zero};
 use ark_serialize::*;
-use ark_ff::{One, Zero, Field};
+use merlin::Transcript;
 // ax^2 + bx + c stored as vec![c,b,a]
 // ax^3 + bx^2 + cx + d stored as vec![d,c,b,a]
 #[derive(Debug)]
@@ -106,6 +108,16 @@ impl CompressedUniPoly {
     coeffs.extend(&self.coeffs_except_linear_term[1..]);
     assert_eq!(self.coeffs_except_linear_term.len() + 1, coeffs.len());
     UniPoly { coeffs }
+  }
+}
+
+impl AppendToPoseidon for UniPoly {
+  fn append_to_poseidon(&self, transcript: &mut PoseidonTranscript) {
+    // transcript.append_message(label, b"UniPoly_begin");
+    for i in 0..self.coeffs.len() {
+      transcript.append_scalar(&self.coeffs[i]);
+    }
+    // transcript.append_message(label, b"UniPoly_end");
   }
 }
 

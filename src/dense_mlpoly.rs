@@ -1,18 +1,21 @@
 #![allow(clippy::too_many_arguments)]
+use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
+
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
-use super::group::{GroupElement, CompressedGroup, VartimeMultiscalarMul, CompressGroupElement, DecompressGroupElement};
+use super::group::{
+  CompressGroupElement, CompressedGroup, DecompressGroupElement, GroupElement,
+  VartimeMultiscalarMul,
+};
 use super::math::Math;
 use super::nizk::{DotProductProofGens, DotProductProofLog};
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
+use ark_ff::{One, Zero};
+use ark_serialize::*;
 use core::ops::Index;
 use merlin::Transcript;
-use ark_serialize::*;
-use ark_ff::{One,Zero};
-
-
 
 #[cfg(feature = "multicore")]
 use rayon::prelude::*;
@@ -299,6 +302,14 @@ impl AppendToTranscript for PolyCommitment {
   }
 }
 
+impl AppendToPoseidon for PolyCommitment {
+  fn append_to_poseidon(&self, transcript: &mut PoseidonTranscript) {
+    for i in 0..self.C.len() {
+      transcript.append_point(&self.C[i]);
+    }
+  }
+}
+
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct PolyEvalProof {
   proof: DotProductProofLog,
@@ -316,10 +327,10 @@ impl PolyEvalProof {
     Zr: &Scalar,                   // evaluation of \widetilde{Z}(r)
     blind_Zr_opt: Option<&Scalar>, // specifies a blind for Zr
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     random_tape: &mut RandomTape,
   ) -> (PolyEvalProof, CompressedGroup) {
-    transcript.append_protocol_name(PolyEvalProof::protocol_name());
+    // transcript.append_protocol_name(PolyEvalProof::protocol_name());
 
     // assert vectors are of the right size
     assert_eq!(poly.get_num_vars(), r.len());
@@ -367,19 +378,23 @@ impl PolyEvalProof {
   pub fn verify(
     &self,
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     r: &[Scalar],           // point at which the polynomial is evaluated
     C_Zr: &CompressedGroup, // commitment to \widetilde{Z}(r)
     comm: &PolyCommitment,
   ) -> Result<(), ProofVerifyError> {
-    transcript.append_protocol_name(PolyEvalProof::protocol_name());
+    // transcript.append_protocol_name(PolyEvalProof::protocol_name());
 
     // compute L and R
     let eq = EqPolynomial::new(r.to_vec());
     let (L, R) = eq.compute_factored_evals();
 
     // compute a weighted sum of commitments and L
-    let C_decompressed = comm.C.iter().map(|pt| GroupElement::decompress(pt).unwrap()).collect::<Vec<GroupElement>>();
+    let C_decompressed = comm
+      .C
+      .iter()
+      .map(|pt| GroupElement::decompress(pt).unwrap())
+      .collect::<Vec<GroupElement>>();
 
     let C_LZ = GroupElement::vartime_multiscalar_mul(&L, C_decompressed.as_slice()).compress();
 
@@ -391,7 +406,7 @@ impl PolyEvalProof {
   pub fn verify_plain(
     &self,
     gens: &PolyCommitmentGens,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     r: &[Scalar], // point at which the polynomial is evaluated
     Zr: &Scalar,  // evaluation \widetilde{Z}(r)
     comm: &PolyCommitment,
@@ -405,8 +420,10 @@ impl PolyEvalProof {
 
 #[cfg(test)]
 mod tests {
+  use crate::parameters::poseidon_params;
+
   use super::*;
-  use ark_std::{UniformRand};
+  use ark_std::UniformRand;
 
   fn evaluate_with_LR(Z: &[Scalar], r: &[Scalar]) -> Scalar {
     let eq = EqPolynomial::new(r.to_vec());
@@ -436,7 +453,7 @@ mod tests {
       Scalar::one(),
       Scalar::from(2),
       Scalar::from(1),
-      Scalar::from(4)
+      Scalar::from(4),
     ];
 
     // r = [4,3]
@@ -569,7 +586,7 @@ mod tests {
       Scalar::from(1),
       Scalar::from(2),
       Scalar::from(1),
-      Scalar::from(4)
+      Scalar::from(4),
     ];
     let poly = DensePolynomial::new(Z);
 
@@ -582,7 +599,8 @@ mod tests {
     let (poly_commitment, blinds) = poly.commit(&gens, None);
 
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    let params = poseidon_params();
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let (proof, C_Zr) = PolyEvalProof::prove(
       &poly,
       Some(&blinds),
@@ -594,7 +612,7 @@ mod tests {
       &mut random_tape,
     );
 
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
       .verify(&gens, &mut verifier_transcript, &r, &C_Zr, &poly_commitment)
       .is_ok());

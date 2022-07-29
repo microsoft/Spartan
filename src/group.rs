@@ -1,24 +1,20 @@
 use crate::errors::ProofVerifyError;
 use ark_ec::msm::VariableBaseMSM;
 use ark_ff::PrimeField;
-use digest::DynDigest;
-use lazy_static::lazy_static;
-use num_bigint::BigInt;
+
 
 use lazy_static::lazy_static;
 use num_bigint::BigInt;
 
 use super::scalar::Scalar;
 use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_ec::{AffineCurve, ProjectiveCurve};
-use ark_serialize::*;
 use ark_serialize::*;
 use core::borrow::Borrow;
-use core::ops::{Mul, MulAssign};
 
 pub type GroupElement = ark_bls12_377::G1Projective;
 pub type GroupElementAffine = ark_bls12_377::G1Affine;
-pub type CurveField = ark_bls12_377::Fq;
+pub type Fq = ark_bls12_377::Fq;
+pub type Fr = ark_bls12_377::Fr;
 
 #[derive(Clone, Eq, PartialEq, Hash, Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct CompressedGroup(pub Vec<u8>);

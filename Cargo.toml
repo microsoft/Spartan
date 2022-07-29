@@ -33,6 +33,11 @@ ark-std = { version = "^0.3.0"}
 ark-bls12-377 = { version = "^0.3.0", features = ["r1cs","curve"] }
 ark-serialize = { version = "^0.3.0", features = ["derive"] }
 ark-sponge = { version = "^0.3.0" , features = ["r1cs"] }
+ark-crypto-primitives = { version = "^0.3.0", default-features = true }
+ark-r1cs-std = { version = "^0.3.0", default-features = false }
+ark-nonnative-field = { version = "0.3.0", default-features = false }
+ark-relations = { version = "^0.3.0", default-features = false }
+ark-snark = { version = "^0.3.0", default-features = false }
 
 lazy_static = "1.4.0"
 rand = { version = "0.8", features = [ "std", "std_rng" ] }
@@ -65,3 +70,6 @@ harness = false
 default = ["curve25519-dalek/simd_backend"]
 multicore = ["rayon"]
 profile = []
+
+[patch.crates-io]
+ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std/", rev = "a2a5ac491ae005ba2afd03fd21b7d3160d794a83"}

@@ -5,9 +5,10 @@ extern crate flate2;
 extern crate libspartan;
 extern crate merlin;
 
-use libspartan::{Instance, SNARKGens, SNARK};
-use merlin::Transcript;
 use ark_serialize::*;
+use libspartan::parameters::poseidon_params;
+use libspartan::poseidon_transcript::PoseidonTranscript;
+use libspartan::{Instance, SNARKGens, SNARK};
 
 fn print(msg: &str) {
   let star = "* ";
@@ -33,8 +34,10 @@ pub fn main() {
     // create a commitment to R1CSInstance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
+    let params = poseidon_params();
+
     // produce a proof of satisfiability
-    let mut prover_transcript = Transcript::new(b"snark_example");
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let proof = SNARK::prove(
       &inst,
       &comm,
@@ -51,7 +54,7 @@ pub fn main() {
     print(&msg_proof_len);
 
     // verify the proof of satisfiability
-    let mut verifier_transcript = Transcript::new(b"snark_example");
+    let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
       .verify(&comm, &inputs, &mut verifier_transcript, &gens)
       .is_ok());

@@ -26,7 +26,6 @@ mod errors;
 mod group;
 mod math;
 mod nizk;
-mod parameters;
 mod product_tree;
 mod r1csinstance;
 mod r1csproof;
@@ -38,12 +37,18 @@ mod timer;
 mod transcript;
 mod unipoly;
 
+/// TODO
+pub mod parameters;
+/// TODO
+pub mod poseidon_transcript;
+
 use ark_ff::{BigInteger, Field, PrimeField};
 use ark_serialize::*;
 use ark_std::{One, UniformRand, Zero};
 use core::cmp::max;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
+use poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
 use r1csinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
 };
@@ -354,7 +359,7 @@ impl SNARK {
     vars: VarsAssignment,
     inputs: &InputsAssignment,
     gens: &SNARKGens,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
   ) -> Self {
     let timer_prove = Timer::new("SNARK::prove");
 
@@ -362,8 +367,8 @@ impl SNARK {
     // to aid the prover produce its randomness
     let mut random_tape = RandomTape::new(b"proof");
 
-    transcript.append_protocol_name(SNARK::protocol_name());
-    comm.comm.append_to_transcript(b"comm", transcript);
+    // transcript.append_protocol_name(SNARK::protocol_name());
+    comm.comm.append_to_poseidon(transcript);
 
     let (r1cs_sat_proof, rx, ry) = {
       let (proof, rx, ry) = {
@@ -400,9 +405,9 @@ impl SNARK {
     let timer_eval = Timer::new("eval_sparse_polys");
     let inst_evals = {
       let (Ar, Br, Cr) = inst.inst.evaluate(&rx, &ry);
-      Ar.append_to_transcript(b"Ar_claim", transcript);
-      Br.append_to_transcript(b"Br_claim", transcript);
-      Cr.append_to_transcript(b"Cr_claim", transcript);
+      transcript.append_scalar(&Ar);
+      transcript.append_scalar(&Br);
+      transcript.append_scalar(&Cr);
       (Ar, Br, Cr)
     };
     timer_eval.stop();
@@ -437,14 +442,14 @@ impl SNARK {
     &self,
     comm: &ComputationCommitment,
     input: &InputsAssignment,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     gens: &SNARKGens,
   ) -> Result<(), ProofVerifyError> {
     let timer_verify = Timer::new("SNARK::verify");
-    transcript.append_protocol_name(SNARK::protocol_name());
+    // transcript.append_protocol_name(SNARK::protocol_name());
 
     // append a commitment to the computation to the transcript
-    comm.comm.append_to_transcript(b"comm", transcript);
+    comm.comm.append_to_poseidon(transcript);
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
@@ -460,9 +465,12 @@ impl SNARK {
 
     let timer_eval_proof = Timer::new("verify_eval_proof");
     let (Ar, Br, Cr) = &self.inst_evals;
-    Ar.append_to_transcript(b"Ar_claim", transcript);
-    Br.append_to_transcript(b"Br_claim", transcript);
-    Cr.append_to_transcript(b"Cr_claim", transcript);
+    // Ar.append_to_transcript(b"Ar_claim", transcript);
+    // Br.append_to_transcript(b"Br_claim", transcript);
+    // Cr.append_to_transcript(b"Cr_claim", transcript);
+    transcript.append_scalar(&Ar);
+    transcript.append_scalar(&Br);
+    transcript.append_scalar(&Cr);
     self.r1cs_eval_proof.verify(
       &comm.comm,
       &rx,
@@ -516,15 +524,20 @@ impl NIZK {
     vars: VarsAssignment,
     input: &InputsAssignment,
     gens: &NIZKGens,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
   ) -> Self {
     let timer_prove = Timer::new("NIZK::prove");
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
     let mut random_tape = RandomTape::new(b"proof");
 
+<<<<<<< HEAD
     transcript.append_protocol_name(NIZK::protocol_name());
     transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
+=======
+    // transcript.append_protocol_name(NIZK::protocol_name());
+    inst.inst.append_to_poseidon(transcript);
+>>>>>>> simplify transcript and change merlin backend to poseidon
 
     let (r1cs_sat_proof, rx, ry) = {
       // we might need to pad variables
@@ -564,13 +577,18 @@ impl NIZK {
     &self,
     inst: &Instance,
     input: &InputsAssignment,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     gens: &NIZKGens,
   ) -> Result<(), ProofVerifyError> {
     let timer_verify = Timer::new("NIZK::verify");
 
+<<<<<<< HEAD
     transcript.append_protocol_name(NIZK::protocol_name());
     transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
+=======
+    // transcript.append_protocol_name(NIZK::protocol_name());
+    inst.inst.append_to_poseidon(transcript);
+>>>>>>> simplify transcript and change merlin backend to poseidon
 
     // We send evaluations of A, B, C at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
@@ -602,6 +620,8 @@ impl NIZK {
 
 #[cfg(test)]
 mod tests {
+  use crate::parameters::poseidon_params;
+
   use super::*;
   use ark_ff::PrimeField;
 
@@ -620,8 +640,10 @@ mod tests {
     // create a commitment to R1CSInstance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
+    let params = poseidon_params();
+
     // produce a proof
-    let mut prover_transcript = Transcript::new(b"example");
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let proof = SNARK::prove(
       &inst,
       &comm,
@@ -633,7 +655,7 @@ mod tests {
     );
 
     // verify the proof
-    let mut verifier_transcript = Transcript::new(b"example");
+    let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
       .verify(&comm, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
@@ -732,8 +754,10 @@ mod tests {
     // create a commitment to the R1CS instance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
+    let params = poseidon_params();
+
     // produce a SNARK
-    let mut prover_transcript = Transcript::new(b"snark_example");
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let proof = SNARK::prove(
       &inst,
       &comm,
@@ -745,7 +769,7 @@ mod tests {
     );
 
     // verify the SNARK
-    let mut verifier_transcript = Transcript::new(b"snark_example");
+    let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
       .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
       .is_ok());
@@ -753,8 +777,10 @@ mod tests {
     // NIZK public params
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
+    let params = poseidon_params();
+
     // produce a NIZK
-    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let proof = NIZK::prove(
       &inst,
       assignment_vars,
@@ -764,7 +790,7 @@ mod tests {
     );
 
     // verify the NIZK
-    let mut verifier_transcript = Transcript::new(b"nizk_example");
+    let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
       .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
       .is_ok());

@@ -43,7 +43,8 @@ Some of our public APIs' style is inspired by the underlying crates we use.
 # extern crate libspartan;
 # extern crate merlin;
 # use libspartan::{Instance, SNARKGens, SNARK};
-# use merlin::Transcript;
+# use libspartan::poseidon_transcript::PoseidonTranscript;
+# use libspartan::parameters::poseidon_params;
 # fn main() {
     // specify the size of an R1CS instance
     let num_vars = 1024;
@@ -60,12 +61,14 @@ Some of our public APIs' style is inspired by the underlying crates we use.
     // create a commitment to the R1CS instance
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
+     let params = poseidon_params();
+
     // produce a proof of satisfiability
-    let mut prover_transcript = Transcript::new(b"snark_example");
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let proof = SNARK::prove(&inst, &comm, &decomm, vars, &inputs, &gens, &mut prover_transcript);
 
     // verify the proof of satisfiability
-    let mut verifier_transcript = Transcript::new(b"snark_example");
+    let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
       .verify(&comm, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
@@ -79,7 +82,8 @@ Here is another example to use the NIZK variant of the Spartan proof system:
 # extern crate libspartan;
 # extern crate merlin;
 # use libspartan::{Instance, NIZKGens, NIZK};
-# use merlin::Transcript;
+# use libspartan::poseidon_transcript::PoseidonTranscript;
+# use libspartan::parameters::poseidon_params;
 # fn main() {
     // specify the size of an R1CS instance
     let num_vars = 1024;
@@ -92,12 +96,14 @@ Here is another example to use the NIZK variant of the Spartan proof system:
     // ask the library to produce a synthentic R1CS instance
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
+     let params = poseidon_params();
+
     // produce a proof of satisfiability
-    let mut prover_transcript = Transcript::new(b"nizk_example");
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
     // verify the proof of satisfiability
-    let mut verifier_transcript = Transcript::new(b"nizk_example");
+    let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
       .verify(&inst, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
@@ -114,8 +120,10 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 # extern crate merlin;
 # mod scalar;
 # use scalar::Scalar;
+# use libspartan::parameters::poseidon_params;
 # use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
-# use merlin::Transcript;
+# use libspartan::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
+#
 # use ark_ff::{PrimeField, Field, BigInteger};
 # use ark_std::{One, Zero, UniformRand};
 # fn main() {
@@ -135,9 +143,10 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
 
   // create a commitment to the R1CS instance
   let (comm, decomm) = SNARK::encode(&inst, &gens);
+   let params = poseidon_params();
 
   // produce a proof of satisfiability
-  let mut prover_transcript = Transcript::new(b"snark_example");
+  let mut prover_transcript = PoseidonTranscript::new(&params);
   let proof = SNARK::prove(
     &inst,
     &comm,
@@ -149,7 +158,7 @@ Finally, we provide an example that specifies a custom R1CS instance instead of 
   );
 
   // verify the proof of satisfiability
-  let mut verifier_transcript = Transcript::new(b"snark_example");
+  let mut verifier_transcript = PoseidonTranscript::new(&params);
   assert!(proof
     .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
     .is_ok());

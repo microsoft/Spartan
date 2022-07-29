@@ -1,10 +1,14 @@
+use std::str::FromStr;
+
+use ark_sponge::poseidon::PoseidonParameters;
 // Copyright: https://github.com/nikkolasg/ark-dkg/blob/main/src/parameters.rs
 use json::JsonValue;
 use lazy_static::lazy_static;
 
+use crate::group::Fq;
 
 lazy_static! {
-    // bls12377_rate2_constraints:
+    /// bls12377_rate2_constraints:
     pub static ref P1: JsonValue = object! {
         "ark" => array![
             array![
@@ -225,4 +229,32 @@ lazy_static! {
         "full_rounds" => 8,
         "partial_rounds" => 31
     };
+}
+
+/// TODO
+pub fn poseidon_params() -> PoseidonParameters<Fq> {
+  let arks = P1["ark"]
+    .members()
+    .map(|ark| {
+      ark
+        .members()
+        .map(|v| Fq::from_str(v.as_str().unwrap()).unwrap())
+        .collect::<Vec<_>>()
+    })
+    .collect::<Vec<_>>();
+  let mds = P1["mds"]
+    .members()
+    .map(|m| {
+      m.members()
+        .map(|v| Fq::from_str(v.as_str().unwrap()).unwrap())
+        .collect::<Vec<_>>()
+    })
+    .collect::<Vec<_>>();
+  PoseidonParameters::new(
+    P1["full_rounds"].as_u32().unwrap(),
+    P1["partial_rounds"].as_u32().unwrap(),
+    P1["alpha"].as_u64().unwrap(),
+    mds,
+    arks,
+  )
 }

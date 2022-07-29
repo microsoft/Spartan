@@ -16,7 +16,6 @@ use super::r1csinstance::R1CSInstance;
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
-use super::sumcheck::ZKSumcheckInstanceProof;
 use super::timer::Timer;
 use super::transcript::{AppendToTranscript, ProofTranscript};
 use ark_ec::ProjectiveCurve;
@@ -80,7 +79,7 @@ impl R1CSProof {
     evals_Az: &mut DensePolynomial,
     evals_Bz: &mut DensePolynomial,
     evals_Cz: &mut DensePolynomial,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
   ) -> (SumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>) {
     let comb_func =
       |poly_tau_comp: &Scalar,
@@ -108,7 +107,7 @@ impl R1CSProof {
     claim: &Scalar,
     evals_z: &mut DensePolynomial,
     evals_ABC: &mut DensePolynomial,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
   ) -> (SumcheckInstanceProof, Vec<Scalar>, Vec<Scalar>) {
     let comb_func =
       |poly_A_comp: &Scalar, poly_B_comp: &Scalar| -> Scalar { (*poly_A_comp) * poly_B_comp };
@@ -128,16 +127,14 @@ impl R1CSProof {
     vars: Vec<Scalar>,
     input: &[Scalar],
     gens: &R1CSGens,
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     random_tape: &mut RandomTape,
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
     let timer_prove = Timer::new("R1CSProof::prove");
-    transcript.append_protocol_name(R1CSProof::protocol_name());
-
     // we currently require the number of |inputs| + 1 to be at most number of vars
     assert!(input.len() < vars.len());
 
-    input.append_to_transcript(b"input", transcript);
+    transcript.append_scalar_vector(&input.to_vec());
 
     let poly_vars = DensePolynomial::new(vars.clone());
 
@@ -155,8 +152,9 @@ impl R1CSProof {
     };
 
     // derive the verifier's challenge tau
-    let (num_rounds_x, num_rounds_y) = (inst.get_num_cons().log_2(), z.len().log_2());
-    let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
+    let (num_rounds_x, num_rounds_y) =
+      (inst.get_num_cons().log2() as usize, z.len().log2() as usize);
+    let tau = transcript.challenge_vector(num_rounds_x);
     // compute the initial evaluation table for R(\tau, x)
     let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
     let (mut poly_Az, mut poly_Bz, mut poly_Cz) =
@@ -186,9 +184,9 @@ impl R1CSProof {
 
     let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
     // combine the three claims into a single claim
-    let r_A = transcript.challenge_scalar(b"challenege_Az");
-    let r_B = transcript.challenge_scalar(b"challenege_Bz");
-    let r_C = transcript.challenge_scalar(b"challenege_Cz");
+    let r_A = transcript.challenge_scalar();
+    let r_B = transcript.challenge_scalar();
+    let r_C = transcript.challenge_scalar();
     let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
 
     let evals_ABC = {
@@ -238,19 +236,21 @@ impl R1CSProof {
     num_cons: usize,
     input: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
-    transcript: &mut Transcript,
+    transcript: &mut PoseidonTranscript,
     gens: &R1CSGens,
   ) -> Result<(Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
-    transcript.append_protocol_name(R1CSProof::protocol_name());
+    // transcript.append_protocol_name(R1CSProof::protocol_name());
 
-    input.append_to_transcript(b"input", transcript);
+    for i in 0..input.len() {
+      transcript.append_scalar(&input[i]);
+    }
 
     let n = num_vars;
 
     let (num_rounds_x, num_rounds_y) = (num_cons.log_2(), (2 * num_vars).log_2());
 
     // derive the verifier's challenge tau
-    let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
+    let tau = transcript.challenge_vector(num_rounds_x);
 
     // verify the first sum-check instance
     let claim_phase1 = Scalar::zero();
@@ -271,9 +271,9 @@ impl R1CSProof {
     assert_eq!(claim_post_phase1, expected_claim_post_phase1);
 
     // derive three public challenges and then derive a joint claim
-    let r_A = transcript.challenge_scalar(b"challenege_Az");
-    let r_B = transcript.challenge_scalar(b"challenege_Bz");
-    let r_C = transcript.challenge_scalar(b"challenege_Cz");
+    let r_A = transcript.challenge_scalar();
+    let r_B = transcript.challenge_scalar();
+    let r_C = transcript.challenge_scalar();
 
     let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
 
@@ -310,6 +310,8 @@ impl R1CSProof {
 
 #[cfg(test)]
 mod tests {
+  use crate::parameters::poseidon_params;
+
   use super::*;
   use ark_std::UniformRand;
   use test::Bencher;
@@ -394,8 +396,10 @@ mod tests {
 
     let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
 
+    let params = poseidon_params();
     let mut random_tape = RandomTape::new(b"proof");
-    let mut prover_transcript = Transcript::new(b"example");
+    // let mut prover_transcript = PoseidonTranscript::new(&params);
+    let mut prover_transcript = PoseidonTranscript::new(&params);
     let (proof, rx, ry) = R1CSProof::prove(
       &inst,
       vars,
@@ -407,7 +411,8 @@ mod tests {
 
     let inst_evals = inst.evaluate(&rx, &ry);
 
-    let mut verifier_transcript = Transcript::new(b"example");
+    // let mut verifier_transcript = PoseidonTranscript::new(&params);
+    let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
       .verify(
         inst.get_num_vars(),

@@ -11,7 +11,15 @@
 use ark_bls12_377::Fr as Scalar;
 use ark_ff::{BigInteger, PrimeField};
 use ark_std::{One, UniformRand, Zero};
+<<<<<<< HEAD
 use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
+=======
+use libspartan::{
+  parameters::poseidon_params,
+  poseidon_transcript::{self, PoseidonTranscript},
+  InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK,
+};
+>>>>>>> implement alternative transcript with poseidon backend
 use merlin::Transcript;
 
 #[allow(non_snake_case)]
@@ -119,6 +127,8 @@ fn main() {
     assignment_inputs,
   ) = produce_r1cs();
 
+  let params = poseidon_params();
+
   // produce public parameters
   let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
 
@@ -126,7 +136,7 @@ fn main() {
   let (comm, decomm) = SNARK::encode(&inst, &gens);
 
   // produce a proof of satisfiability
-  let mut prover_transcript = Transcript::new(b"snark_example");
+  let mut prover_transcript = PoseidonTranscript::new(&params);
   let proof = SNARK::prove(
     &inst,
     &comm,
@@ -138,7 +148,7 @@ fn main() {
   );
 
   // verify the proof of satisfiability
-  let mut verifier_transcript = Transcript::new(b"snark_example");
+  let mut verifier_transcript = PoseidonTranscript::new(&params);
   assert!(proof
     .verify(&comm, &assignment_inputs, &mut verifier_transcript, &gens)
     .is_ok());
