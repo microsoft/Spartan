@@ -11,16 +11,10 @@
 use ark_bls12_377::Fr as Scalar;
 use ark_ff::{BigInteger, PrimeField};
 use ark_std::{One, UniformRand, Zero};
-<<<<<<< HEAD
-use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
-=======
 use libspartan::{
-  parameters::poseidon_params,
-  poseidon_transcript::{self, PoseidonTranscript},
-  InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK,
+  parameters::poseidon_params, poseidon_transcript::PoseidonTranscript, InputsAssignment, Instance,
+  SNARKGens, VarsAssignment, SNARK,
 };
->>>>>>> implement alternative transcript with poseidon backend
-use merlin::Transcript;
 
 #[allow(non_snake_case)]
 fn produce_r1cs() -> (

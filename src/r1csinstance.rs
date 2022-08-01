@@ -14,9 +14,13 @@ use super::timer::Timer;
 use ark_ff::Field;
 use ark_serialize::*;
 use ark_std::{One, UniformRand, Zero};
-use merlin::Transcript;
+use digest::{ExtendableOutput, Input};
 
-#[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
+use merlin::Transcript;
+use serde::Serialize;
+use sha3::Shake256;
+
+#[derive(Debug, CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct R1CSInstance {
   num_cons: usize,
   num_vars: usize,
@@ -159,7 +163,12 @@ impl R1CSInstance {
   pub fn get_digest(&self) -> Vec<u8> {
     let mut bytes = Vec::new();
     self.serialize(&mut bytes).unwrap();
-    bytes
+    let mut shake = Shake256::default();
+    shake.input(bytes);
+    let mut reader = shake.xof_result();
+    let mut buf = [0u8; 256];
+    reader.read(&mut buf).unwrap();
+    buf.to_vec()
   }
 
   pub fn produce_synthetic_r1cs(

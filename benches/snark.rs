@@ -1,13 +1,9 @@
-#![allow(clippy::assertions_on_result_states)]
 extern crate libspartan;
 extern crate merlin;
 
 use libspartan::{
-  parameters::poseidon_params,
-  poseidon_transcript::{self, PoseidonTranscript},
-  Instance, SNARKGens, SNARK,
+  parameters::poseidon_params, poseidon_transcript::PoseidonTranscript, Instance, SNARKGens, SNARK,
 };
-use merlin::Transcript;
 
 use criterion::*;
 
@@ -133,7 +129,7 @@ fn set_duration() -> Criterion {
 criterion_group! {
 name = benches_snark;
 config = set_duration();
-targets = snark_encode_benchmark, snark_prove_benchmark, snark_verify_benchmark
+targets =  snark_verify_benchmark
 }
 
 criterion_main!(benches_snark);

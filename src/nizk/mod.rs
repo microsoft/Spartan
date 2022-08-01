@@ -5,18 +5,13 @@ use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::{
-  CompressGroupElement, CompressedGroup, DecompressGroupElement, GroupElement, GroupElementAffine,
-  UnpackGroupElement,
+  CompressGroupElement, CompressedGroup, DecompressGroupElement, GroupElement, UnpackGroupElement,
 };
-use super::math::Math;
 use super::random::RandomTape;
 use super::scalar::Scalar;
-use super::transcript::{AppendToTranscript, ProofTranscript};
-use ark_ec::group::Group;
 use ark_ec::ProjectiveCurve;
 use ark_ff::PrimeField;
 use ark_serialize::*;
-use merlin::Transcript;
 
 mod bullet;
 use bullet::BulletReductionProof;
@@ -423,6 +418,7 @@ impl DotProductProof {
   }
 }
 
+#[derive(Clone)]
 pub struct DotProductProofGens {
   n: usize,
   pub gens_n: MultiCommitGens,
@@ -595,13 +591,10 @@ impl DotProductProofLog {
 
 #[cfg(test)]
 mod tests {
-  use std::marker::PhantomData;
 
-  use crate::{group::VartimeMultiscalarMul, parameters::poseidon_params};
+  use crate::parameters::poseidon_params;
 
   use super::*;
-  use ark_bls12_377::{Fq, FqParameters, G1Affine};
-  use ark_ff::{BigInteger384, Fp384};
   use ark_std::UniformRand;
   #[test]
   fn check_knowledgeproof() {

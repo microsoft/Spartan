@@ -1,18 +1,14 @@
-use super::group::{Fq, GroupElement, GroupElementAffine, VartimeMultiscalarMul, GROUP_BASEPOINT};
+use super::group::{GroupElement, GroupElementAffine, VartimeMultiscalarMul, GROUP_BASEPOINT};
 use super::scalar::Scalar;
-use crate::group::{CompressGroupElement, DecompressGroupElement};
+use crate::group::CompressGroupElement;
 use crate::parameters::*;
 use ark_ec::{AffineCurve, ProjectiveCurve};
 use ark_ff::PrimeField;
-use ark_serialize::{CanonicalDeserialize, CanonicalSerialize};
-use ark_sponge::poseidon::{PoseidonParameters, PoseidonSponge};
-use ark_sponge::CryptographicSponge;
-use digest::{ExtendableOutput, Input};
-use sha3::Shake256;
-use std::io::Read;
-use std::str::FromStr;
 
-#[derive(Debug)]
+use ark_sponge::poseidon::PoseidonSponge;
+use ark_sponge::CryptographicSponge;
+
+#[derive(Debug, Clone)]
 pub struct MultiCommitGens {
   pub n: usize,
   pub G: Vec<GroupElement>,
@@ -24,7 +20,7 @@ impl MultiCommitGens {
     let params = poseidon_params();
     let mut sponge = PoseidonSponge::new(&params);
     sponge.absorb(&label);
-    sponge.absorb(&GROUP_BASEPOINT.into_affine());
+    sponge.absorb(&GROUP_BASEPOINT.compress().0);
 
     let mut gens: Vec<GroupElement> = Vec::new();
     for _ in 0..n + 1 {

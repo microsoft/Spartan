@@ -1,8 +1,8 @@
-use crate::group::CompressedGroup;
 use super::scalar::Scalar;
+use crate::group::CompressedGroup;
+use ark_ff::{BigInteger, PrimeField};
+use ark_serialize::CanonicalSerialize;
 use merlin::Transcript;
-use ark_ff::{PrimeField, BigInteger};
-use ark_serialize::{CanonicalSerialize};
 
 pub trait ProofTranscript {
   fn append_protocol_name(&mut self, protocol_name: &'static [u8]);

@@ -12,7 +12,7 @@ pub enum ProofVerifyError {
 impl Default for ProofVerifyError {
   fn default() -> Self {
     ProofVerifyError::InternalError
-  }  
+  }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]

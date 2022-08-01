@@ -11,14 +11,11 @@ use super::super::group::{
   CompressGroupElement, CompressedGroup, DecompressGroupElement, GroupElement,
   VartimeMultiscalarMul,
 };
-use super::super::math::Math;
 use super::super::scalar::Scalar;
-use super::super::transcript::ProofTranscript;
-use ark_ff::{fields, Field};
+use ark_ff::Field;
 use ark_serialize::*;
 use ark_std::{One, Zero};
 use core::iter;
-use merlin::Transcript;
 use std::ops::MulAssign;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]

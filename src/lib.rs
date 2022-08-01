@@ -1,6 +1,5 @@
 #![allow(non_snake_case)]
 #![doc = include_str!("../README.md")]
-#![deny(missing_docs)]
 #![feature(test)]
 #![allow(clippy::assertions_on_result_states)]
 
@@ -37,17 +36,17 @@ mod timer;
 mod transcript;
 mod unipoly;
 
-/// TODO
 pub mod parameters;
-/// TODO
+
+mod constraints;
 pub mod poseidon_transcript;
 
-use ark_ff::{BigInteger, Field, PrimeField};
+use ark_ff::Field;
 use ark_serialize::*;
-use ark_std::{One, UniformRand, Zero};
+use ark_std::Zero;
 use core::cmp::max;
 use errors::{ProofVerifyError, R1CSError};
-use merlin::Transcript;
+
 use poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
 use r1csinstance::{
   R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
@@ -55,9 +54,9 @@ use r1csinstance::{
 use r1csproof::{R1CSGens, R1CSProof};
 use random::RandomTape;
 use scalar::Scalar;
-use std::borrow::Borrow;
+
 use timer::Timer;
-use transcript::{AppendToTranscript, ProofTranscript};
+use transcript::ProofTranscript;
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 pub struct ComputationCommitment {
@@ -387,9 +386,9 @@ impl SNARK {
           &inst.inst,
           padded_vars.assignment,
           &inputs.assignment,
-          &gens.gens_r1cs_sat,
+          // &gens.gens_r1cs_sat,
           transcript,
-          &mut random_tape,
+          // &mut random_tape,
         )
       };
 
@@ -443,9 +442,9 @@ impl SNARK {
     comm: &ComputationCommitment,
     input: &InputsAssignment,
     transcript: &mut PoseidonTranscript,
-    gens: &SNARKGens,
+    _gens: &SNARKGens,
   ) -> Result<(), ProofVerifyError> {
-    let timer_verify = Timer::new("SNARK::verify");
+    let _timer_verify = Timer::new("SNARK::verify");
     // transcript.append_protocol_name(SNARK::protocol_name());
 
     // append a commitment to the computation to the transcript
@@ -453,38 +452,40 @@ impl SNARK {
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
-    let (rx, ry) = self.r1cs_sat_proof.verify(
+    // let (rx, ry) =
+    self.r1cs_sat_proof.circuit_size(
       comm.comm.get_num_vars(),
       comm.comm.get_num_cons(),
       &input.assignment,
       &self.inst_evals,
       transcript,
-      &gens.gens_r1cs_sat,
+      // &gens.gens_r1cs_sat,
     )?;
     timer_sat_proof.stop();
 
-    let timer_eval_proof = Timer::new("verify_eval_proof");
-    let (Ar, Br, Cr) = &self.inst_evals;
-    // Ar.append_to_transcript(b"Ar_claim", transcript);
-    // Br.append_to_transcript(b"Br_claim", transcript);
-    // Cr.append_to_transcript(b"Cr_claim", transcript);
-    transcript.append_scalar(&Ar);
-    transcript.append_scalar(&Br);
-    transcript.append_scalar(&Cr);
-    self.r1cs_eval_proof.verify(
-      &comm.comm,
-      &rx,
-      &ry,
-      &self.inst_evals,
-      &gens.gens_r1cs_eval,
-      transcript,
-    )?;
-    timer_eval_proof.stop();
-    timer_verify.stop();
+    // let timer_eval_proof = Timer::new("verify_eval_proof");
+    // let (Ar, Br, Cr) = &self.inst_evals;
+    // // Ar.append_to_transcript(b"Ar_claim", transcript);
+    // // Br.append_to_transcript(b"Br_claim", transcript);
+    // // Cr.append_to_transcript(b"Cr_claim", transcript);
+    // transcript.append_scalar(&Ar);
+    // transcript.append_scalar(&Br);
+    // transcript.append_scalar(&Cr);
+    // self.r1cs_eval_proof.verify(
+    //   &comm.comm,
+    //   &rx,
+    //   &ry,
+    //   &self.inst_evals,
+    //   &gens.gens_r1cs_eval,
+    //   transcript,
+    // )?;
+    // timer_eval_proof.stop();
+    // timer_verify.stop();
     Ok(())
   }
 }
 
+#[derive(Clone)]
 /// `NIZKGens` holds public parameters for producing and verifying proofs with the Spartan NIZK
 pub struct NIZKGens {
   gens_r1cs_sat: R1CSGens,
@@ -523,21 +524,16 @@ impl NIZK {
     inst: &Instance,
     vars: VarsAssignment,
     input: &InputsAssignment,
-    gens: &NIZKGens,
+    // gens: &NIZKGens,
     transcript: &mut PoseidonTranscript,
   ) -> Self {
     let timer_prove = Timer::new("NIZK::prove");
     // we create a Transcript object seeded with a random Scalar
     // to aid the prover produce its randomness
-    let mut random_tape = RandomTape::new(b"proof");
+    let _random_tape = RandomTape::new(b"proof");
 
-<<<<<<< HEAD
-    transcript.append_protocol_name(NIZK::protocol_name());
-    transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
-=======
     // transcript.append_protocol_name(NIZK::protocol_name());
-    inst.inst.append_to_poseidon(transcript);
->>>>>>> simplify transcript and change merlin backend to poseidon
+    transcript.append_bytes(&inst.digest);
 
     let (r1cs_sat_proof, rx, ry) = {
       // we might need to pad variables
@@ -555,9 +551,9 @@ impl NIZK {
         &inst.inst,
         padded_vars.assignment,
         &input.assignment,
-        &gens.gens_r1cs_sat,
+        // &gens.gens_r1cs_sat,
         transcript,
-        &mut random_tape,
+        // &mut random_tape,
       );
       let mut proof_encoded = Vec::new();
       proof.serialize(&mut proof_encoded).unwrap();
@@ -578,17 +574,11 @@ impl NIZK {
     inst: &Instance,
     input: &InputsAssignment,
     transcript: &mut PoseidonTranscript,
-    gens: &NIZKGens,
-  ) -> Result<(), ProofVerifyError> {
+    // gens: &NIZKGens,
+  ) -> Result<usize, ProofVerifyError> {
     let timer_verify = Timer::new("NIZK::verify");
 
-<<<<<<< HEAD
-    transcript.append_protocol_name(NIZK::protocol_name());
-    transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
-=======
-    // transcript.append_protocol_name(NIZK::protocol_name());
-    inst.inst.append_to_poseidon(transcript);
->>>>>>> simplify transcript and change merlin backend to poseidon
+    transcript.append_bytes(&inst.digest);
 
     // We send evaluations of A, B, C at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
@@ -599,22 +589,63 @@ impl NIZK {
 
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), inst.inst.get_num_inputs());
-    let (rx, ry) = self.r1cs_sat_proof.verify(
+    // let (rx, ry) =
+    let nc = self.r1cs_sat_proof.circuit_size(
       inst.inst.get_num_vars(),
       inst.inst.get_num_cons(),
       &input.assignment,
       &inst_evals,
       transcript,
-      &gens.gens_r1cs_sat,
+      // &gens.gens_r1cs_sat,
     )?;
 
     // verify if claimed rx and ry are correct
-    assert_eq!(rx, *claimed_rx);
-    assert_eq!(ry, *claimed_ry);
+    // assert_eq!(rx, *claimed_rx);
+    // assert_eq!(ry, *claimed_ry);
     timer_sat_proof.stop();
     timer_verify.stop();
 
-    Ok(())
+    Ok(nc)
+  }
+
+  /// A method to verify a NIZK proof of the satisfiability of an R1CS instance with Groth16
+  pub fn verify_groth16(
+    &self,
+    inst: &Instance,
+    input: &InputsAssignment,
+    transcript: &mut PoseidonTranscript,
+  ) -> Result<(u128, u128, u128), ProofVerifyError> {
+    let timer_verify = Timer::new("NIZK::verify");
+
+    // transcript.append_protocol_name(NIZK::protocol_name());
+    transcript.append_bytes(&inst.digest);
+
+    // We send evaluations of A, B, C at r = (rx, ry) as claims
+    // to enable the verifier complete the first sum-check
+    let timer_eval = Timer::new("eval_sparse_polys");
+    let (claimed_rx, claimed_ry) = &self.r;
+    let inst_evals = inst.inst.evaluate(claimed_rx, claimed_ry);
+    timer_eval.stop();
+
+    let timer_sat_proof = Timer::new("verify_sat_proof");
+    assert_eq!(input.assignment.len(), inst.inst.get_num_inputs());
+    // let (rx, ry) =
+    let (ds, dp, dv) = self.r1cs_sat_proof.verify_groth16(
+      inst.inst.get_num_vars(),
+      inst.inst.get_num_cons(),
+      &input.assignment,
+      &inst_evals,
+      transcript,
+      // &gens.gens_r1cs_sat,
+    )?;
+
+    // verify if claimed rx and ry are correct
+    // assert_eq!(rx, *claimed_rx);
+    // assert_eq!(ry, *claimed_ry);
+    timer_sat_proof.stop();
+    timer_verify.stop();
+
+    Ok((ds, dp, dv))
   }
 }
 
@@ -623,7 +654,7 @@ mod tests {
   use crate::parameters::poseidon_params;
 
   use super::*;
-  use ark_ff::PrimeField;
+  use ark_ff::{BigInteger, One, PrimeField};
 
   #[test]
   pub fn check_snark() {
@@ -775,7 +806,7 @@ mod tests {
       .is_ok());
 
     // NIZK public params
-    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+    let _gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     let params = poseidon_params();
 
@@ -785,14 +816,14 @@ mod tests {
       &inst,
       assignment_vars,
       &assignment_inputs,
-      &gens,
+      // &gens,
       &mut prover_transcript,
     );
 
     // verify the NIZK
     let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
-      .verify(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
+      .verify(&inst, &assignment_inputs, &mut verifier_transcript)
       .is_ok());
   }
 }

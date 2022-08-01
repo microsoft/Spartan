@@ -2,32 +2,26 @@
 #![allow(clippy::type_complexity)]
 use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
 
-use super::commitments::{Commitments, MultiCommitGens};
 use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
-use super::group::{
-  CompressGroupElement, CompressedGroup, DecompressGroupElement, GroupElement,
-  VartimeMultiscalarMul,
-};
-use super::nizk::DotProductProof;
-use super::random::RandomTape;
+
 use super::scalar::Scalar;
-use super::transcript::{AppendToTranscript, ProofTranscript};
-use super::unipoly::{CompressedUniPoly, UniPoly};
-use ark_ff::{One, Zero};
+use super::transcript::ProofTranscript;
+use super::unipoly::UniPoly;
+
+use ark_ff::Zero;
 use ark_serialize::*;
-use core::iter;
+
 use itertools::izip;
-use merlin::Transcript;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct SumcheckInstanceProof {
-  compressed_polys: Vec<CompressedUniPoly>,
+  pub polys: Vec<UniPoly>,
 }
 
 impl SumcheckInstanceProof {
-  pub fn new(compressed_polys: Vec<CompressedUniPoly>) -> SumcheckInstanceProof {
-    SumcheckInstanceProof { compressed_polys }
+  pub fn new(polys: Vec<UniPoly>) -> SumcheckInstanceProof {
+    SumcheckInstanceProof { polys }
   }
 
   pub fn verify(
@@ -41,14 +35,14 @@ impl SumcheckInstanceProof {
     let mut r: Vec<Scalar> = Vec::new();
 
     // verify that there is a univariate polynomial for each round
-    assert_eq!(self.compressed_polys.len(), num_rounds);
-    for i in 0..self.compressed_polys.len() {
-      let poly = self.compressed_polys[i].decompress(&e);
+    assert_eq!(self.polys.len(), num_rounds);
+    for i in 0..self.polys.len() {
+      let poly = self.polys[i].clone();
 
       // verify degree bound
       assert_eq!(poly.degree(), degree_bound);
-
       // check if G_k(0) + G_k(1) = e
+
       assert_eq!(poly.eval_at_zero() + poly.eval_at_one(), e);
 
       // append the prover's message to the transcript
@@ -202,8 +196,8 @@ impl SumcheckInstanceProof {
   {
     let mut e = *claim;
     let mut r: Vec<Scalar> = Vec::new();
-    let mut cubic_polys: Vec<CompressedUniPoly> = Vec::new();
-    for j in 0..num_rounds {
+    let mut cubic_polys: Vec<UniPoly> = Vec::new();
+    for _j in 0..num_rounds {
       let mut eval_point_0 = Scalar::zero();
       let mut eval_point_2 = Scalar::zero();
       let mut eval_point_3 = Scalar::zero();
@@ -256,7 +250,7 @@ impl SumcheckInstanceProof {
       poly_C.bound_poly_var_top(&r_j);
 
       e = poly.evaluate(&r_j);
-      cubic_polys.push(poly.compress());
+      cubic_polys.push(poly);
     }
     (
       SumcheckInstanceProof::new(cubic_polys),
@@ -278,7 +272,7 @@ impl SumcheckInstanceProof {
   {
     let mut e = *claim;
     let mut r: Vec<Scalar> = Vec::new();
-    let mut cubic_polys: Vec<CompressedUniPoly> = Vec::new();
+    let mut cubic_polys: Vec<UniPoly> = Vec::new();
     for _j in 0..num_rounds {
       let mut eval_point_0 = Scalar::zero();
       let mut eval_point_2 = Scalar::zero();
@@ -325,7 +319,7 @@ impl SumcheckInstanceProof {
       poly_B.bound_poly_var_top(&r_j);
       poly_C.bound_poly_var_top(&r_j);
       e = poly.evaluate(&r_j);
-      cubic_polys.push(poly.compress());
+      cubic_polys.push(poly);
     }
 
     (
@@ -366,7 +360,7 @@ impl SumcheckInstanceProof {
     //let (poly_A_vec_seq, poly_B_vec_seq, poly_C_vec_seq) = poly_vec_seq;
     let mut e = *claim;
     let mut r: Vec<Scalar> = Vec::new();
-    let mut cubic_polys: Vec<CompressedUniPoly> = Vec::new();
+    let mut cubic_polys: Vec<UniPoly> = Vec::new();
 
     for _j in 0..num_rounds {
       let mut evals: Vec<(Scalar, Scalar, Scalar)> = Vec::new();
@@ -477,7 +471,7 @@ impl SumcheckInstanceProof {
       }
 
       e = poly.evaluate(&r_j);
-      cubic_polys.push(poly.compress());
+      cubic_polys.push(poly);
     }
 
     let poly_A_par_final = (0..poly_A_vec_par.len())
@@ -520,9 +514,9 @@ impl SumcheckInstanceProof {
   {
     let mut e = *claim;
     let mut r: Vec<Scalar> = Vec::new();
-    let mut quad_polys: Vec<CompressedUniPoly> = Vec::new();
+    let mut quad_polys: Vec<UniPoly> = Vec::new();
 
-    for j in 0..num_rounds {
+    for _j in 0..num_rounds {
       let mut eval_point_0 = Scalar::zero();
       let mut eval_point_2 = Scalar::zero();
 
@@ -551,7 +545,7 @@ impl SumcheckInstanceProof {
       poly_A.bound_poly_var_top(&r_j);
       poly_B.bound_poly_var_top(&r_j);
       e = poly.evaluate(&r_j);
-      quad_polys.push(poly.compress());
+      quad_polys.push(poly);
     }
 
     (
@@ -586,7 +580,7 @@ impl SumcheckInstanceProof {
 //     let mut comm_claim_per_round = claim_per_round.commit(blind_claim, gens_1).compress();
 
 //     let mut r: Vec<Scalar> = Vec::new();
-//     let mut comm_polys: Vec<CompressedGroup> = Vec::new();
+//     let mut comm_polys: Vec<Group> = Vec::new();
 //     let mut comm_evals: Vec<CompressedGroup> = Vec::new();
 //     let mut proofs: Vec<DotProductProof> = Vec::new();
 

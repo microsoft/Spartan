@@ -9,7 +9,6 @@ use super::sumcheck::SumcheckInstanceProof;
 use super::transcript::ProofTranscript;
 use ark_serialize::*;
 use ark_std::One;
-use merlin::Transcript;
 
 #[derive(Debug)]
 pub struct ProductCircuit {

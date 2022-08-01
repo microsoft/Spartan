@@ -1,29 +1,31 @@
 #![allow(clippy::too_many_arguments)]
-use crate::group::CompressedGroup;
+use crate::constraints::{VerifierCircuit, VerifierConfig};
+use crate::group::{Fq, Fr};
+use crate::math::Math;
+use crate::parameters::poseidon_params;
+use crate::poseidon_transcript::PoseidonTranscript;
 use crate::sumcheck::SumcheckInstanceProof;
 
-use super::commitments::{Commitments, MultiCommitGens};
-use super::dense_mlpoly::{
-  DensePolynomial, EqPolynomial, PolyCommitment, PolyCommitmentGens, PolyEvalProof,
-};
+use ark_bw6_761::BW6_761 as P;
+
+use super::commitments::MultiCommitGens;
+use super::dense_mlpoly::{DensePolynomial, EqPolynomial, PolyCommitmentGens};
 use super::errors::ProofVerifyError;
-use super::group::{
-  CompressGroupElement, DecompressGroupElement, GroupElement, VartimeMultiscalarMul,
-};
-use super::math::Math;
-use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
+
 use super::r1csinstance::R1CSInstance;
-use super::random::RandomTape;
+
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::timer::Timer;
-use super::transcript::{AppendToTranscript, ProofTranscript};
-use ark_ec::ProjectiveCurve;
-use ark_ff::PrimeField;
+use super::transcript::ProofTranscript;
+use ark_crypto_primitives::{CircuitSpecificSetupSNARK, SNARK};
+
+use ark_groth16::Groth16;
+use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystem};
 use ark_serialize::*;
 use ark_std::{One, Zero};
-use core::iter;
-use merlin::Transcript;
+
+use std::time::Instant;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct R1CSProof {
@@ -36,7 +38,7 @@ pub struct R1CSProof {
   // proof_eval_vars_at_ry: PolyEvalProof,
   // proof_eq_sc_phase2: EqualityProof,
 }
-
+#[derive(Clone)]
 pub struct R1CSSumcheckGens {
   gens_1: MultiCommitGens,
   gens_3: MultiCommitGens,
@@ -58,6 +60,7 @@ impl R1CSSumcheckGens {
   }
 }
 
+#[derive(Clone)]
 pub struct R1CSGens {
   gens_sc: R1CSSumcheckGens,
   gens_pc: PolyCommitmentGens,
@@ -126,13 +129,14 @@ impl R1CSProof {
     inst: &R1CSInstance,
     vars: Vec<Scalar>,
     input: &[Scalar],
-    gens: &R1CSGens,
     transcript: &mut PoseidonTranscript,
-    random_tape: &mut RandomTape,
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
     let timer_prove = Timer::new("R1CSProof::prove");
     // we currently require the number of |inputs| + 1 to be at most number of vars
     assert!(input.len() < vars.len());
+
+    let c = transcript.challenge_scalar();
+    transcript.new_from_state(&c);
 
     transcript.append_scalar_vector(&input.to_vec());
 
@@ -152,8 +156,7 @@ impl R1CSProof {
     };
 
     // derive the verifier's challenge tau
-    let (num_rounds_x, num_rounds_y) =
-      (inst.get_num_cons().log2() as usize, z.len().log2() as usize);
+    let (num_rounds_x, num_rounds_y) = (inst.get_num_cons().log_2(), z.len().log_2());
     let tau = transcript.challenge_vector(num_rounds_x);
     // compute the initial evaluation table for R(\tau, x)
     let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
@@ -180,7 +183,7 @@ impl R1CSProof {
 
     // prove the final step of sum-check #1
     let taus_bound_rx = tau_claim;
-    let claim_post_phase1 = ((*Az_claim) * Bz_claim - Cz_claim) * taus_bound_rx;
+    let _claim_post_phase1 = ((*Az_claim) * Bz_claim - Cz_claim) * taus_bound_rx;
 
     let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
     // combine the three claims into a single claim
@@ -203,7 +206,7 @@ impl R1CSProof {
     };
 
     // another instance of the sum-check protocol
-    let (sc_proof_phase2, ry, claims_phase2) = R1CSProof::prove_phase_two(
+    let (sc_proof_phase2, ry, _claims_phase2) = R1CSProof::prove_phase_two(
       num_rounds_y,
       &claim_phase2,
       &mut DensePolynomial::new(z),
@@ -230,82 +233,125 @@ impl R1CSProof {
     )
   }
 
-  pub fn verify(
+  pub fn verify_groth16(
     &self,
     num_vars: usize,
     num_cons: usize,
     input: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
     transcript: &mut PoseidonTranscript,
-    gens: &R1CSGens,
-  ) -> Result<(Vec<Scalar>, Vec<Scalar>), ProofVerifyError> {
-    // transcript.append_protocol_name(R1CSProof::protocol_name());
+  ) -> Result<(u128, u128, u128), ProofVerifyError> {
+    let c = transcript.challenge_scalar();
 
-    for i in 0..input.len() {
-      transcript.append_scalar(&input[i]);
-    }
+    let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, Scalar::one())];
+    //remaining inputs
+    input_as_sparse_poly_entries.extend(
+      (0..input.len())
+        .map(|i| SparsePolyEntry::new(i + 1, input[i]))
+        .collect::<Vec<SparsePolyEntry>>(),
+    );
 
     let n = num_vars;
+    let input_as_sparse_poly =
+      SparsePolynomial::new(n.log_2() as usize, input_as_sparse_poly_entries);
 
-    let (num_rounds_x, num_rounds_y) = (num_cons.log_2(), (2 * num_vars).log_2());
-
-    // derive the verifier's challenge tau
-    let tau = transcript.challenge_vector(num_rounds_x);
-
-    // verify the first sum-check instance
-    let claim_phase1 = Scalar::zero();
-    let (claim_post_phase1, rx) =
-      self
-        .sc_proof_phase1
-        .verify(claim_phase1, num_rounds_x, 3, transcript)?;
-
-    // perform the intermediate sum-check test with claimed Az, Bz, and Cz
-    let (Az_claim, Bz_claim, Cz_claim, prod_Az_Bz_claims) = &self.claims_phase2;
-
-    let taus_bound_rx: Scalar = (0..rx.len())
-      .map(|i| rx[i] * tau[i] + (Scalar::one() - rx[i]) * (Scalar::one() - tau[i]))
-      .product();
-
-    let expected_claim_post_phase1 = (*prod_Az_Bz_claims - *Cz_claim) * (taus_bound_rx);
-
-    assert_eq!(claim_post_phase1, expected_claim_post_phase1);
-
-    // derive three public challenges and then derive a joint claim
-    let r_A = transcript.challenge_scalar();
-    let r_B = transcript.challenge_scalar();
-    let r_C = transcript.challenge_scalar();
-
-    let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
-
-    // verify the joint claim with a sum-check protocol
-    let (claim_post_phase2, ry) =
-      self
-        .sc_proof_phase2
-        .verify(claim_phase2, num_rounds_y, 2, transcript)?;
-
-    let poly_input_eval = {
-      // constant term
-      let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, Scalar::one())];
-      //remaining inputs
-      input_as_sparse_poly_entries.extend(
-        (0..input.len())
-          .map(|i| SparsePolyEntry::new(i + 1, input[i]))
-          .collect::<Vec<SparsePolyEntry>>(),
-      );
-      SparsePolynomial::new(n.log_2(), input_as_sparse_poly_entries).evaluate(&ry[1..])
+    let config = VerifierConfig {
+      num_vars: num_vars,
+      num_cons: num_cons,
+      input: input.to_vec(),
+      evals: *evals,
+      params: poseidon_params(),
+      prev_challenge: c,
+      claims_phase2: self.claims_phase2,
+      polys_sc1: self.sc_proof_phase1.polys.clone(),
+      polys_sc2: self.sc_proof_phase2.polys.clone(),
+      eval_vars_at_ry: self.eval_vars_at_ry,
+      input_as_sparse_poly: input_as_sparse_poly,
     };
 
-    let eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;
+    let mut rng = ark_std::test_rng();
 
-    // perform the final check in the second sum-check protocol
-    let (eval_A_r, eval_B_r, eval_C_r) = evals;
-    let scalar = r_A * eval_A_r + r_B * eval_B_r + r_C * eval_C_r;
-    let expected_claim_post_phase2 = eval_Z_at_ry * scalar;
+    let start = Instant::now();
+    let circuit = VerifierCircuit::new(&config, &mut rng).unwrap();
+    let dp1 = start.elapsed().as_millis();
 
-    assert_eq!(expected_claim_post_phase2, claim_post_phase2);
+    let start = Instant::now();
+    let (pk, vk) = Groth16::<P>::setup(circuit.clone(), &mut rng).unwrap();
+    let ds = start.elapsed().as_millis();
 
-    Ok((rx, ry))
+    let start = Instant::now();
+    let proof = Groth16::<P>::prove(&pk, circuit.clone(), &mut rng).unwrap();
+    let dp2 = start.elapsed().as_millis();
+
+    let start = Instant::now();
+    let is_verified = Groth16::<P>::verify(&vk, &[], &proof).unwrap();
+    let dv = start.elapsed().as_millis();
+    assert!(is_verified);
+
+    Ok((ds, dp1 + dp2, dv))
   }
+
+  pub fn circuit_size(
+    &self,
+    num_vars: usize,
+    num_cons: usize,
+    input: &[Scalar],
+    evals: &(Scalar, Scalar, Scalar),
+    transcript: &mut PoseidonTranscript,
+  ) -> Result<usize, ProofVerifyError> {
+    let c = transcript.challenge_scalar();
+
+    let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, Scalar::one())];
+    //remaining inputs
+    input_as_sparse_poly_entries.extend(
+      (0..input.len())
+        .map(|i| SparsePolyEntry::new(i + 1, input[i]))
+        .collect::<Vec<SparsePolyEntry>>(),
+    );
+
+    let n = num_vars;
+    let input_as_sparse_poly =
+      SparsePolynomial::new(n.log_2() as usize, input_as_sparse_poly_entries);
+
+    let config = VerifierConfig {
+      num_vars: num_vars,
+      num_cons: num_cons,
+      input: input.to_vec(),
+      evals: *evals,
+      params: poseidon_params(),
+      prev_challenge: c,
+      claims_phase2: self.claims_phase2,
+      polys_sc1: self.sc_proof_phase1.polys.clone(),
+      polys_sc2: self.sc_proof_phase2.polys.clone(),
+      eval_vars_at_ry: self.eval_vars_at_ry,
+      input_as_sparse_poly: input_as_sparse_poly,
+    };
+
+    let mut rng = ark_std::test_rng();
+    let circuit = VerifierCircuit::new(&config, &mut rng).unwrap();
+
+    let nc_inner = verify_constraints_inner(circuit.clone(), &num_cons);
+
+    let nc_outer = verify_constraints_outer(circuit.clone(), &num_cons);
+    Ok(nc_inner + nc_outer)
+  }
+}
+
+fn verify_constraints_outer(circuit: VerifierCircuit, _num_cons: &usize) -> usize {
+  let cs = ConstraintSystem::<Fq>::new_ref();
+  circuit.generate_constraints(cs.clone()).unwrap();
+  assert!(cs.is_satisfied().unwrap());
+  cs.num_constraints()
+}
+
+fn verify_constraints_inner(circuit: VerifierCircuit, _num_cons: &usize) -> usize {
+  let cs = ConstraintSystem::<Fr>::new_ref();
+  circuit
+    .inner_circuit
+    .generate_constraints(cs.clone())
+    .unwrap();
+  assert!(cs.is_satisfied().unwrap());
+  cs.num_constraints()
 }
 
 #[cfg(test)]
@@ -313,8 +359,8 @@ mod tests {
   use crate::parameters::poseidon_params;
 
   use super::*;
+
   use ark_std::UniformRand;
-  use test::Bencher;
 
   fn produce_tiny_r1cs() -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
     // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
@@ -394,39 +440,29 @@ mod tests {
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
-    let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
+    // let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
 
     let params = poseidon_params();
-    let mut random_tape = RandomTape::new(b"proof");
-    // let mut prover_transcript = PoseidonTranscript::new(&params);
+    // let mut random_tape = RandomTape::new(b"proof");
+
     let mut prover_transcript = PoseidonTranscript::new(&params);
-    let (proof, rx, ry) = R1CSProof::prove(
-      &inst,
-      vars,
-      &input,
-      &gens,
-      &mut prover_transcript,
-      &mut random_tape,
-    );
+    let (proof, rx, ry) = R1CSProof::prove(&inst, vars, &input, &mut prover_transcript);
 
     let inst_evals = inst.evaluate(&rx, &ry);
 
-    // let mut verifier_transcript = PoseidonTranscript::new(&params);
     let mut verifier_transcript = PoseidonTranscript::new(&params);
+
+    // if you want to check the test fails
+    // input[0] = Scalar::zero();
+
     assert!(proof
-      .verify(
+      .verify_groth16(
         inst.get_num_vars(),
         inst.get_num_cons(),
         &input,
         &inst_evals,
         &mut verifier_transcript,
-        &gens,
       )
       .is_ok());
-  }
-
-  #[bench]
-  fn bench_r1cs_proof(b: &mut Bencher) {
-    b.iter(|| check_r1cs_proof());
   }
 }

@@ -38,13 +38,21 @@ ark-r1cs-std = { version = "^0.3.0", default-features = false }
 ark-nonnative-field = { version = "0.3.0", default-features = false }
 ark-relations = { version = "^0.3.0", default-features = false }
 ark-snark = { version = "^0.3.0", default-features = false }
+ark-groth16 = { version = "^0.3.0", features = ["r1cs"] }
+ark-bw6-761 = { version = "^0.3.0" }
 
 lazy_static = "1.4.0"
 rand = { version = "0.8", features = [ "std", "std_rng" ] }
 num-bigint = { version = "0.4" }
 
+tracing = { version = "0.1", default-features = false, features = [ "attributes" ] }
+tracing-subscriber = { version = "0.2" }
+
+
 [dev-dependencies]
-criterion = "0.3.1"
+serde = { version = "1.0", features = ["derive"] }
+csv = "1.1.5"
+criterion = "0.3.6"
 
 [lib]
 name = "libspartan"
@@ -66,10 +74,17 @@ harness = false
 name = "nizk"
 harness = false
 
+[[bench]]
+name = "r1cs"
+harness = false
+debug = true
+
 [features]
-default = ["curve25519-dalek/simd_backend"]
 multicore = ["rayon"]
 profile = []
+default = ["parallel", "std"]
+parallel = [ "std", "ark-ff/parallel", "ark-std/parallel", "ark-ec/parallel"]
+std = ["ark-ff/std", "ark-ec/std", "ark-std/std", "ark-relations/std", "ark-serialize/std"]
 
 [patch.crates-io]
 ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std/", rev = "a2a5ac491ae005ba2afd03fd21b7d3160d794a83"}

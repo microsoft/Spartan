@@ -27,6 +27,7 @@ pub struct DensePolynomial {
   Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
 
+#[derive(Clone)]
 pub struct PolyCommitmentGens {
   pub gens: DotProductProofGens,
 }
