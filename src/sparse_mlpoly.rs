@@ -1650,7 +1650,11 @@ impl SparsePolynomial {
 
 #[cfg(test)]
 mod tests {
+<<<<<<< HEAD
   use crate::parameters::poseidon_params;
+=======
+  use crate::{parameters::poseidon_params};
+>>>>>>> implement spartan verifier as a circuit and verify it with groth16
 
   use super::*;
   use ark_std::UniformRand;

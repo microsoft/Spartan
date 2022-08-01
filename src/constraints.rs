@@ -23,10 +23,10 @@ use ark_r1cs_std::{
   fields::fp::FpVar,
   prelude::{Boolean, EqGadget, FieldVar},
 };
+<<<<<<< HEAD
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, Namespace, SynthesisError};
-use ark_sponge::{
-  constraints::CryptographicSpongeVar,
-  poseidon::{constraints::PoseidonSpongeVar, PoseidonParameters},
+=======
+use ark_relations::{
 };
 use rand::{CryptoRng, Rng};
 

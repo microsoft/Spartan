@@ -11,7 +11,10 @@ use ark_bw6_761::BW6_761 as P;
 use super::commitments::MultiCommitGens;
 use super::dense_mlpoly::{DensePolynomial, EqPolynomial, PolyCommitmentGens};
 use super::errors::ProofVerifyError;
-
+use super::group::{
+  CompressGroupElement, DecompressGroupElement, GroupElement, VartimeMultiscalarMul,
+};
+use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
 use super::r1csinstance::R1CSInstance;
 
 use super::scalar::Scalar;
