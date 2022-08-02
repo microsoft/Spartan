@@ -2,7 +2,7 @@
 name = "spartan"
 version = "0.6.0"
 authors = ["Srinath Setty <srinath@microsoft.com>"]
-edition = "2018"
+edition = "2021"
 description = "High-speed zkSNARKs without trusted setup"
 documentation = "https://docs.rs/spartan/"
 readme = "README.md"

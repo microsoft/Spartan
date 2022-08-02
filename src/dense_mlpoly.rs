@@ -121,7 +121,7 @@ impl IdentityPolynomial {
 impl DensePolynomial {
   pub fn new(Z: Vec<Scalar>) -> Self {
     DensePolynomial {
-      num_vars: Z.len().log2() as usize,
+      num_vars: Z.len().log_2() as usize,
       len: Z.len(),
       Z,
     }

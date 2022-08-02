@@ -4,15 +4,19 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 use super::super::errors::ProofVerifyError;
-use super::super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul, CompressGroupElement, DecompressGroupElement};
+use super::super::group::{
+  CompressGroupElement, CompressedGroup, DecompressGroupElement, GroupElement,
+  VartimeMultiscalarMul,
+};
+use super::super::math::Math;
 use super::super::scalar::Scalar;
 use super::super::transcript::ProofTranscript;
-use core::iter;
-use std::ops::MulAssign;
-use merlin::Transcript;
+use ark_ff::{fields, Field};
 use ark_serialize::*;
-use ark_ff::{Field, fields};
-use ark_std::{One, Zero}; 
+use ark_std::{One, Zero};
+use core::iter;
+use merlin::Transcript;
+use std::ops::MulAssign;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize)]
 pub struct BulletReductionProof {
@@ -58,7 +62,7 @@ impl BulletReductionProof {
     // All of the input vectors must have a length that is a power of two.
     let mut n = G.len();
     assert!(n.is_power_of_two());
-    let lg_n = n.log2() as usize;
+    let lg_n = n.log_2() as usize;
 
     // All of the input vectors must have the same length.
     assert_eq!(G.len(), n);
@@ -86,16 +90,34 @@ impl BulletReductionProof {
         a_L
           .iter()
           .chain(iter::once(&c_L))
-          .chain(iter::once(blind_L)).map(|s| *s).collect::<Vec<Scalar>>().as_slice(),
-        G_R.iter().chain(iter::once(Q)).chain(iter::once(H)).map(|p| *p).collect::<Vec<GroupElement>>().as_slice(),
+          .chain(iter::once(blind_L))
+          .map(|s| *s)
+          .collect::<Vec<Scalar>>()
+          .as_slice(),
+        G_R
+          .iter()
+          .chain(iter::once(Q))
+          .chain(iter::once(H))
+          .map(|p| *p)
+          .collect::<Vec<GroupElement>>()
+          .as_slice(),
       );
 
       let R = GroupElement::vartime_multiscalar_mul(
         a_R
           .iter()
           .chain(iter::once(&c_R))
-          .chain(iter::once(blind_R)).map(|s| *s).collect::<Vec<Scalar>>().as_slice(),
-        G_L.iter().chain(iter::once(Q)).chain(iter::once(H)).map(|p| *p).collect::<Vec<GroupElement>>().as_slice(),
+          .chain(iter::once(blind_R))
+          .map(|s| *s)
+          .collect::<Vec<Scalar>>()
+          .as_slice(),
+        G_L
+          .iter()
+          .chain(iter::once(Q))
+          .chain(iter::once(H))
+          .map(|p| *p)
+          .collect::<Vec<GroupElement>>()
+          .as_slice(),
       );
 
       transcript.append_point(b"L", &L.compress());
@@ -161,7 +183,7 @@ impl BulletReductionProof {
 
     // 2. Compute 1/(u_k...u_1) and 1/u_k, ..., 1/u_1
     let mut challenges_inv: Vec<Scalar> = challenges.clone();
-     
+
     ark_ff::fields::batch_inversion(&mut challenges_inv);
     let mut allinv: Scalar = Scalar::one();
     for c in challenges.iter().filter(|s| !s.is_zero()) {
@@ -225,8 +247,16 @@ impl BulletReductionProof {
       u_sq
         .iter()
         .chain(u_inv_sq.iter())
-        .chain(iter::once(&Scalar::one())).map(|s| *s).collect::<Vec<Scalar>>().as_slice(),
-      Ls.iter().chain(Rs.iter()).chain(iter::once(Gamma)).map(|p| *p).collect::<Vec<GroupElement>>().as_slice(),
+        .chain(iter::once(&Scalar::one()))
+        .map(|s| *s)
+        .collect::<Vec<Scalar>>()
+        .as_slice(),
+      Ls.iter()
+        .chain(Rs.iter())
+        .chain(iter::once(Gamma))
+        .map(|p| *p)
+        .collect::<Vec<GroupElement>>()
+        .as_slice(),
     );
 
     Ok((G_hat, Gamma_hat, a_hat))

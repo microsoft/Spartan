@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use super::dense_mlpoly::DensePolynomial;
 use super::dense_mlpoly::EqPolynomial;
+use super::math::Math;
 use super::scalar::Scalar;
 use super::sumcheck::SumcheckInstanceProof;
 use super::transcript::ProofTranscript;
@@ -37,7 +38,7 @@ impl ProductCircuit {
     let mut left_vec: Vec<DensePolynomial> = Vec::new();
     let mut right_vec: Vec<DensePolynomial> = Vec::new();
 
-    let num_layers = poly.len().log2() as usize;
+    let num_layers = poly.len().log_2() as usize;
     let (outp_left, outp_right) = poly.split(poly.len() / 2);
 
     left_vec.push(outp_left);
@@ -182,7 +183,7 @@ impl ProductCircuitEvalProof {
       let mut poly_C = DensePolynomial::new(EqPolynomial::new(rand.clone()).evals());
       assert_eq!(poly_C.len(), len / 2);
 
-      let num_rounds_prod = poly_C.len().log2() as usize;
+      let num_rounds_prod = poly_C.len().log_2() as usize;
       let comb_func_prod = |poly_A_comp: &Scalar,
                             poly_B_comp: &Scalar,
                             poly_C_comp: &Scalar|
@@ -223,7 +224,7 @@ impl ProductCircuitEvalProof {
     len: usize,
     transcript: &mut Transcript,
   ) -> (Scalar, Vec<Scalar>) {
-    let num_layers = len.log2() as usize;
+    let num_layers = len.log_2() as usize;
     let mut claim = eval;
     let mut rand: Vec<Scalar> = Vec::new();
     //let mut num_rounds = 0;
@@ -279,7 +280,7 @@ impl ProductCircuitEvalProofBatched {
       let mut poly_C_par = DensePolynomial::new(EqPolynomial::new(rand.clone()).evals());
       assert_eq!(poly_C_par.len(), len / 2);
 
-      let num_rounds_prod = poly_C_par.len().log2() as usize;
+      let num_rounds_prod = poly_C_par.len().log_2() as usize;
       let comb_func_prod = |poly_A_comp: &Scalar,
                             poly_B_comp: &Scalar,
                             poly_C_comp: &Scalar|
@@ -389,7 +390,7 @@ impl ProductCircuitEvalProofBatched {
     len: usize,
     transcript: &mut Transcript,
   ) -> (Vec<Scalar>, Vec<Scalar>, Vec<Scalar>) {
-    let num_layers = len.log2() as usize;
+    let num_layers = len.log_2() as usize;
     let mut rand: Vec<Scalar> = Vec::new();
     //let mut num_rounds = 0;
     assert_eq!(self.proof.len(), num_layers);

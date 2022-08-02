@@ -10,6 +10,7 @@ use super::errors::ProofVerifyError;
 use super::group::{
   CompressGroupElement, DecompressGroupElement, GroupElement, VartimeMultiscalarMul,
 };
+use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
 use super::r1csinstance::R1CSInstance;
 use super::random::RandomTape;
@@ -65,7 +66,7 @@ pub struct R1CSGens {
 
 impl R1CSGens {
   pub fn new(label: &'static [u8], _num_cons: usize, num_vars: usize) -> Self {
-    let num_poly_vars = num_vars.log2() as usize;
+    let num_poly_vars = num_vars.log_2() as usize;
     let gens_pc = PolyCommitmentGens::new(num_poly_vars, label);
     let gens_sc = R1CSSumcheckGens::new(label, &gens_pc.gens.gens_1);
     R1CSGens { gens_sc, gens_pc }
@@ -154,8 +155,10 @@ impl R1CSProof {
     };
 
     // derive the verifier's challenge tau
-    let (num_rounds_x, num_rounds_y) =
-      (inst.get_num_cons().log2() as usize, z.len().log2() as usize);
+    let (num_rounds_x, num_rounds_y) = (
+      inst.get_num_cons().log_2() as usize,
+      z.len().log_2() as usize,
+    );
     let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
     // compute the initial evaluation table for R(\tau, x)
     let mut poly_tau = DensePolynomial::new(EqPolynomial::new(tau).evals());
@@ -247,7 +250,7 @@ impl R1CSProof {
 
     let n = num_vars;
 
-    let (num_rounds_x, num_rounds_y) = (num_cons.log2() as usize, (2 * num_vars).log2() as usize);
+    let (num_rounds_x, num_rounds_y) = (num_cons.log_2() as usize, (2 * num_vars).log_2() as usize);
 
     // derive the verifier's challenge tau
     let tau = transcript.challenge_vector(b"challenge_tau", num_rounds_x);
@@ -278,30 +281,10 @@ impl R1CSProof {
     let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
 
     // verify the joint claim with a sum-check protocol
-<<<<<<< HEAD
     let (claim_post_phase2, ry) =
       self
         .sc_proof_phase2
         .verify(claim_phase2, num_rounds_y, 2, transcript)?;
-=======
-    let (comm_claim_post_phase2, ry) = self.sc_proof_phase2.verify(
-      &comm_claim_phase2,
-      num_rounds_y,
-      2,
-      &gens.gens_sc.gens_1,
-      &gens.gens_sc.gens_3,
-      transcript,
-    )?;
-
-    // verify Z(ry) proof against the initial commitment
-    self.proof_eval_vars_at_ry.verify(
-      &gens.gens_pc,
-      transcript,
-      &ry[1..],
-      &self.comm_vars_at_ry,
-      &self.comm_vars,
-    )?;
->>>>>>> clippy fixes (#50)
 
     let poly_input_eval = {
       // constant term
@@ -312,7 +295,7 @@ impl R1CSProof {
           .map(|i| SparsePolyEntry::new(i + 1, input[i]))
           .collect::<Vec<SparsePolyEntry>>(),
       );
-      SparsePolynomial::new(n.log2() as usize, input_as_sparse_poly_entries).evaluate(&ry[1..])
+      SparsePolynomial::new(n.log_2() as usize, input_as_sparse_poly_entries).evaluate(&ry[1..])
     };
 
     let eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;
