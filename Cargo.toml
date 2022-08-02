@@ -11,7 +11,7 @@ license-file = "LICENSE"
 keywords = ["zkSNARKs", "cryptography", "proofs"]
 
 [dependencies]
-curve25519-dalek = {version = "3.2.0", features = ["serde", "simd_backend"]}
+curve25519-dalek = {version = "3.2.0", features = ["serde"]}
 merlin = "3.0.0"
 digest = "0.8.1"
 sha3 = "0.8.2"
@@ -62,5 +62,6 @@ name = "nizk"
 harness = false
 
 [features]
+default = ["curve25519-dalek/simd_backend"]
 multicore = ["rayon"]
 profile = []
