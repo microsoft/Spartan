@@ -2,6 +2,7 @@
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, CompressedGroupExt};
+use super::math::Math;
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
@@ -456,8 +457,8 @@ impl DotProductProofLog {
     let r_delta = random_tape.random_scalar(b"r_delta");
     let r_beta = random_tape.random_scalar(b"r_delta");
     let blinds_vec = {
-      let v1 = random_tape.random_vector(b"blinds_vec_1", 2 * n.log2() as usize);
-      let v2 = random_tape.random_vector(b"blinds_vec_2", 2 * n.log2() as usize);
+      let v1 = random_tape.random_vector(b"blinds_vec_1", 2 * n.log_2());
+      let v2 = random_tape.random_vector(b"blinds_vec_2", 2 * n.log_2());
       (0..v1.len())
         .map(|i| (v1[i], v2[i]))
         .collect::<Vec<(Scalar, Scalar)>>()

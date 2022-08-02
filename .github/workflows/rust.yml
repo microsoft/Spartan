@@ -7,7 +7,27 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
+  build_stable:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Install
+      run: rustup default stable
+    - name: Install rustfmt Components
+      run: rustup component add rustfmt
+    - name: Install clippy
+      run: rustup component add clippy
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --no-default-features --verbose
+    - name: Build examples
+      run: cargo build --examples --verbose
+    - name: Check Rustfmt Code Style
+      run: cargo fmt --all -- --check
+    - name: Check clippy warnings
+      run: cargo clippy --all-targets --all-features -- -D warnings
+  build_nightly:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
