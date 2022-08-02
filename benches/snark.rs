@@ -1,3 +1,4 @@
+#![allow(clippy::assertions_on_result_states)]
 extern crate libspartan;
 extern crate merlin;
 
