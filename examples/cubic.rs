@@ -8,6 +8,7 @@
 //! `(Z3 + 5) * 1 - I0 = 0`
 //!
 //! [here]: https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649
+#![allow(clippy::assertions_on_result_states)]
 use curve25519_dalek::scalar::Scalar;
 use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
 use merlin::Transcript;

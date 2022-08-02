@@ -1,4 +1,6 @@
 #![allow(non_snake_case)]
+#![allow(clippy::assertions_on_result_states)]
+
 extern crate flate2;
 extern crate libspartan;
 extern crate merlin;

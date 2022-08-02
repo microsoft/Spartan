@@ -91,7 +91,7 @@ impl DerefsEvalProof {
   ) -> PolyEvalProof {
     assert_eq!(
       joint_poly.get_num_vars(),
-      r.len() + evals.len().log2() as usize
+      r.len() + evals.len().log_2() as usize
     );
 
     // append the claimed evaluations to transcript
@@ -100,7 +100,7 @@ impl DerefsEvalProof {
     // n-to-1 reduction
     let (r_joint, eval_joint) = {
       let challenges =
-        transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log2() as usize);
+        transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log_2() as usize);
       let mut poly_evals = DensePolynomial::new(evals);
       for i in (0..challenges.len()).rev() {
         poly_evals.bound_poly_var_bot(&challenges[i]);
@@ -166,7 +166,7 @@ impl DerefsEvalProof {
 
     // n-to-1 reduction
     let challenges =
-      transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log2() as usize);
+      transcript.challenge_vector(b"challenge_combine_n_to_one", evals.len().log_2() as usize);
     let mut poly_evals = DensePolynomial::new(evals);
     for i in (0..challenges.len()).rev() {
       poly_evals.bound_poly_var_bot(&challenges[i]);
@@ -300,15 +300,15 @@ impl SparseMatPolyCommitmentGens {
     num_nz_entries: usize,
     batch_size: usize,
   ) -> SparseMatPolyCommitmentGens {
-    let num_vars_ops = num_nz_entries.next_power_of_two().log2() as usize
-      + (batch_size * 5).next_power_of_two().log2() as usize;
+    let num_vars_ops = num_nz_entries.next_power_of_two().log_2() as usize
+      + (batch_size * 5).next_power_of_two().log_2() as usize;
     let num_vars_mem = if num_vars_x > num_vars_y {
       num_vars_x
     } else {
       num_vars_y
     } + 1;
-    let num_vars_derefs = num_nz_entries.next_power_of_two().log2() as usize
-      + (batch_size * 2).next_power_of_two().log2() as usize;
+    let num_vars_derefs = num_nz_entries.next_power_of_two().log_2() as usize
+      + (batch_size * 2).next_power_of_two().log_2() as usize;
 
     let gens_ops = PolyCommitmentGens::new(num_vars_ops, label);
     let gens_mem = PolyCommitmentGens::new(num_vars_mem, label);
@@ -780,7 +780,7 @@ impl HashLayerProof {
     evals_ops.append_to_transcript(b"claim_evals_ops", transcript);
     let challenges_ops = transcript.challenge_vector(
       b"challenge_combine_n_to_one",
-      evals_ops.len().log2() as usize,
+      evals_ops.len().log_2() as usize,
     );
 
     let mut poly_evals_ops = DensePolynomial::new(evals_ops);
@@ -809,7 +809,7 @@ impl HashLayerProof {
     evals_mem.append_to_transcript(b"claim_evals_mem", transcript);
     let challenges_mem = transcript.challenge_vector(
       b"challenge_combine_two_to_one",
-      evals_mem.len().log2() as usize,
+      evals_mem.len().log_2() as usize,
     );
 
     let mut poly_evals_mem = DensePolynomial::new(evals_mem);
@@ -954,7 +954,7 @@ impl HashLayerProof {
     evals_ops.append_to_transcript(b"claim_evals_ops", transcript);
     let challenges_ops = transcript.challenge_vector(
       b"challenge_combine_n_to_one",
-      evals_ops.len().log2() as usize,
+      evals_ops.len().log_2() as usize,
     );
 
     let mut poly_evals_ops = DensePolynomial::new(evals_ops);
@@ -966,16 +966,13 @@ impl HashLayerProof {
     let mut r_joint_ops = challenges_ops;
     r_joint_ops.extend(rand_ops);
     joint_claim_eval_ops.append_to_transcript(b"joint_claim_eval_ops", transcript);
-    assert!(self
-      .proof_ops
-      .verify_plain(
-        &gens.gens_ops,
-        transcript,
-        &r_joint_ops,
-        &joint_claim_eval_ops,
-        &comm.comm_comb_ops
-      )
-      .is_ok());
+    self.proof_ops.verify_plain(
+      &gens.gens_ops,
+      transcript,
+      &r_joint_ops,
+      &joint_claim_eval_ops,
+      &comm.comm_comb_ops,
+    )?;
 
     // verify proof-mem using comm_comb_mem at rand_mem
     // form a single decommitment using comb_comb_mem at rand_mem
@@ -983,7 +980,7 @@ impl HashLayerProof {
     evals_mem.append_to_transcript(b"claim_evals_mem", transcript);
     let challenges_mem = transcript.challenge_vector(
       b"challenge_combine_two_to_one",
-      evals_mem.len().log2() as usize,
+      evals_mem.len().log_2() as usize,
     );
 
     let mut poly_evals_mem = DensePolynomial::new(evals_mem);
@@ -1406,33 +1403,30 @@ impl PolyEvalNetworkProof {
     let (claims_ops_col_read, claims_ops_col_write) = claims_ops_col.split_at_mut(num_instances);
 
     // verify the proof of hash layer
-    assert!(self
-      .proof_hash_layer
-      .verify(
-        (&rand_mem, &rand_ops),
-        &(
-          claims_mem[0],
-          claims_ops_row_read.to_vec(),
-          claims_ops_row_write.to_vec(),
-          claims_mem[1],
-        ),
-        &(
-          claims_mem[2],
-          claims_ops_col_read.to_vec(),
-          claims_ops_col_write.to_vec(),
-          claims_mem[3],
-        ),
-        &claims_dotp,
-        comm,
-        gens,
-        comm_derefs,
-        rx,
-        ry,
-        r_hash,
-        r_multiset_check,
-        transcript
-      )
-      .is_ok());
+    self.proof_hash_layer.verify(
+      (&rand_mem, &rand_ops),
+      &(
+        claims_mem[0],
+        claims_ops_row_read.to_vec(),
+        claims_ops_row_write.to_vec(),
+        claims_mem[1],
+      ),
+      &(
+        claims_mem[2],
+        claims_ops_col_read.to_vec(),
+        claims_ops_col_write.to_vec(),
+        claims_mem[3],
+      ),
+      &claims_dotp,
+      comm,
+      gens,
+      comm_derefs,
+      rx,
+      ry,
+      r_hash,
+      r_multiset_check,
+      transcript,
+    )?;
     timer.stop();
 
     Ok(())
@@ -1635,8 +1629,8 @@ mod tests {
     let num_nz_entries: usize = 256;
     let num_rows: usize = 256;
     let num_cols: usize = 256;
-    let num_vars_x: usize = num_rows.log2() as usize;
-    let num_vars_y: usize = num_cols.log2() as usize;
+    let num_vars_x: usize = num_rows.log_2() as usize;
+    let num_vars_y: usize = num_cols.log_2() as usize;
 
     let mut M: Vec<SparseMatEntry> = Vec::new();
 
