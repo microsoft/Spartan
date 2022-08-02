@@ -294,12 +294,12 @@ impl R1CSProof {
     timer_sc_proof_phase2.stop();
 
     let timer_polyeval = Timer::new("polyeval");
-    let eval_vars_at_ry = poly_vars.evaluate(&ry[1..].to_vec());
+    let eval_vars_at_ry = poly_vars.evaluate(&ry[1..]);
     let blind_eval = random_tape.random_scalar(b"blind_eval");
     let (proof_eval_vars_at_ry, comm_vars_at_ry) = PolyEvalProof::prove(
       &poly_vars,
       Some(&blinds_vars),
-      &ry[1..].to_vec(),
+      &ry[1..],
       &eval_vars_at_ry,
       Some(&blind_eval),
       &gens.gens_pc,
@@ -447,7 +447,7 @@ impl R1CSProof {
     self.proof_eval_vars_at_ry.verify(
       &gens.gens_pc,
       transcript,
-      &ry[1..].to_vec(),
+      &ry[1..],
       &self.comm_vars_at_ry,
       &self.comm_vars,
     )?;
@@ -461,8 +461,7 @@ impl R1CSProof {
           .map(|i| SparsePolyEntry::new(i + 1, input[i]))
           .collect::<Vec<SparsePolyEntry>>(),
       );
-      SparsePolynomial::new(n.log2() as usize, input_as_sparse_poly_entries)
-        .evaluate(&ry[1..].to_vec())
+      SparsePolynomial::new(n.log2() as usize, input_as_sparse_poly_entries).evaluate(&ry[1..])
     };
 
     // compute commitment to eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval
