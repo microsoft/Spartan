@@ -5,6 +5,7 @@
 #![allow(clippy::too_many_arguments)]
 use super::super::errors::ProofVerifyError;
 use super::super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
+use super::super::math::Math;
 use super::super::scalar::Scalar;
 use super::super::transcript::ProofTranscript;
 use core::iter;
@@ -55,7 +56,7 @@ impl BulletReductionProof {
     // All of the input vectors must have a length that is a power of two.
     let mut n = G.len();
     assert!(n.is_power_of_two());
-    let lg_n = n.log2() as usize;
+    let lg_n = n.log_2() as usize;
 
     // All of the input vectors must have the same length.
     assert_eq!(G.len(), n);
