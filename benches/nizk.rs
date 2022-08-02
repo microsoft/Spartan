@@ -1,3 +1,4 @@
+#![allow(clippy::assertions_on_result_states)]
 extern crate byteorder;
 extern crate core;
 extern crate criterion;

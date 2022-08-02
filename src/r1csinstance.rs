@@ -229,7 +229,7 @@ impl R1CSInstance {
       C: poly_C,
     };
 
-    assert!(inst.is_sat(&Z[..num_vars].to_vec(), &Z[num_vars + 1..].to_vec()));
+    assert!(inst.is_sat(&Z[..num_vars], &Z[num_vars + 1..]));
 
     (inst, Z[..num_vars].to_vec(), Z[num_vars + 1..].to_vec())
   }

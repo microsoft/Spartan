@@ -278,10 +278,30 @@ impl R1CSProof {
     let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
 
     // verify the joint claim with a sum-check protocol
+<<<<<<< HEAD
     let (claim_post_phase2, ry) =
       self
         .sc_proof_phase2
         .verify(claim_phase2, num_rounds_y, 2, transcript)?;
+=======
+    let (comm_claim_post_phase2, ry) = self.sc_proof_phase2.verify(
+      &comm_claim_phase2,
+      num_rounds_y,
+      2,
+      &gens.gens_sc.gens_1,
+      &gens.gens_sc.gens_3,
+      transcript,
+    )?;
+
+    // verify Z(ry) proof against the initial commitment
+    self.proof_eval_vars_at_ry.verify(
+      &gens.gens_pc,
+      transcript,
+      &ry[1..],
+      &self.comm_vars_at_ry,
+      &self.comm_vars,
+    )?;
+>>>>>>> clippy fixes (#50)
 
     let poly_input_eval = {
       // constant term
@@ -292,8 +312,7 @@ impl R1CSProof {
           .map(|i| SparsePolyEntry::new(i + 1, input[i]))
           .collect::<Vec<SparsePolyEntry>>(),
       );
-      SparsePolynomial::new(n.log2() as usize, input_as_sparse_poly_entries)
-        .evaluate(&ry[1..].to_vec())
+      SparsePolynomial::new(n.log2() as usize, input_as_sparse_poly_entries).evaluate(&ry[1..])
     };
 
     let eval_Z_at_ry = (Scalar::one() - ry[0]) * self.eval_vars_at_ry + ry[0] * poly_input_eval;

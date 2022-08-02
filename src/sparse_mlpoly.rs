@@ -967,16 +967,13 @@ impl HashLayerProof {
     let mut r_joint_ops = challenges_ops;
     r_joint_ops.extend(rand_ops);
     joint_claim_eval_ops.append_to_transcript(b"joint_claim_eval_ops", transcript);
-    assert!(self
-      .proof_ops
-      .verify_plain(
-        &gens.gens_ops,
-        transcript,
-        &r_joint_ops,
-        &joint_claim_eval_ops,
-        &comm.comm_comb_ops
-      )
-      .is_ok());
+    self.proof_ops.verify_plain(
+      &gens.gens_ops,
+      transcript,
+      &r_joint_ops,
+      &joint_claim_eval_ops,
+      &comm.comm_comb_ops,
+    )?;
 
     // verify proof-mem using comm_comb_mem at rand_mem
     // form a single decommitment using comb_comb_mem at rand_mem
@@ -1408,33 +1405,30 @@ impl PolyEvalNetworkProof {
     let (claims_ops_col_read, claims_ops_col_write) = claims_ops_col.split_at_mut(num_instances);
 
     // verify the proof of hash layer
-    assert!(self
-      .proof_hash_layer
-      .verify(
-        (&rand_mem, &rand_ops),
-        &(
-          claims_mem[0],
-          claims_ops_row_read.to_vec(),
-          claims_ops_row_write.to_vec(),
-          claims_mem[1],
-        ),
-        &(
-          claims_mem[2],
-          claims_ops_col_read.to_vec(),
-          claims_ops_col_write.to_vec(),
-          claims_mem[3],
-        ),
-        &claims_dotp,
-        comm,
-        gens,
-        comm_derefs,
-        rx,
-        ry,
-        r_hash,
-        r_multiset_check,
-        transcript
-      )
-      .is_ok());
+    self.proof_hash_layer.verify(
+      (&rand_mem, &rand_ops),
+      &(
+        claims_mem[0],
+        claims_ops_row_read.to_vec(),
+        claims_ops_row_write.to_vec(),
+        claims_mem[1],
+      ),
+      &(
+        claims_mem[2],
+        claims_ops_col_read.to_vec(),
+        claims_ops_col_write.to_vec(),
+        claims_mem[3],
+      ),
+      &claims_dotp,
+      comm,
+      gens,
+      comm_derefs,
+      rx,
+      ry,
+      r_hash,
+      r_multiset_check,
+      transcript,
+    )?;
     timer.stop();
 
     Ok(())

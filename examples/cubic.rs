@@ -8,11 +8,9 @@
 //! `(Z3 + 5) * 1 - I0 = 0`
 //!
 //! [here]: https://medium.com/@VitalikButerin/quadratic-arithmetic-programs-from-zero-to-hero-f6d558cea649
-use ark_bls12_377::Fr as Scalar;
-use ark_ff::{PrimeField, BigInteger};
+use ark_std::{One, UniformRand, Zero};
 use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
 use merlin::Transcript;
-use ark_std::{UniformRand, One, Zero};
 
 #[allow(non_snake_case)]
 fn produce_r1cs() -> (
@@ -72,7 +70,7 @@ fn produce_r1cs() -> (
   let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
 
   // compute a satisfying assignment
-let mut rng = ark_std::rand::thread_rng();
+  let mut rng = ark_std::rand::thread_rng();
   let z0 = Scalar::rand(&mut rng);
   let z1 = z0 * z0; // constraint 0
   let z2 = z1 * z0; // constraint 1

@@ -3,6 +3,7 @@
 #![feature(int_log)]
 #![doc = include_str!("../README.md")]
 #![deny(missing_docs)]
+#![allow(clippy::assertions_on_result_states)]
 
 extern crate byteorder;
 extern crate core;
