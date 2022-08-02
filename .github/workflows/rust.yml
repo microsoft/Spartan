@@ -18,11 +18,11 @@ jobs:
     - name: Install clippy
       run: rustup component add clippy
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --no-default-features --verbose
     - name: Run tests
       run: cargo test --no-default-features --verbose
     - name: Build examples
-      run: cargo build --examples --verbose
+      run: cargo build --no-default-features --examples --verbose
     - name: Check Rustfmt Code Style
       run: cargo fmt --all -- --check
     - name: Check clippy warnings
