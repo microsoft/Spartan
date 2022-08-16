@@ -33,7 +33,7 @@ We now highlight Spartan's distinctive features.
 To import `libspartan` into your Rust project, add the following dependency to `Cargo.toml`:
 
 ```text
-spartan = "0.4.1"
+spartan = "0.7.0"
 ```
 
 The following example shows how to use `libspartan` to create and verify a SNARK proof.
