@@ -108,7 +108,7 @@ impl Assignment {
 /// `VarsAssignment` holds an assignment of values to variables in an `Instance`
 pub type VarsAssignment = Assignment;
 
-/// `VarsAssignment` holds an assignment of values to variables in an `Instance`
+/// `InputsAssignment` holds an assignment of values to variables in an `Instance`
 pub type InputsAssignment = Assignment;
 
 /// `Instance` holds the description of R1CS matrices
