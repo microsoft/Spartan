@@ -258,7 +258,7 @@ impl R1CSInstance {
     assert_eq!(Bz.len(), self.num_cons);
     assert_eq!(Cz.len(), self.num_cons);
     let res: usize = (0..self.num_cons)
-      .map(|i| if Az[i] * Bz[i] == Cz[i] { 0 } else { 1 })
+      .map(|i| usize::from(Az[i] * Bz[i] != Cz[i]))
       .sum();
 
     res == 0
