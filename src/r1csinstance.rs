@@ -25,15 +25,6 @@ pub struct R1CSInstance {
   C: SparseMatPolynomial,
 }
 
-impl AppendToTranscript for R1CSInstance {
-  fn append_to_transcript(&self, _label: &'static [u8], transcript: &mut Transcript) {
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    bincode::serialize_into(&mut encoder, &self).unwrap();
-    let bytes = encoder.finish().unwrap();
-    transcript.append_message(b"R1CSInstance", &bytes);
-  }
-}
-
 pub struct R1CSCommitmentGens {
   gens: SparseMatPolyCommitmentGens,
 }
@@ -153,6 +144,12 @@ impl R1CSInstance {
 
   pub fn get_num_inputs(&self) -> usize {
     self.num_inputs
+  }
+
+  pub fn get_digest(&self) -> Vec<u8> {
+    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    bincode::serialize_into(&mut encoder, &self).unwrap();
+    encoder.finish().unwrap()
   }
 
   pub fn produce_synthetic_r1cs(
