@@ -62,7 +62,7 @@ impl BulletReductionProof {
     // All of the input vectors must have a length that is a power of two.
     let mut n = G.len();
     assert!(n.is_power_of_two());
-    let lg_n = n.log_2() as usize;
+    let lg_n = n.log_2();
 
     // All of the input vectors must have the same length.
     assert_eq!(G.len(), n);
