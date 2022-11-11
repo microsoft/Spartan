@@ -4,7 +4,6 @@ use super::scalar::Scalar;
 
 // use ark_r1cs_std::prelude::*;
 use ark_sponge::{
-  constraints::CryptographicSpongeVar,
   poseidon::{PoseidonParameters, PoseidonSponge},
   CryptographicSponge,
 };
@@ -21,14 +20,14 @@ impl PoseidonTranscript {
   pub fn new(params: &PoseidonParameters<Fr>) -> Self {
     let sponge = PoseidonSponge::new(params);
     PoseidonTranscript {
-      sponge: sponge,
+      sponge,
       params: params.clone(),
     }
   }
 
   pub fn new_from_state(&mut self, challenge: &Scalar) {
     self.sponge = PoseidonSponge::new(&self.params);
-    self.append_scalar(&challenge);
+    self.append_scalar(challenge);
   }
 
   pub fn append_u64(&mut self, x: u64) {
@@ -47,20 +46,18 @@ impl PoseidonTranscript {
     self.sponge.absorb(&point.0);
   }
 
-  pub fn append_scalar_vector(&mut self, scalars: &Vec<Scalar>) {
+  pub fn append_scalar_vector(&mut self, scalars: &[Scalar]) {
     for scalar in scalars.iter() {
-      self.append_scalar(&scalar);
+      self.append_scalar(scalar);
     }
   }
 
   pub fn challenge_scalar(&mut self) -> Scalar {
-    let scalar = self.sponge.squeeze_field_elements(1).remove(0);
-    scalar
+    self.sponge.squeeze_field_elements(1).remove(0)
   }
 
   pub fn challenge_vector(&mut self, len: usize) -> Vec<Scalar> {
-    let challenges = self.sponge.squeeze_field_elements(len);
-    challenges
+    self.sponge.squeeze_field_elements(len)
   }
 }
 

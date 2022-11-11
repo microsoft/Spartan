@@ -18,7 +18,7 @@ impl ProofTranscript for Transcript {
   }
 
   fn append_scalar(&mut self, label: &'static [u8], scalar: &Scalar) {
-    self.append_message(label, &scalar.into_repr().to_bytes_le().as_slice());
+    self.append_message(label, scalar.into_repr().to_bytes_le().as_slice());
   }
 
   fn append_point(&mut self, label: &'static [u8], point: &CompressedGroup) {

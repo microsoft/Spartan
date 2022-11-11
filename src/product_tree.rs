@@ -6,7 +6,6 @@ use super::dense_mlpoly::EqPolynomial;
 use super::math::Math;
 use super::scalar::Scalar;
 use super::sumcheck::SumcheckInstanceProof;
-use super::transcript::ProofTranscript;
 use ark_serialize::*;
 use ark_std::One;
 

@@ -23,10 +23,10 @@ use ark_r1cs_std::{
   fields::fp::FpVar,
   prelude::{Boolean, EqGadget, FieldVar},
 };
-<<<<<<< HEAD
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, Namespace, SynthesisError};
-=======
-use ark_relations::{
+use ark_sponge::{
+  constraints::CryptographicSpongeVar,
+  poseidon::{constraints::PoseidonSpongeVar, PoseidonParameters},
 };
 use rand::{CryptoRng, Rng};
 
@@ -46,12 +46,12 @@ impl PoseidonTranscripVar {
 
     if let Some(c) = challenge {
       let c_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(c)).unwrap();
-      sponge.absorb(&c_var);
+      sponge.absorb(&c_var).unwrap();
     }
 
     Self {
-      cs: cs,
-      sponge: sponge,
+      cs,
+      sponge,
       params: params.clone(),
     }
   }
@@ -60,7 +60,7 @@ impl PoseidonTranscripVar {
     self.sponge.absorb(&input)
   }
 
-  fn append_vector(&mut self, input_vec: &Vec<FpVar<Fr>>) -> Result<(), SynthesisError> {
+  fn append_vector(&mut self, input_vec: &[FpVar<Fr>]) -> Result<(), SynthesisError> {
     for input in input_vec.iter() {
       self.append(input)?;
     }
@@ -96,7 +96,7 @@ impl AllocVar<UniPoly, Fr> for UniPolyVar {
       let cp: &UniPoly = c.borrow();
       let mut coeffs_var = Vec::new();
       for coeff in cp.coeffs.iter() {
-        let coeff_var = FpVar::<Fr>::new_variable(cs.clone(), || Ok(coeff.clone()), mode)?;
+        let coeff_var = FpVar::<Fr>::new_variable(cs.clone(), || Ok(coeff), mode)?;
         coeffs_var.push(coeff_var);
       }
       Ok(Self { coeffs: coeffs_var })
@@ -138,7 +138,7 @@ pub struct SumcheckVerificationCircuit {
 impl SumcheckVerificationCircuit {
   fn verifiy_sumcheck(
     &self,
-    poly_vars: &Vec<UniPolyVar>,
+    poly_vars: &[UniPolyVar],
     claim_var: &FpVar<Fr>,
     transcript_var: &mut PoseidonTranscripVar,
   ) -> Result<(FpVar<Fr>, Vec<FpVar<Fr>>), SynthesisError> {
@@ -173,7 +173,7 @@ impl AllocVar<SparsePolyEntry, Fr> for SparsePolyEntryVar {
     f().and_then(|s| {
       let cs = cs.into();
       let spe: &SparsePolyEntry = s.borrow();
-      let val_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(spe.val))?;
+      let val_var = FpVar::<Fr>::new_witness(cs, || Ok(spe.val))?;
       Ok(Self {
         idx: spe.idx,
         val_var,
@@ -211,7 +211,7 @@ impl AllocVar<SparsePolynomial, Fr> for SparsePolynomialVar {
 }
 
 impl SparsePolynomialVar {
-  fn compute_chi(a: &[bool], r_vars: &Vec<FpVar<Fr>>) -> FpVar<Fr> {
+  fn compute_chi(a: &[bool], r_vars: &[FpVar<Fr>]) -> FpVar<Fr> {
     let mut chi_i_var = FpVar::<Fr>::one();
     let one = FpVar::<Fr>::one();
     for (i, r_var) in r_vars.iter().enumerate() {
@@ -224,12 +224,12 @@ impl SparsePolynomialVar {
     chi_i_var
   }
 
-  pub fn evaluate(&self, r_var: &Vec<FpVar<Fr>>) -> FpVar<Fr> {
+  pub fn evaluate(&self, r_var: &[FpVar<Fr>]) -> FpVar<Fr> {
     let mut sum = FpVar::<Fr>::zero();
     for spe_var in self.Z_var.iter() {
       // potential problem
       let bits = &spe_var.idx.get_bits(r_var.len());
-      sum += SparsePolynomialVar::compute_chi(&bits, r_var) * &spe_var.val_var;
+      sum += SparsePolynomialVar::compute_chi(bits, r_var) * &spe_var.val_var;
     }
     sum
   }
@@ -350,7 +350,7 @@ impl ConstraintSynthesizer<Fr> for R1CSVerificationCircuit {
       AllocationMode::Witness,
     )?;
 
-    let poly_input_eval_var = input_as_sparse_poly_var.evaluate(&ry_var[1..].to_vec());
+    let poly_input_eval_var = input_as_sparse_poly_var.evaluate(&ry_var[1..]);
 
     let eval_vars_at_ry_var = FpVar::<Fr>::new_input(cs.clone(), || Ok(&self.eval_vars_at_ry))?;
 
@@ -361,7 +361,7 @@ impl ConstraintSynthesizer<Fr> for R1CSVerificationCircuit {
 
     let eval_A_r_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(eval_A_r))?;
     let eval_B_r_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(eval_B_r))?;
-    let eval_C_r_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(eval_C_r))?;
+    let eval_C_r_var = FpVar::<Fr>::new_witness(cs, || Ok(eval_C_r))?;
 
     let scalar_var = &r_A_var * &eval_A_r_var + &r_B_var * &eval_B_r_var + &r_C_var * &eval_C_r_var;
 
@@ -407,7 +407,7 @@ impl VerifierCircuit {
     let proof = Groth16::<I>::prove(&pk, inner_circuit.clone(), &mut rng)?;
     let pvk = Groth16::<I>::process_vk(&vk).unwrap();
     Ok(Self {
-      inner_circuit: inner_circuit,
+      inner_circuit,
       inner_proof: proof,
       inner_vk: pvk,
       evals_var_at_ry: config.eval_vars_at_ry,
@@ -432,7 +432,7 @@ impl ConstraintSynthesizer<Fq> for VerifierCircuit {
       .collect::<Result<Vec<_>, _>>()?;
     let input_var = BooleanInputVar::<Fr, Fq>::new(bits);
 
-    let vk_var = PreparedVerifyingKeyVar::new_witness(cs.clone(), || Ok(self.inner_vk.clone()))?;
+    let vk_var = PreparedVerifyingKeyVar::new_witness(cs, || Ok(self.inner_vk.clone()))?;
     Groth16VerifierGadget::verify_with_processed_vk(&vk_var, &input_var, &proof_var)?
       .enforce_equal(&Boolean::constant(true))?;
     Ok(())

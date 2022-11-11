@@ -128,8 +128,8 @@ impl EqualityProof {
   ) -> Result<(), ProofVerifyError> {
     // transcript.append_protocol_name(EqualityProof::protocol_name());
 
-    transcript.append_point(&C1);
-    transcript.append_point(&C2);
+    transcript.append_point(C1);
+    transcript.append_point(C2);
     transcript.append_point(&self.alpha);
 
     let c = transcript.challenge_scalar();
@@ -351,7 +351,7 @@ impl DotProductProof {
     let Cy = y.commit(blind_y, gens_1).compress();
     Cy.append_to_poseidon(transcript);
 
-    transcript.append_scalar_vector(&a_vec.to_vec());
+    transcript.append_scalar_vector(a_vec);
 
     let delta = d_vec.commit(&r_delta, gens_n).compress();
     delta.append_to_poseidon(transcript);
@@ -398,7 +398,7 @@ impl DotProductProof {
     // transcript.append_protocol_name(DotProductProof::protocol_name());
     Cx.append_to_poseidon(transcript);
     Cy.append_to_poseidon(transcript);
-    transcript.append_scalar_vector(&a.to_vec());
+    transcript.append_scalar_vector(a);
     self.delta.append_to_poseidon(transcript);
     self.beta.append_to_poseidon(transcript);
 
@@ -484,7 +484,7 @@ impl DotProductProofLog {
 
     let Cy = y.commit(blind_y, &gens.gens_1).compress();
     transcript.append_point(&Cy);
-    transcript.append_scalar_vector(&a_vec.to_vec());
+    transcript.append_scalar_vector(a_vec);
 
     let blind_Gamma = (*blind_x) + blind_y;
     let (bullet_reduction_proof, _Gamma_hat, x_hat, a_hat, g_hat, rhat_Gamma) =
@@ -548,9 +548,9 @@ impl DotProductProofLog {
     // Cy.append_to_poseidon( transcript);
     // a.append_to_poseidon( transcript);
 
-    transcript.append_point(&Cx);
-    transcript.append_point(&Cy);
-    transcript.append_scalar_vector(&a.to_vec());
+    transcript.append_point(Cx);
+    transcript.append_point(Cy);
+    transcript.append_scalar_vector(a);
 
     let Gamma = Cx.unpack()? + Cy.unpack()?;
 

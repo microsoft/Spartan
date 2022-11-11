@@ -69,7 +69,7 @@ fn produce_r1cs() -> (
   A.push((3, 3, one.clone()));
   A.push((3, num_vars, Scalar::from(5u32).into_repr().to_bytes_le()));
   B.push((3, num_vars, one.clone()));
-  C.push((3, num_vars + 1, one.clone()));
+  C.push((3, num_vars + 1, one));
 
   let inst = Instance::new(num_cons, num_vars, num_inputs, &A, &B, &C).unwrap();
 

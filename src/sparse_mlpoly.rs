@@ -13,12 +13,11 @@ use super::product_tree::{DotProductCircuit, ProductCircuit, ProductCircuitEvalP
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::timer::Timer;
-use super::transcript::{AppendToTranscript, ProofTranscript};
+use super::transcript::AppendToTranscript;
 use ark_ff::{Field, One, Zero};
 use ark_serialize::*;
 use core::cmp::Ordering;
 use merlin::Transcript;
-use serde::Serialize;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize, Clone)]
 pub struct SparseMatEntry {
@@ -1650,11 +1649,7 @@ impl SparsePolynomial {
 
 #[cfg(test)]
 mod tests {
-<<<<<<< HEAD
   use crate::parameters::poseidon_params;
-=======
-  use crate::{parameters::poseidon_params};
->>>>>>> implement spartan verifier as a circuit and verify it with groth16
 
   use super::*;
   use ark_std::UniformRand;
@@ -1716,7 +1711,6 @@ mod tests {
     );
 
     let mut verifier_transcript = PoseidonTranscript::new(&params);
-    (b"example");
     assert!(proof
       .verify(
         &poly_comm,

@@ -6,7 +6,6 @@ use super::dense_mlpoly::DensePolynomial;
 use super::errors::ProofVerifyError;
 
 use super::scalar::Scalar;
-use super::transcript::ProofTranscript;
 use super::unipoly::UniPoly;
 
 use ark_ff::Zero;

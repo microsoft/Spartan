@@ -17,7 +17,6 @@ use ark_std::{One, UniformRand, Zero};
 use digest::{ExtendableOutput, Input};
 
 use merlin::Transcript;
-use serde::Serialize;
 use sha3::Shake256;
 
 #[derive(Debug, CanonicalSerialize, CanonicalDeserialize, Clone)]
@@ -167,7 +166,7 @@ impl R1CSInstance {
     shake.input(bytes);
     let mut reader = shake.xof_result();
     let mut buf = [0u8; 256];
-    reader.read(&mut buf).unwrap();
+    reader.read_exact(&mut buf).unwrap();
     buf.to_vec()
   }
 

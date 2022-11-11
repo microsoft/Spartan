@@ -91,14 +91,14 @@ impl BulletReductionProof {
           .iter()
           .chain(iter::once(&c_L))
           .chain(iter::once(blind_L))
-          .map(|s| *s)
+          .copied()
           .collect::<Vec<Scalar>>()
           .as_slice(),
         G_R
           .iter()
           .chain(iter::once(Q))
           .chain(iter::once(H))
-          .map(|p| *p)
+          .copied()
           .collect::<Vec<GroupElement>>()
           .as_slice(),
       );
@@ -108,14 +108,14 @@ impl BulletReductionProof {
           .iter()
           .chain(iter::once(&c_R))
           .chain(iter::once(blind_R))
-          .map(|s| *s)
+          .copied()
           .collect::<Vec<Scalar>>()
           .as_slice(),
         G_L
           .iter()
           .chain(iter::once(Q))
           .chain(iter::once(H))
-          .map(|p| *p)
+          .copied()
           .collect::<Vec<GroupElement>>()
           .as_slice(),
       );
@@ -248,13 +248,13 @@ impl BulletReductionProof {
         .iter()
         .chain(u_inv_sq.iter())
         .chain(iter::once(&Scalar::one()))
-        .map(|s| *s)
+        .copied()
         .collect::<Vec<Scalar>>()
         .as_slice(),
       Ls.iter()
         .chain(Rs.iter())
         .chain(iter::once(Gamma))
-        .map(|p| *p)
+        .copied()
         .collect::<Vec<GroupElement>>()
         .as_slice(),
     );

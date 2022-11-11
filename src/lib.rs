@@ -56,7 +56,6 @@ use random::RandomTape;
 use scalar::Scalar;
 
 use timer::Timer;
-use transcript::ProofTranscript;
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
 pub struct ComputationCommitment {
@@ -81,8 +80,8 @@ impl Assignment {
       let mut vec_scalar: Vec<Scalar> = Vec::new();
       for v in vec {
         let val = Scalar::from_random_bytes(v.as_slice());
-        if val.is_some() == true {
-          vec_scalar.push(val.unwrap());
+        if let Some(v) = val {
+          vec_scalar.push(v);
         } else {
           return Err(R1CSError::InvalidScalar);
         }
@@ -188,14 +187,14 @@ impl Instance {
             return Err(R1CSError::InvalidIndex);
           }
 
-          let val = Scalar::from_random_bytes(&val_bytes.as_slice());
-          if val.is_some() == true {
+          let val = Scalar::from_random_bytes(val_bytes.as_slice());
+          if let Some(v) = val {
             // if col >= num_vars, it means that it is referencing a 1 or input in the satisfying
             // assignment
             if *col >= num_vars {
-              mat.push((*row, *col + num_vars_padded - num_vars, val.unwrap()));
+              mat.push((*row, *col + num_vars_padded - num_vars, v));
             } else {
-              mat.push((*row, *col, val.unwrap()));
+              mat.push((*row, *col, v));
             }
           } else {
             return Err(R1CSError::InvalidScalar);

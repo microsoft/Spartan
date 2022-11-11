@@ -11,16 +11,12 @@ use ark_bw6_761::BW6_761 as P;
 use super::commitments::MultiCommitGens;
 use super::dense_mlpoly::{DensePolynomial, EqPolynomial, PolyCommitmentGens};
 use super::errors::ProofVerifyError;
-use super::group::{
-  CompressGroupElement, DecompressGroupElement, GroupElement, VartimeMultiscalarMul,
-};
-use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
+
 use super::r1csinstance::R1CSInstance;
 
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
 use super::timer::Timer;
-use super::transcript::ProofTranscript;
 use ark_crypto_primitives::{CircuitSpecificSetupSNARK, SNARK};
 
 use ark_groth16::Groth16;
@@ -141,7 +137,7 @@ impl R1CSProof {
     let c = transcript.challenge_scalar();
     transcript.new_from_state(&c);
 
-    transcript.append_scalar_vector(&input.to_vec());
+    transcript.append_scalar_vector(input);
 
     let poly_vars = DensePolynomial::new(vars.clone());
 
@@ -219,7 +215,7 @@ impl R1CSProof {
     timer_sc_proof_phase2.stop();
 
     let timer_polyeval = Timer::new("polyeval");
-    let eval_vars_at_ry = poly_vars.evaluate(&ry[1..].to_vec());
+    let eval_vars_at_ry = poly_vars.evaluate(&ry[1..]);
     timer_polyeval.stop();
 
     timer_prove.stop();
@@ -259,8 +255,8 @@ impl R1CSProof {
       SparsePolynomial::new(n.log_2() as usize, input_as_sparse_poly_entries);
 
     let config = VerifierConfig {
-      num_vars: num_vars,
-      num_cons: num_cons,
+      num_vars,
+      num_cons,
       input: input.to_vec(),
       evals: *evals,
       params: poseidon_params(),
@@ -269,7 +265,7 @@ impl R1CSProof {
       polys_sc1: self.sc_proof_phase1.polys.clone(),
       polys_sc2: self.sc_proof_phase2.polys.clone(),
       eval_vars_at_ry: self.eval_vars_at_ry,
-      input_as_sparse_poly: input_as_sparse_poly,
+      input_as_sparse_poly,
     };
 
     let mut rng = ark_std::test_rng();
@@ -283,7 +279,7 @@ impl R1CSProof {
     let ds = start.elapsed().as_millis();
 
     let start = Instant::now();
-    let proof = Groth16::<P>::prove(&pk, circuit.clone(), &mut rng).unwrap();
+    let proof = Groth16::<P>::prove(&pk, circuit, &mut rng).unwrap();
     let dp2 = start.elapsed().as_millis();
 
     let start = Instant::now();
@@ -317,8 +313,8 @@ impl R1CSProof {
       SparsePolynomial::new(n.log_2() as usize, input_as_sparse_poly_entries);
 
     let config = VerifierConfig {
-      num_vars: num_vars,
-      num_cons: num_cons,
+      num_vars,
+      num_cons,
       input: input.to_vec(),
       evals: *evals,
       params: poseidon_params(),
@@ -327,7 +323,7 @@ impl R1CSProof {
       polys_sc1: self.sc_proof_phase1.polys.clone(),
       polys_sc2: self.sc_proof_phase2.polys.clone(),
       eval_vars_at_ry: self.eval_vars_at_ry,
-      input_as_sparse_poly: input_as_sparse_poly,
+      input_as_sparse_poly,
     };
 
     let mut rng = ark_std::test_rng();
@@ -335,7 +331,7 @@ impl R1CSProof {
 
     let nc_inner = verify_constraints_inner(circuit.clone(), &num_cons);
 
-    let nc_outer = verify_constraints_outer(circuit.clone(), &num_cons);
+    let nc_outer = verify_constraints_outer(circuit, &num_cons);
     Ok(nc_inner + nc_outer)
   }
 }

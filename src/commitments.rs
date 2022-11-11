@@ -25,7 +25,7 @@ impl MultiCommitGens {
     let mut gens: Vec<GroupElement> = Vec::new();
     for _ in 0..n + 1 {
       let mut el_aff: Option<GroupElementAffine> = None;
-      while el_aff.is_some() != true {
+      while el_aff.is_none() {
         let uniform_bytes = sponge.squeeze_bytes(64);
         el_aff = GroupElementAffine::from_random_bytes(&uniform_bytes);
       }
