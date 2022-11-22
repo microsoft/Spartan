@@ -9,7 +9,8 @@ extern crate sha3;
 use std::time::{Duration, SystemTime};
 
 use libspartan::{
-  parameters::POSEIDON_PARAMETERS_FR_377, poseidon_transcript::PoseidonTranscript, Instance, NIZK,
+  parameters::POSEIDON_PARAMETERS_FR_377, poseidon_transcript::PoseidonTranscript, Instance,
+  NIZKGens, NIZK,
 };
 
 use criterion::*;
@@ -30,6 +31,7 @@ fn nizk_prove_benchmark(c: &mut Criterion) {
       num_cons,
       duration.as_millis()
     );
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     let name = format!("R1CS_prove_{}", num_vars);
     group
@@ -41,6 +43,7 @@ fn nizk_prove_benchmark(c: &mut Criterion) {
             black_box(&inst),
             black_box(vars.clone()),
             black_box(&inputs),
+            black_box(&gens),
             black_box(&mut prover_transcript),
           );
         });
@@ -66,9 +69,10 @@ fn nizk_verify_benchmark(c: &mut Criterion) {
       num_cons,
       duration.as_millis()
     );
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
     // produce a proof of satisfiability
     let mut prover_transcript = PoseidonTranscript::new(&POSEIDON_PARAMETERS_FR_377);
-    let proof = NIZK::prove(&inst, vars, &inputs, &mut prover_transcript);
+    let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
     let name = format!("R1CS_verify_{}", num_cons);
     group
@@ -81,6 +85,7 @@ fn nizk_verify_benchmark(c: &mut Criterion) {
               black_box(&inst),
               black_box(&inputs),
               black_box(&mut verifier_transcript),
+              black_box(&gens),
             )
             .is_ok());
         });
@@ -108,7 +113,8 @@ fn nizk_verify_groth16_benchmark(c: &mut Criterion) {
     );
     // produce a proof of satisfiability
     let mut prover_transcript = PoseidonTranscript::new(&POSEIDON_PARAMETERS_FR_377);
-    let proof = NIZK::prove(&inst, vars, &inputs, &mut prover_transcript);
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+    let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
     let name = format!("R1CS_verify_groth16_{}", num_cons);
     group
@@ -121,6 +127,7 @@ fn nizk_verify_groth16_benchmark(c: &mut Criterion) {
               black_box(&inst),
               black_box(&inputs),
               black_box(&mut verifier_transcript),
+              black_box(&gens)
             )
             .is_ok());
         });

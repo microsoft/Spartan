@@ -18,10 +18,15 @@ use ark_groth16::{
   Groth16, PreparedVerifyingKey, Proof as GrothProof,
 };
 
+use ark_poly_commit::multilinear_pc::{
+  data_structures::{Commitment, Proof, VerifierKey},
+  MultilinearPC,
+};
 use ark_r1cs_std::{
   alloc::{AllocVar, AllocationMode},
   fields::fp::FpVar,
   prelude::{Boolean, EqGadget, FieldVar},
+  R1CSVar,
 };
 use ark_relations::r1cs::{ConstraintSynthesizer, ConstraintSystemRef, Namespace, SynthesisError};
 use ark_sponge::{
@@ -248,6 +253,8 @@ pub struct R1CSVerificationCircuit {
   pub eval_vars_at_ry: Fr,
   pub sc_phase1: SumcheckVerificationCircuit,
   pub sc_phase2: SumcheckVerificationCircuit,
+  // The point on which the polynomial was evaluated by the prover.
+  pub claimed_ry: Vec<Scalar>,
 }
 
 impl R1CSVerificationCircuit {
@@ -268,6 +275,7 @@ impl R1CSVerificationCircuit {
       sc_phase2: SumcheckVerificationCircuit {
         polys: config.polys_sc2.clone(),
       },
+      claimed_ry: config.ry.clone(),
     }
   }
 }
@@ -294,7 +302,13 @@ impl ConstraintSynthesizer<Fr> for R1CSVerificationCircuit {
     let input_vars = self
       .input
       .iter()
-      .map(|i| FpVar::<Fr>::new_input(cs.clone(), || Ok(i)).unwrap())
+      .map(|i| FpVar::<Fr>::new_variable(cs.clone(), || Ok(i), AllocationMode::Witness).unwrap())
+      .collect::<Vec<FpVar<Fr>>>();
+
+    let claimed_ry_vars = self
+      .claimed_ry
+      .iter()
+      .map(|r| FpVar::<Fr>::new_variable(cs.clone(), || Ok(r), AllocationMode::Input).unwrap())
       .collect::<Vec<FpVar<Fr>>>();
 
     transcript_var.append_vector(&input_vars)?;
@@ -344,6 +358,17 @@ impl ConstraintSynthesizer<Fr> for R1CSVerificationCircuit {
         .sc_phase2
         .verifiy_sumcheck(&poly_sc2_vars, &claim_phase2_var, &mut transcript_var)?;
 
+    //  Because the verifier checks the commitment opening on point ry outside
+    //  the circuit, the prover needs to send ry to the verifier (making the
+    //  proof size O(log n)). As this point is normally obtained by the verifier
+    //  from the second round of sumcheck, the circuit needs to ensure the
+    //  claimed point, coming from the prover, is actually the point derived
+    //  inside the circuit. These additional checks will be removed
+    //  when the commitment verification is done inside the circuit.
+    for (i, r) in claimed_ry_vars.iter().enumerate() {
+      ry_var[i].enforce_equal(r)?;
+    }
+
     let input_as_sparse_poly_var = SparsePolynomialVar::new_variable(
       cs.clone(),
       || Ok(&self.input_as_sparse_poly),
@@ -366,7 +391,6 @@ impl ConstraintSynthesizer<Fr> for R1CSVerificationCircuit {
     let scalar_var = &r_A_var * &eval_A_r_var + &r_B_var * &eval_B_r_var + &r_C_var * &eval_C_r_var;
 
     let expected_claim_post_phase2_var = eval_Z_at_ry_var * scalar_var;
-
     claim_post_phase2_var.enforce_equal(&expected_claim_post_phase2_var)?;
 
     Ok(())
@@ -386,15 +410,16 @@ pub struct VerifierConfig {
   pub eval_vars_at_ry: Fr,
   pub polys_sc1: Vec<UniPoly>,
   pub polys_sc2: Vec<UniPoly>,
+  pub ry: Vec<Scalar>,
 }
 #[derive(Clone)]
 pub struct VerifierCircuit {
   pub inner_circuit: R1CSVerificationCircuit,
   pub inner_proof: GrothProof<I>,
   pub inner_vk: PreparedVerifyingKey<I>,
-  pub evals_var_at_ry: Fr,
+  pub eval_vars_at_ry: Fr,
   pub claims_phase2: (Fr, Fr, Fr, Fr),
-  pub input: Vec<Fr>,
+  pub ry: Vec<Fr>,
 }
 
 impl VerifierCircuit {
@@ -410,9 +435,9 @@ impl VerifierCircuit {
       inner_circuit,
       inner_proof: proof,
       inner_vk: pvk,
-      evals_var_at_ry: config.eval_vars_at_ry,
+      eval_vars_at_ry: config.eval_vars_at_ry,
       claims_phase2: config.claims_phase2,
-      input: config.input.clone(),
+      ry: config.ry.clone(),
     })
   }
 }
@@ -421,8 +446,10 @@ impl ConstraintSynthesizer<Fq> for VerifierCircuit {
   fn generate_constraints(self, cs: ConstraintSystemRef<Fq>) -> ark_relations::r1cs::Result<()> {
     let proof_var = ProofVar::<I, IV>::new_witness(cs.clone(), || Ok(self.inner_proof.clone()))?;
     let (v_A, v_B, v_C, v_AB) = self.claims_phase2;
-    let mut pubs = self.input.clone();
-    pubs.extend(vec![v_A, v_B, v_C, v_AB, self.evals_var_at_ry]);
+    let mut pubs = vec![];
+    pubs.extend(self.ry);
+    pubs.extend(vec![v_A, v_B, v_C, v_AB]);
+    pubs.extend(vec![self.eval_vars_at_ry]);
     let bits = pubs
       .iter()
       .map(|c| {

@@ -36,10 +36,12 @@ ark-sponge = { version = "^0.3.0" , features = ["r1cs"] }
 ark-crypto-primitives = { version = "^0.3.0", default-features = true }
 ark-r1cs-std = { version = "^0.3.0", default-features = false }
 ark-nonnative-field = { version = "0.3.0", default-features = false }
-ark-relations = { version = "^0.3.0", default-features = false }
+ark-relations = { version = "^0.3.0", default-features = false, optional = true }
 ark-snark = { version = "^0.3.0", default-features = false }
 ark-groth16 = { version = "^0.3.0", features = ["r1cs"] }
 ark-bw6-761 = { version = "^0.3.0" }
+ark-poly-commit = { version = "^0.3.0" }
+ark-poly = {version = "^0.3.0"}
 
 lazy_static = "1.4.0"
 rand = { version = "0.8", features = [ "std", "std_rng" ] }
@@ -82,9 +84,12 @@ debug = true
 [features]
 multicore = ["rayon"]
 profile = []
-default = ["parallel", "std"]
-parallel = [ "std", "ark-ff/parallel", "ark-std/parallel", "ark-ec/parallel"]
+default = ["asm","parallel", "std", "multicore"]
+asm = ["ark-ff/asm"]
+parallel = [ "std", "ark-ff/parallel", "ark-std/parallel", "ark-ec/parallel", "ark-poly/parallel", "rayon"]
 std = ["ark-ff/std", "ark-ec/std", "ark-std/std", "ark-relations/std", "ark-serialize/std"]
 
 [patch.crates-io]
 ark-r1cs-std = { git = "https://github.com/arkworks-rs/r1cs-std/", rev = "a2a5ac491ae005ba2afd03fd21b7d3160d794a83"}
+ark-poly-commit = {git = "https://github.com/maramihali/poly-commit"}
+

@@ -9,7 +9,7 @@ extern crate rand;
 use ark_serialize::*;
 use libspartan::parameters::poseidon_params;
 use libspartan::poseidon_transcript::PoseidonTranscript;
-use libspartan::{Instance, NIZK};
+use libspartan::{Instance, NIZKGens, NIZK};
 
 fn print(msg: &str) {
   let star = "* ";
@@ -30,12 +30,12 @@ pub fn main() {
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // produce public generators
-    // let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     let params = poseidon_params();
     // produce a proof of satisfiability
     let mut prover_transcript = PoseidonTranscript::new(&params);
-    let proof = NIZK::prove(&inst, vars, &inputs, &mut prover_transcript);
+    let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
     let mut proof_encoded = Vec::new();
     proof.serialize(&mut proof_encoded).unwrap();
@@ -45,7 +45,7 @@ pub fn main() {
     // verify the proof of satisfiability
     let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
-      .verify(&inst, &inputs, &mut verifier_transcript)
+      .verify(&inst, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
 
     println!();

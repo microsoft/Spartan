@@ -5,6 +5,12 @@ on:
     branches: [master]
   pull_request:
     branches: [master]
+# The crate ark-ff uses the macro llvm_asm! when emitting asm which returns an
+# error because it was deprecated in favour of asm!. We temporarily overcome
+# this problem by setting the environment variable below (until the crate
+# is updated).
+env:
+  RUSTFLAGS: "--emit asm -C llvm-args=-x86-asm-syntax=intel"
 
 jobs:
   build_nightly:
@@ -25,5 +31,7 @@ jobs:
         run: cargo build --examples --verbose
       - name: Check Rustfmt Code Style
         run: cargo fmt --all -- --check
-      - name: Check clippy warnings
-        run: cargo clippy --all-targets --all-features
+      # cargo clippy uses cargo check which returns an error when asm is emitted
+      # we want to emit asm for ff operations so we avoid using clippy for now
+      # - name: Check clippy warnings
+      #   run: cargo clippy --all-targets --all-features

@@ -1,4 +1,5 @@
 #![allow(clippy::too_many_arguments)]
+use crate::group::Fr;
 use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
 
 use super::commitments::{Commitments, MultiCommitGens};
@@ -12,32 +13,198 @@ use super::nizk::{DotProductProofGens, DotProductProofLog};
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use ark_ff::{One, Zero};
+use ark_bls12_377::Bls12_377 as I;
+use ark_ff::{One, UniformRand, Zero};
+use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
+use ark_poly_commit::multilinear_pc::data_structures::{
+  CommitterKey, UniversalParams, VerifierKey,
+};
+use ark_poly_commit::multilinear_pc::MultilinearPC;
 use ark_serialize::*;
 use core::ops::Index;
 use merlin::Transcript;
+use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
+use std::process::abort;
 
 #[cfg(feature = "multicore")]
 use rayon::prelude::*;
 
-#[derive(Debug)]
+// TODO: integrate the DenseMultilinearExtension(and Sparse) https://github.com/arkworks-rs/algebra/tree/master/poly/src/evaluations/multivariate/multilinear from arkworks into Spartan. This requires moving the specific Spartan functionalities in separate traits.
+#[derive(Debug, Clone, Eq, PartialEq, Hash, CanonicalDeserialize, CanonicalSerialize)]
 pub struct DensePolynomial {
   num_vars: usize, // the number of variables in the multilinear polynomial
   len: usize,
   Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
 
+impl MultilinearExtension<Scalar> for DensePolynomial {
+  fn num_vars(&self) -> usize {
+    self.get_num_vars()
+  }
+
+  fn evaluate(&self, point: &[Scalar]) -> Option<Scalar> {
+    if point.len() == self.num_vars {
+      Some(self.evaluate(&point))
+    } else {
+      None
+    }
+  }
+
+  fn rand<R: rand::Rng>(num_vars: usize, rng: &mut R) -> Self {
+    let evals = (0..(1 << num_vars)).map(|_| Scalar::rand(rng)).collect();
+    Self {
+      num_vars: num_vars,
+      len: 1 << num_vars,
+      Z: evals,
+    }
+  }
+
+  fn relabel(&self, a: usize, b: usize, k: usize) -> Self {
+    unimplemented!()
+  }
+
+  fn fix_variables(&self, partial_point: &[Scalar]) -> Self {
+    unimplemented!()
+  }
+
+  fn to_evaluations(&self) -> Vec<Scalar> {
+    self.Z.to_vec()
+  }
+}
+
+impl Zero for DensePolynomial {
+  fn zero() -> Self {
+    Self {
+      num_vars: 0,
+      len: 1,
+      Z: vec![Scalar::zero()],
+    }
+  }
+
+  fn is_zero(&self) -> bool {
+    self.num_vars == 0 && self.len == 1 && self.Z[0].is_zero()
+  }
+}
+
+impl Add for DensePolynomial {
+  type Output = DensePolynomial;
+  fn add(self, other: Self) -> Self {
+    &self + &other
+  }
+}
+
+// function needed because the result might have a different lifetime than the
+// operands
+impl<'a, 'b> Add<&'a DensePolynomial> for &'b DensePolynomial {
+  type Output = DensePolynomial;
+
+  fn add(self, other: &'a DensePolynomial) -> Self::Output {
+    if other.is_zero() {
+      return self.clone();
+    }
+    if self.is_zero() {
+      return other.clone();
+    }
+    assert_eq!(self.num_vars, other.num_vars);
+
+    let res: Vec<Scalar> = self
+      .Z
+      .iter()
+      .zip(other.Z.iter())
+      .map(|(a, b)| *a + *b)
+      .collect();
+    Self::Output {
+      num_vars: self.num_vars,
+      len: self.len,
+      Z: res,
+    }
+  }
+}
+
+impl AddAssign for DensePolynomial {
+  fn add_assign(&mut self, other: Self) {
+    *self = &*self + &other;
+  }
+}
+
+impl<'a, 'b> AddAssign<&'a DensePolynomial> for DensePolynomial {
+  fn add_assign(&mut self, other: &'a DensePolynomial) {
+    *self = &*self + other;
+  }
+}
+
+impl<'a, 'b> AddAssign<(Scalar, &'a DensePolynomial)> for DensePolynomial {
+  fn add_assign(&mut self, (scalar, other): (Scalar, &'a DensePolynomial)) {
+    let other = Self {
+      num_vars: other.num_vars,
+      len: 1 << other.num_vars,
+      Z: other.Z.iter().map(|x| scalar * x).collect(),
+    };
+    *self = &*self + &other;
+  }
+}
+
+impl Neg for DensePolynomial {
+  type Output = DensePolynomial;
+
+  fn neg(self) -> Self::Output {
+    Self::Output {
+      num_vars: self.num_vars,
+      len: self.len,
+      Z: self.Z.iter().map(|x| -*x).collect(),
+    }
+  }
+}
+
+impl Sub for DensePolynomial {
+  type Output = DensePolynomial;
+
+  fn sub(self, other: Self) -> Self::Output {
+    &self - &other
+  }
+}
+
+impl<'a, 'b> Sub<&'a DensePolynomial> for &'b DensePolynomial {
+  type Output = DensePolynomial;
+
+  fn sub(self, other: &'a DensePolynomial) -> Self::Output {
+    self + &other.clone().neg()
+  }
+}
+
+impl SubAssign for DensePolynomial {
+  fn sub_assign(&mut self, other: Self) {
+    *self = &*self - &other;
+  }
+}
+
+impl<'a, 'b> SubAssign<&'a DensePolynomial> for DensePolynomial {
+  fn sub_assign(&mut self, other: &'a DensePolynomial) {
+    *self = &*self - other;
+  }
+}
+
 #[derive(Clone)]
 pub struct PolyCommitmentGens {
   pub gens: DotProductProofGens,
+  pub ck: CommitterKey<I>,
+  pub vk: VerifierKey<I>,
 }
 
 impl PolyCommitmentGens {
-  // the number of variables in the multilinear polynomial
+  // num vars is the number of variables in the multilinear polynomial
+  // this gives the maximum degree bound
   pub fn new(num_vars: usize, label: &'static [u8]) -> PolyCommitmentGens {
     let (_left, right) = EqPolynomial::compute_factored_lens(num_vars);
     let gens = DotProductProofGens::new(right.pow2(), label);
-    PolyCommitmentGens { gens }
+
+    // Generates the SRS and trims it based on the number of variables in the
+    // multilinear polynomial.
+    let mut rng = ark_std::test_rng();
+    let pst_gens = MultilinearPC::<I>::setup(num_vars, &mut rng);
+    let (ck, vk) = MultilinearPC::<I>::trim(&pst_gens, num_vars);
+
+    PolyCommitmentGens { gens, ck, vk }
   }
 }
 
@@ -79,6 +246,9 @@ impl EqPolynomial {
     for j in 0..ell {
       // in each iteration, we double the size of chis
       size *= 2;
+      // TODO: this reverse causes inconsistent evaluation in comparison to the
+      //evaluation function in ark-poly-commit, we should look into this to
+      // avoid the extra constraints in the circuit
       for i in (0..size).rev().step_by(2) {
         // copy each element from the prior iteration twice
         let scalar = evals[i / 2];

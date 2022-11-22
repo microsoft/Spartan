@@ -3,10 +3,13 @@ use crate::constraints::{VerifierCircuit, VerifierConfig};
 use crate::group::{Fq, Fr};
 use crate::math::Math;
 use crate::parameters::poseidon_params;
-use crate::poseidon_transcript::PoseidonTranscript;
+use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
 use crate::sumcheck::SumcheckInstanceProof;
-
+use ark_bls12_377::Bls12_377 as I;
 use ark_bw6_761::BW6_761 as P;
+use ark_poly::MultilinearExtension;
+use ark_poly_commit::multilinear_pc::data_structures::{Commitment, Proof};
+use ark_poly_commit::multilinear_pc::MultilinearPC;
 
 use super::commitments::MultiCommitGens;
 use super::dense_mlpoly::{DensePolynomial, EqPolynomial, PolyCommitmentGens};
@@ -28,14 +31,15 @@ use std::time::Instant;
 
 #[derive(CanonicalSerialize, CanonicalDeserialize, Debug)]
 pub struct R1CSProof {
+  // The PST commitment to the multilinear extension of the witness.
+  comm: Commitment<I>,
   sc_proof_phase1: SumcheckInstanceProof,
   claims_phase2: (Scalar, Scalar, Scalar, Scalar),
-  // pok_claims_phase2: (KnowledgeProof, ProductProof),
-  // proof_eq_sc_phase1: EqualityProof,
   sc_proof_phase2: SumcheckInstanceProof,
   eval_vars_at_ry: Scalar,
-  // proof_eval_vars_at_ry: PolyEvalProof,
-  // proof_eq_sc_phase2: EqualityProof,
+  proof_eval_vars_at_ry: Proof<I>,
+  rx: Vec<Scalar>,
+  ry: Vec<Scalar>,
 }
 #[derive(Clone)]
 pub struct R1CSSumcheckGens {
@@ -128,18 +132,26 @@ impl R1CSProof {
     inst: &R1CSInstance,
     vars: Vec<Scalar>,
     input: &[Scalar],
+    gens: &R1CSGens,
     transcript: &mut PoseidonTranscript,
   ) -> (R1CSProof, Vec<Scalar>, Vec<Scalar>) {
     let timer_prove = Timer::new("R1CSProof::prove");
     // we currently require the number of |inputs| + 1 to be at most number of vars
     assert!(input.len() < vars.len());
 
+    // create the multilinear witness polynomial from the satisfying assiment
+    let poly_vars = DensePolynomial::new(vars.clone());
+
+    let timer_commit = Timer::new("polycommit");
+    // commitment to the satisfying witness polynomial
+    let comm = MultilinearPC::<I>::commit(&gens.gens_pc.ck, &poly_vars);
+    comm.append_to_poseidon(transcript);
+    timer_commit.stop();
+
     let c = transcript.challenge_scalar();
     transcript.new_from_state(&c);
 
     transcript.append_scalar_vector(input);
-
-    let poly_vars = DensePolynomial::new(vars.clone());
 
     let timer_sc_proof_phase1 = Timer::new("prove_sc_phase_one");
 
@@ -214,6 +226,19 @@ impl R1CSProof {
     );
     timer_sc_proof_phase2.stop();
 
+    // TODO: modify the polynomial evaluation in Spartan to be consistent
+    // with the evaluation in ark-poly-commit so that reversing is not needed
+    // anymore
+    let timmer_opening = Timer::new("polyopening");
+    let mut dummy = ry[1..].to_vec().clone();
+    dummy.reverse();
+    let proof_eval_vars_at_ry = MultilinearPC::<I>::open(&gens.gens_pc.ck, &poly_vars, &dummy);
+    println!(
+      "proof size (no of quotients): {:?}",
+      proof_eval_vars_at_ry.proofs.len()
+    );
+    timmer_opening.stop();
+
     let timer_polyeval = Timer::new("polyeval");
     let eval_vars_at_ry = poly_vars.evaluate(&ry[1..]);
     timer_polyeval.stop();
@@ -222,10 +247,14 @@ impl R1CSProof {
 
     (
       R1CSProof {
+        comm,
         sc_proof_phase1,
         claims_phase2: (*Az_claim, *Bz_claim, *Cz_claim, prod_Az_Bz_claims),
         sc_proof_phase2,
         eval_vars_at_ry,
+        proof_eval_vars_at_ry,
+        rx: rx.clone(),
+        ry: ry.clone(),
       },
       rx,
       ry,
@@ -239,7 +268,10 @@ impl R1CSProof {
     input: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
     transcript: &mut PoseidonTranscript,
+    gens: &R1CSGens,
   ) -> Result<(u128, u128, u128), ProofVerifyError> {
+    self.comm.append_to_poseidon(transcript);
+
     let c = transcript.challenge_scalar();
 
     let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, Scalar::one())];
@@ -266,30 +298,58 @@ impl R1CSProof {
       polys_sc2: self.sc_proof_phase2.polys.clone(),
       eval_vars_at_ry: self.eval_vars_at_ry,
       input_as_sparse_poly,
+      // rx: self.rx.clone(),
+      ry: self.ry.clone(),
     };
 
     let mut rng = ark_std::test_rng();
 
+    let prove_inner = Timer::new("proveinnercircuit");
     let start = Instant::now();
     let circuit = VerifierCircuit::new(&config, &mut rng).unwrap();
     let dp1 = start.elapsed().as_millis();
+    prove_inner.stop();
 
     let start = Instant::now();
     let (pk, vk) = Groth16::<P>::setup(circuit.clone(), &mut rng).unwrap();
     let ds = start.elapsed().as_millis();
 
+    let prove_outer = Timer::new("proveoutercircuit");
     let start = Instant::now();
     let proof = Groth16::<P>::prove(&pk, circuit, &mut rng).unwrap();
     let dp2 = start.elapsed().as_millis();
+    prove_outer.stop();
 
     let start = Instant::now();
     let is_verified = Groth16::<P>::verify(&vk, &[], &proof).unwrap();
-    let dv = start.elapsed().as_millis();
     assert!(is_verified);
+
+    let timer_verification = Timer::new("commitverification");
+    let mut dummy = self.ry[1..].to_vec();
+    // TODO: ensure ark-poly-commit and Spartan produce consistent results
+    // when evaluating a polynomial at a given point so this reverse is not
+    // needed.
+    dummy.reverse();
+
+    // Verifies the proof of opening against the result of evaluating the
+    // witness polynomial at point ry.
+    let res = MultilinearPC::<I>::check(
+      &gens.gens_pc.vk,
+      &self.comm,
+      &dummy,
+      self.eval_vars_at_ry,
+      &self.proof_eval_vars_at_ry,
+    );
+
+    timer_verification.stop();
+    assert!(res == true);
+    let dv = start.elapsed().as_millis();
 
     Ok((ds, dp1 + dp2, dv))
   }
 
+  // Helper function to find the number of constraint in the circuit which
+  // requires executing it.
   pub fn circuit_size(
     &self,
     num_vars: usize,
@@ -297,7 +357,10 @@ impl R1CSProof {
     input: &[Scalar],
     evals: &(Scalar, Scalar, Scalar),
     transcript: &mut PoseidonTranscript,
+    gens: &R1CSGens,
   ) -> Result<usize, ProofVerifyError> {
+    self.comm.append_to_poseidon(transcript);
+
     let c = transcript.challenge_scalar();
 
     let mut input_as_sparse_poly_entries = vec![SparsePolyEntry::new(0, Scalar::one())];
@@ -324,6 +387,8 @@ impl R1CSProof {
       polys_sc2: self.sc_proof_phase2.polys.clone(),
       eval_vars_at_ry: self.eval_vars_at_ry,
       input_as_sparse_poly,
+      // rx: self.rx.clone(),
+      ry: self.ry.clone(),
     };
 
     let mut rng = ark_std::test_rng();
@@ -439,13 +504,13 @@ mod tests {
     let num_inputs = 10;
     let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
-    // let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
+    let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
 
     let params = poseidon_params();
     // let mut random_tape = RandomTape::new(b"proof");
 
     let mut prover_transcript = PoseidonTranscript::new(&params);
-    let (proof, rx, ry) = R1CSProof::prove(&inst, vars, &input, &mut prover_transcript);
+    let (proof, rx, ry) = R1CSProof::prove(&inst, vars, &input, &gens, &mut prover_transcript);
 
     let inst_evals = inst.evaluate(&rx, &ry);
 
@@ -461,6 +526,7 @@ mod tests {
         &input,
         &inst_evals,
         &mut verifier_transcript,
+        &gens,
       )
       .is_ok());
   }

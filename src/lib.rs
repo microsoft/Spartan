@@ -328,6 +328,8 @@ pub struct SNARK {
   r1cs_sat_proof: R1CSProof,
   inst_evals: (Scalar, Scalar, Scalar),
   r1cs_eval_proof: R1CSEvalProof,
+  rx: Vec<Scalar>,
+  ry: Vec<Scalar>,
 }
 
 impl SNARK {
@@ -385,7 +387,7 @@ impl SNARK {
           &inst.inst,
           padded_vars.assignment,
           &inputs.assignment,
-          // &gens.gens_r1cs_sat,
+          &gens.gens_r1cs_sat,
           transcript,
           // &mut random_tape,
         )
@@ -432,6 +434,8 @@ impl SNARK {
       r1cs_sat_proof,
       inst_evals,
       r1cs_eval_proof,
+      rx,
+      ry,
     }
   }
 
@@ -441,9 +445,9 @@ impl SNARK {
     comm: &ComputationCommitment,
     input: &InputsAssignment,
     transcript: &mut PoseidonTranscript,
-    _gens: &SNARKGens,
-  ) -> Result<(), ProofVerifyError> {
-    let _timer_verify = Timer::new("SNARK::verify");
+    gens: &SNARKGens,
+  ) -> Result<(u128, u128, u128), ProofVerifyError> {
+    let timer_verify = Timer::new("SNARK::verify");
     // transcript.append_protocol_name(SNARK::protocol_name());
 
     // append a commitment to the computation to the transcript
@@ -452,35 +456,36 @@ impl SNARK {
     let timer_sat_proof = Timer::new("verify_sat_proof");
     assert_eq!(input.assignment.len(), comm.comm.get_num_inputs());
     // let (rx, ry) =
-    self.r1cs_sat_proof.circuit_size(
+    let res = self.r1cs_sat_proof.verify_groth16(
       comm.comm.get_num_vars(),
       comm.comm.get_num_cons(),
       &input.assignment,
       &self.inst_evals,
       transcript,
-      // &gens.gens_r1cs_sat,
+      &gens.gens_r1cs_sat,
     )?;
     timer_sat_proof.stop();
 
     // let timer_eval_proof = Timer::new("verify_eval_proof");
-    // let (Ar, Br, Cr) = &self.inst_evals;
-    // // Ar.append_to_transcript(b"Ar_claim", transcript);
-    // // Br.append_to_transcript(b"Br_claim", transcript);
-    // // Cr.append_to_transcript(b"Cr_claim", transcript);
-    // transcript.append_scalar(&Ar);
-    // transcript.append_scalar(&Br);
-    // transcript.append_scalar(&Cr);
+
+    let (Ar, Br, Cr) = &self.inst_evals;
+    transcript.append_scalar(&Ar);
+    transcript.append_scalar(&Br);
+    transcript.append_scalar(&Cr);
+
+    // TODO: debug this
+    // https://github.com/maramihali/Spartan/issues/6
     // self.r1cs_eval_proof.verify(
     //   &comm.comm,
-    //   &rx,
-    //   &ry,
+    //   &self.rx,
+    //   &self.ry,
     //   &self.inst_evals,
     //   &gens.gens_r1cs_eval,
     //   transcript,
     // )?;
     // timer_eval_proof.stop();
-    // timer_verify.stop();
-    Ok(())
+    timer_verify.stop();
+    Ok(res)
   }
 }
 
@@ -523,7 +528,7 @@ impl NIZK {
     inst: &Instance,
     vars: VarsAssignment,
     input: &InputsAssignment,
-    // gens: &NIZKGens,
+    gens: &NIZKGens,
     transcript: &mut PoseidonTranscript,
   ) -> Self {
     let timer_prove = Timer::new("NIZK::prove");
@@ -550,7 +555,7 @@ impl NIZK {
         &inst.inst,
         padded_vars.assignment,
         &input.assignment,
-        // &gens.gens_r1cs_sat,
+        &gens.gens_r1cs_sat,
         transcript,
         // &mut random_tape,
       );
@@ -573,7 +578,7 @@ impl NIZK {
     inst: &Instance,
     input: &InputsAssignment,
     transcript: &mut PoseidonTranscript,
-    // gens: &NIZKGens,
+    gens: &NIZKGens,
   ) -> Result<usize, ProofVerifyError> {
     let timer_verify = Timer::new("NIZK::verify");
 
@@ -595,7 +600,7 @@ impl NIZK {
       &input.assignment,
       &inst_evals,
       transcript,
-      // &gens.gens_r1cs_sat,
+      &gens.gens_r1cs_sat,
     )?;
 
     // verify if claimed rx and ry are correct
@@ -613,6 +618,7 @@ impl NIZK {
     inst: &Instance,
     input: &InputsAssignment,
     transcript: &mut PoseidonTranscript,
+    gens: &NIZKGens,
   ) -> Result<(u128, u128, u128), ProofVerifyError> {
     let timer_verify = Timer::new("NIZK::verify");
 
@@ -635,7 +641,7 @@ impl NIZK {
       &input.assignment,
       &inst_evals,
       transcript,
-      // &gens.gens_r1cs_sat,
+      &gens.gens_r1cs_sat,
     )?;
 
     // verify if claimed rx and ry are correct
@@ -805,7 +811,7 @@ mod tests {
       .is_ok());
 
     // NIZK public params
-    let _gens = NIZKGens::new(num_cons, num_vars, num_inputs);
+    let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
     let params = poseidon_params();
 
@@ -815,14 +821,14 @@ mod tests {
       &inst,
       assignment_vars,
       &assignment_inputs,
-      // &gens,
+      &gens,
       &mut prover_transcript,
     );
 
     // verify the NIZK
     let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
-      .verify(&inst, &assignment_inputs, &mut verifier_transcript)
+      .verify_groth16(&inst, &assignment_inputs, &mut verifier_transcript, &gens)
       .is_ok());
   }
 }

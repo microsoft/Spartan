@@ -100,12 +100,12 @@ Here is another example to use the NIZK variant of the Spartan proof system:
 
     // produce a proof of satisfiability
     let mut prover_transcript = PoseidonTranscript::new(&params);
-    let proof = NIZK::prove(&inst, vars, &inputs, &mut prover_transcript);
+    let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
     // verify the proof of satisfiability
     let mut verifier_transcript = PoseidonTranscript::new(&params);
     assert!(proof
-      .verify(&inst, &inputs, &mut verifier_transcript)
+      .verify(&inst, &inputs, &mut verifier_transcript, &gens)
       .is_ok());
     println!("proof verification successful!");
 # }

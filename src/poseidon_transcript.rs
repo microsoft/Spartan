@@ -1,7 +1,9 @@
 use crate::group::{CompressedGroup, Fr};
 
 use super::scalar::Scalar;
-
+use ark_bls12_377::Bls12_377 as I;
+use ark_poly_commit::multilinear_pc::data_structures::Commitment;
+use ark_serialize::CanonicalSerialize;
 // use ark_r1cs_std::prelude::*;
 use ark_sponge::{
   poseidon::{PoseidonParameters, PoseidonSponge},
@@ -68,5 +70,13 @@ pub trait AppendToPoseidon {
 impl AppendToPoseidon for CompressedGroup {
   fn append_to_poseidon(&self, transcript: &mut PoseidonTranscript) {
     transcript.append_point(self);
+  }
+}
+
+impl AppendToPoseidon for Commitment<I> {
+  fn append_to_poseidon(&self, transcript: &mut PoseidonTranscript) {
+    let mut bytes = Vec::new();
+    self.serialize(&mut bytes).unwrap();
+    transcript.append_bytes(&bytes);
   }
 }
