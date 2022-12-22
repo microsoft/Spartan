@@ -255,6 +255,7 @@ pub struct R1CSVerificationCircuit {
   pub sc_phase2: SumcheckVerificationCircuit,
   // The point on which the polynomial was evaluated by the prover.
   pub claimed_ry: Vec<Scalar>,
+  pub claimed_transcript_sat_state: Scalar,
 }
 
 impl R1CSVerificationCircuit {
@@ -276,6 +277,7 @@ impl R1CSVerificationCircuit {
         polys: config.polys_sc2.clone(),
       },
       claimed_ry: config.ry.clone(),
+      claimed_transcript_sat_state: config.transcript_sat_state,
     }
   }
 }
@@ -386,12 +388,20 @@ impl ConstraintSynthesizer<Fr> for R1CSVerificationCircuit {
 
     let eval_A_r_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(eval_A_r))?;
     let eval_B_r_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(eval_B_r))?;
-    let eval_C_r_var = FpVar::<Fr>::new_witness(cs, || Ok(eval_C_r))?;
+    let eval_C_r_var = FpVar::<Fr>::new_witness(cs.clone(), || Ok(eval_C_r))?;
 
     let scalar_var = &r_A_var * &eval_A_r_var + &r_B_var * &eval_B_r_var + &r_C_var * &eval_C_r_var;
 
     let expected_claim_post_phase2_var = eval_Z_at_ry_var * scalar_var;
     claim_post_phase2_var.enforce_equal(&expected_claim_post_phase2_var)?;
+
+    let expected_transcript_state_var = transcript_var.challenge()?;
+    let claimed_transcript_state_var =
+      FpVar::<Fr>::new_input(cs, || Ok(self.claimed_transcript_sat_state))?;
+
+    // Ensure that the prover and verifier transcipt views are consistent at
+    // the end of the satisfiability proof.
+    expected_transcript_state_var.enforce_equal(&claimed_transcript_state_var)?;
 
     Ok(())
   }
@@ -411,6 +421,7 @@ pub struct VerifierConfig {
   pub polys_sc1: Vec<UniPoly>,
   pub polys_sc2: Vec<UniPoly>,
   pub ry: Vec<Scalar>,
+  pub transcript_sat_state: Scalar,
 }
 #[derive(Clone)]
 pub struct VerifierCircuit {
@@ -420,6 +431,7 @@ pub struct VerifierCircuit {
   pub eval_vars_at_ry: Fr,
   pub claims_phase2: (Fr, Fr, Fr, Fr),
   pub ry: Vec<Fr>,
+  pub transcript_sat_state: Scalar,
 }
 
 impl VerifierCircuit {
@@ -438,6 +450,7 @@ impl VerifierCircuit {
       eval_vars_at_ry: config.eval_vars_at_ry,
       claims_phase2: config.claims_phase2,
       ry: config.ry.clone(),
+      transcript_sat_state: config.transcript_sat_state,
     })
   }
 }
@@ -449,7 +462,8 @@ impl ConstraintSynthesizer<Fq> for VerifierCircuit {
     let mut pubs = vec![];
     pubs.extend(self.ry);
     pubs.extend(vec![v_A, v_B, v_C, v_AB]);
-    pubs.extend(vec![self.eval_vars_at_ry]);
+    pubs.extend(vec![self.eval_vars_at_ry, self.transcript_sat_state]);
+
     let bits = pubs
       .iter()
       .map(|c| {

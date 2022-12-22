@@ -40,6 +40,8 @@ pub struct R1CSProof {
   proof_eval_vars_at_ry: Proof<I>,
   rx: Vec<Scalar>,
   ry: Vec<Scalar>,
+  // The transcript state after the satisfiability proof was computed.
+  pub transcript_sat_state: Scalar,
 }
 #[derive(Clone)]
 pub struct R1CSSumcheckGens {
@@ -245,6 +247,8 @@ impl R1CSProof {
 
     timer_prove.stop();
 
+    let c = transcript.challenge_scalar();
+
     (
       R1CSProof {
         comm,
@@ -255,6 +259,7 @@ impl R1CSProof {
         proof_eval_vars_at_ry,
         rx: rx.clone(),
         ry: ry.clone(),
+        transcript_sat_state: c,
       },
       rx,
       ry,
@@ -300,6 +305,7 @@ impl R1CSProof {
       input_as_sparse_poly,
       // rx: self.rx.clone(),
       ry: self.ry.clone(),
+      transcript_sat_state: self.transcript_sat_state,
     };
 
     let mut rng = ark_std::test_rng();
@@ -389,6 +395,7 @@ impl R1CSProof {
       input_as_sparse_poly,
       // rx: self.rx.clone(),
       ry: self.ry.clone(),
+      transcript_sat_state: self.transcript_sat_state,
     };
 
     let mut rng = ark_std::test_rng();

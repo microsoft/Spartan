@@ -42,6 +42,7 @@ mod constraints;
 pub mod poseidon_transcript;
 
 use ark_ff::Field;
+use ark_relations::r1cs;
 use ark_serialize::*;
 use ark_std::Zero;
 use core::cmp::max;
@@ -400,6 +401,13 @@ impl SNARK {
       (proof, rx, ry)
     };
 
+    // We need to reset the transcript state before starting the evaluation
+    // proof and share this state with the verifier because, on the verifier's
+    // side all the previous updates are done on the transcript
+    // circuit variable and the transcript outside the circuit will be
+    // inconsistent wrt to the prover's.
+    transcript.new_from_state(&r1cs_sat_proof.transcript_sat_state);
+
     // We send evaluations of A, B, C at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
     let timer_eval = Timer::new("eval_sparse_polys");
@@ -466,24 +474,27 @@ impl SNARK {
     )?;
     timer_sat_proof.stop();
 
-    // let timer_eval_proof = Timer::new("verify_eval_proof");
+    let timer_eval_proof = Timer::new("verify_eval_proof");
+    // Reset the transcript using the state sent by the prover.
+    // TODO: find a way to retrieve this state from the circuit. Currently
+    // the API for generating constraints doesn't support returning values
+    // computed inside the circuit.
+    transcript.new_from_state(&self.r1cs_sat_proof.transcript_sat_state);
 
     let (Ar, Br, Cr) = &self.inst_evals;
     transcript.append_scalar(&Ar);
     transcript.append_scalar(&Br);
     transcript.append_scalar(&Cr);
 
-    // TODO: debug this
-    // https://github.com/maramihali/Spartan/issues/6
-    // self.r1cs_eval_proof.verify(
-    //   &comm.comm,
-    //   &self.rx,
-    //   &self.ry,
-    //   &self.inst_evals,
-    //   &gens.gens_r1cs_eval,
-    //   transcript,
-    // )?;
-    // timer_eval_proof.stop();
+    self.r1cs_eval_proof.verify(
+      &comm.comm,
+      &self.rx,
+      &self.ry,
+      &self.inst_evals,
+      &gens.gens_r1cs_eval,
+      transcript,
+    )?;
+    timer_eval_proof.stop();
     timer_verify.stop();
     Ok(res)
   }

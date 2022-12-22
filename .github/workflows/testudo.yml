@@ -21,8 +21,8 @@ jobs:
         run: rustup default nightly
       - name: Install rustfmt Components
         run: rustup component add rustfmt
-      - name: Install clippy
-        run: rustup component add clippy
+      # - name: Install clippy
+      #   run: rustup component add clippy
       - name: Build
         run: cargo build --verbose
       - name: Run tests
@@ -32,6 +32,6 @@ jobs:
       - name: Check Rustfmt Code Style
         run: cargo fmt --all -- --check
       # cargo clippy uses cargo check which returns an error when asm is emitted
-      # we want to emit asm for ff operations so we avoid using clippy for now
+      # we want to emit asm for ark-ff operations so we avoid using clippy for # now
       # - name: Check clippy warnings
       #   run: cargo clippy --all-targets --all-features
