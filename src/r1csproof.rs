@@ -4,9 +4,11 @@ use crate::group::{Fq, Fr};
 use crate::math::Math;
 use crate::parameters::poseidon_params;
 use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
+use crate::sqrt_pst::PolyList;
 use crate::sumcheck::SumcheckInstanceProof;
 use ark_bls12_377::Bls12_377 as I;
 use ark_bw6_761::BW6_761 as P;
+use ark_ec::PairingEngine;
 use ark_poly::MultilinearExtension;
 use ark_poly_commit::multilinear_pc::data_structures::{Commitment, Proof};
 use ark_poly_commit::multilinear_pc::MultilinearPC;
@@ -42,6 +44,7 @@ pub struct R1CSProof {
   ry: Vec<Scalar>,
   // The transcript state after the satisfiability proof was computed.
   pub transcript_sat_state: Scalar,
+  pub t: <I as PairingEngine>::Fqk,
 }
 #[derive(Clone)]
 pub struct R1CSSumcheckGens {
@@ -142,12 +145,19 @@ impl R1CSProof {
     assert!(input.len() < vars.len());
 
     // create the multilinear witness polynomial from the satisfying assiment
-    let poly_vars = DensePolynomial::new(vars.clone());
+    // expressed as the list of sqrt-sized polynomials
+    let pl = PolyList::new(&vars.clone());
 
     let timer_commit = Timer::new("polycommit");
-    // commitment to the satisfying witness polynomial
-    let comm = MultilinearPC::<I>::commit(&gens.gens_pc.ck, &poly_vars);
-    comm.append_to_poseidon(transcript);
+
+    // commitment list to the satisfying witness polynomial list
+    let (comm_list, t) = PolyList::commit(&pl, &gens.gens_pc.ck);
+
+    let mut bytes = Vec::new();
+    t.serialize(&mut bytes).unwrap();
+    transcript.append_bytes(&bytes);
+
+    // comm.append_to_poseidon(transcript);
     timer_commit.stop();
 
     let c = transcript.challenge_scalar();
@@ -234,15 +244,18 @@ impl R1CSProof {
     let timmer_opening = Timer::new("polyopening");
     let mut dummy = ry[1..].to_vec().clone();
     dummy.reverse();
-    let proof_eval_vars_at_ry = MultilinearPC::<I>::open(&gens.gens_pc.ck, &poly_vars, &dummy);
+    let q = pl.get_q(&dummy);
+
+    let (comm, proof_eval_vars_at_ry) = PolyList::open_q(comm_list, &gens.gens_pc.ck, &q, &dummy);
     println!(
       "proof size (no of quotients): {:?}",
       proof_eval_vars_at_ry.proofs.len()
     );
+    // comm.append_to_poseidon(transcript);
     timmer_opening.stop();
 
     let timer_polyeval = Timer::new("polyeval");
-    let eval_vars_at_ry = poly_vars.evaluate(&ry[1..]);
+    let eval_vars_at_ry = PolyList::eval_q(q.clone(), &dummy);
     timer_polyeval.stop();
 
     timer_prove.stop();
@@ -260,6 +273,7 @@ impl R1CSProof {
         rx: rx.clone(),
         ry: ry.clone(),
         transcript_sat_state: c,
+        t: t,
       },
       rx,
       ry,
@@ -275,7 +289,10 @@ impl R1CSProof {
     transcript: &mut PoseidonTranscript,
     gens: &R1CSGens,
   ) -> Result<(u128, u128, u128), ProofVerifyError> {
-    self.comm.append_to_poseidon(transcript);
+    // serialise and add the IPP commitment to the transcript
+    let mut bytes = Vec::new();
+    self.t.serialize(&mut bytes).unwrap();
+    transcript.append_bytes(&bytes);
 
     let c = transcript.challenge_scalar();
 
@@ -303,7 +320,7 @@ impl R1CSProof {
       polys_sc2: self.sc_proof_phase2.polys.clone(),
       eval_vars_at_ry: self.eval_vars_at_ry,
       input_as_sparse_poly,
-      // rx: self.rx.clone(),
+      comm: self.comm.clone(),
       ry: self.ry.clone(),
       transcript_sat_state: self.transcript_sat_state,
     };
@@ -339,7 +356,7 @@ impl R1CSProof {
 
     // Verifies the proof of opening against the result of evaluating the
     // witness polynomial at point ry.
-    let res = MultilinearPC::<I>::check(
+    let res = PolyList::verify_q(
       &gens.gens_pc.vk,
       &self.comm,
       &dummy,
@@ -365,7 +382,7 @@ impl R1CSProof {
     transcript: &mut PoseidonTranscript,
     gens: &R1CSGens,
   ) -> Result<usize, ProofVerifyError> {
-    self.comm.append_to_poseidon(transcript);
+    // self.comm.append_to_poseidon(transcript);
 
     let c = transcript.challenge_scalar();
 
@@ -393,8 +410,8 @@ impl R1CSProof {
       polys_sc2: self.sc_proof_phase2.polys.clone(),
       eval_vars_at_ry: self.eval_vars_at_ry,
       input_as_sparse_poly,
-      // rx: self.rx.clone(),
       ry: self.ry.clone(),
+      comm: self.comm.clone(),
       transcript_sat_state: self.transcript_sat_state,
     };
 

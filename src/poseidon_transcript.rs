@@ -36,6 +36,8 @@ impl PoseidonTranscript {
     self.sponge.absorb(&x);
   }
 
+  // pub fn append_usize
+
   pub fn append_bytes(&mut self, x: &Vec<u8>) {
     self.sponge.absorb(x);
   }

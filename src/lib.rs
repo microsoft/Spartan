@@ -31,6 +31,7 @@ mod r1csproof;
 mod random;
 mod scalar;
 mod sparse_mlpoly;
+mod sqrt_pst;
 mod sumcheck;
 mod timer;
 mod transcript;

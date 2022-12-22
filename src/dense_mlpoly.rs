@@ -1,6 +1,7 @@
 #![allow(clippy::too_many_arguments)]
 use crate::group::Fr;
 use crate::poseidon_transcript::{AppendToPoseidon, PoseidonTranscript};
+use crate::timer::Timer;
 
 use super::commitments::{Commitments, MultiCommitGens};
 use super::errors::ProofVerifyError;
@@ -13,18 +14,19 @@ use super::nizk::{DotProductProofGens, DotProductProofLog};
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::transcript::{AppendToTranscript, ProofTranscript};
-use ark_bls12_377::Bls12_377 as I;
-use ark_ff::{One, UniformRand, Zero};
+use ark_bls12_377::{Bls12_377 as I, G1Affine};
+use ark_ec::msm::VariableBaseMSM;
+use ark_ec::{PairingEngine, ProjectiveCurve};
+use ark_ff::{One, PrimeField, UniformRand, Zero};
 use ark_poly::{DenseMultilinearExtension, MultilinearExtension};
 use ark_poly_commit::multilinear_pc::data_structures::{
-  CommitterKey, UniversalParams, VerifierKey,
+  Commitment, CommitterKey, Proof, UniversalParams, VerifierKey,
 };
 use ark_poly_commit::multilinear_pc::MultilinearPC;
 use ark_serialize::*;
 use core::ops::Index;
 use merlin::Transcript;
 use std::ops::{Add, AddAssign, Neg, Sub, SubAssign};
-use std::process::abort;
 
 #[cfg(feature = "multicore")]
 use rayon::prelude::*;
@@ -32,9 +34,9 @@ use rayon::prelude::*;
 // TODO: integrate the DenseMultilinearExtension(and Sparse) https://github.com/arkworks-rs/algebra/tree/master/poly/src/evaluations/multivariate/multilinear from arkworks into Spartan. This requires moving the specific Spartan functionalities in separate traits.
 #[derive(Debug, Clone, Eq, PartialEq, Hash, CanonicalDeserialize, CanonicalSerialize)]
 pub struct DensePolynomial {
-  num_vars: usize, // the number of variables in the multilinear polynomial
-  len: usize,
-  Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
+  pub num_vars: usize, // the number of variables in the multilinear polynomial
+  pub len: usize,
+  pub Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
 
 impl MultilinearExtension<Scalar> for DensePolynomial {
@@ -201,8 +203,8 @@ impl PolyCommitmentGens {
     // Generates the SRS and trims it based on the number of variables in the
     // multilinear polynomial.
     let mut rng = ark_std::test_rng();
-    let pst_gens = MultilinearPC::<I>::setup(num_vars, &mut rng);
-    let (ck, vk) = MultilinearPC::<I>::trim(&pst_gens, num_vars);
+    let pst_gens = MultilinearPC::<I>::setup(num_vars / 2, &mut rng);
+    let (ck, vk) = MultilinearPC::<I>::trim(&pst_gens, num_vars / 2);
 
     PolyCommitmentGens { gens, ck, vk }
   }
@@ -591,6 +593,8 @@ impl PolyEvalProof {
 
 #[cfg(test)]
 mod tests {
+  use std::num;
+
   use crate::parameters::poseidon_params;
 
   use super::*;

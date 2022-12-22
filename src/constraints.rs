@@ -7,7 +7,12 @@ use crate::{
   sparse_mlpoly::{SparsePolyEntry, SparsePolynomial},
   unipoly::UniPoly,
 };
-use ark_bls12_377::{constraints::PairingVar as IV, Bls12_377 as I, Fr};
+
+use ark_bls12_377::{
+  constraints::{G1Var, PairingVar as IV},
+  Bls12_377 as I, Fr, G1Affine,
+};
+
 use ark_crypto_primitives::{
   snark::BooleanInputVar, CircuitSpecificSetupSNARK, SNARKGadget, SNARK,
 };
@@ -25,6 +30,7 @@ use ark_poly_commit::multilinear_pc::{
 use ark_r1cs_std::{
   alloc::{AllocVar, AllocationMode},
   fields::fp::FpVar,
+  groups::bls12::G1AffineVar,
   prelude::{Boolean, EqGadget, FieldVar},
   R1CSVar,
 };
@@ -85,6 +91,11 @@ impl PoseidonTranscripVar {
   }
 }
 
+//  #[derive(Clone)]
+// pub struct CommitmentVar {
+//   pub nv: usize,
+//   pub g_product: ,
+// }
 #[derive(Clone)]
 pub struct UniPolyVar {
   pub coeffs: Vec<FpVar<Fr>>,
@@ -409,6 +420,7 @@ impl ConstraintSynthesizer<Fr> for R1CSVerificationCircuit {
 
 #[derive(Clone)]
 pub struct VerifierConfig {
+  pub comm: Commitment<I>,
   pub num_vars: usize,
   pub num_cons: usize,
   pub input: Vec<Fr>,
