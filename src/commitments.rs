@@ -1,8 +1,8 @@
 use super::group::{GroupElement, VartimeMultiscalarMul, GROUP_BASEPOINT_COMPRESSED};
 use super::scalar::Scalar;
+use digest::XofReader;
 use digest::{ExtendableOutput, Input};
 use sha3::Shake256;
-use std::io::Read;
 
 #[derive(Debug)]
 pub struct MultiCommitGens {
@@ -21,7 +21,7 @@ impl MultiCommitGens {
     let mut gens: Vec<GroupElement> = Vec::new();
     let mut uniform_bytes = [0u8; 64];
     for _ in 0..n + 1 {
-      reader.read_exact(&mut uniform_bytes).unwrap();
+      reader.read(&mut uniform_bytes);
       gens.push(GroupElement::from_uniform_bytes(&uniform_bytes));
     }
 
