@@ -57,10 +57,10 @@ jobs:
     - name: Patch Cargo.toml for wasm-bindgen
       run: |
         echo "[dependencies.getrandom]" >> Cargo.toml
-        echo "version = "0.1"" >> Cargo.toml
+        echo "version = \"0.1\"" >> Cargo.toml
         echo "default-features = false" >> Cargo.toml
         echo "features = [\"wasm-bindgen\"]" >> Cargo.toml
 
-    - name: Build for target wasm-unknown-unknown
-      run: RUSTFLAGS="" cargo build --target=wasm-unknown-unknown --no-default-features --verbose
+    - name: Build for target wasm32-unknown-unknown
+      run: RUSTFLAGS="" cargo build --target=wasm32-unknown-unknown --no-default-features --verbose
     

@@ -27,7 +27,7 @@ fn nizk_prove_benchmark(c: &mut Criterion) {
 
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
-    let name = format!("NIZK_prove_{}", num_vars);
+    let name = format!("NIZK_prove_{num_vars}");
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut prover_transcript = Transcript::new(b"example");
@@ -61,7 +61,7 @@ fn nizk_verify_benchmark(c: &mut Criterion) {
     let mut prover_transcript = Transcript::new(b"example");
     let proof = NIZK::prove(&inst, vars, &inputs, &gens, &mut prover_transcript);
 
-    let name = format!("NIZK_verify_{}", num_cons);
+    let name = format!("NIZK_verify_{num_cons}");
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut verifier_transcript = Transcript::new(b"example");

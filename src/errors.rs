@@ -14,8 +14,7 @@ impl Display for ProofVerifyError {
     match &self {
       ProofVerifyError::DecompressionError(bytes) => write!(
         f,
-        "Compressed group element failed to decompress: {:?}",
-        bytes
+        "Compressed group element failed to decompress: {bytes:?}",
       ),
       ProofVerifyError::InternalError => {
         write!(f, "Proof verification failed",)
