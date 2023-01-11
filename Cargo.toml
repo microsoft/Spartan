@@ -11,22 +11,24 @@ license-file = "LICENSE"
 keywords = ["zkSNARKs", "cryptography", "proofs"]
 
 [dependencies]
-curve25519-dalek = {version = "3.2.0", features = ["serde"]}
-merlin = "3.0.0"
-rand = "0.7.3"
-digest = "0.8.1"
-sha3 = "0.8.2"
-byteorder = "1.3.4"
+curve25519-dalek = { version = "3.2.0", features = [
+    "serde",
+    "u64_backend",
+    "alloc",
+], default-features = false }
+merlin = { version = "3.0.0", default-features = false }
+rand = { version = "0.8.5", features = ["getrandom"], default-features = false }
+digest = { version = "0.8.1", default-features = false }
+sha3 = { version = "0.8.2", default-features = false }
+byteorder = { version = "1.3.4", default-features = false }
 rayon = { version = "1.3.0", optional = true }
-serde = { version = "1.0.106", features = ["derive"] }
-bincode = "1.2.1"
-subtle = { version = "2.4", default-features = false }
-rand_core = { version = "0.5", default-features = false }
-zeroize = { version = "1", default-features = false }
-itertools = "0.10.0"
-colored = "2.0.0"
-flate2 = "1.0.14"
-thiserror = "1.0"
+serde = { version = "1.0.106", features = ["derive"], default-features = false }
+bincode = { version = "1.3.3", default-features = false }
+subtle = { version = "2.4", features = ["i128"], default-features = false }
+zeroize = { version = "1.5", default-features = false }
+itertools = { version = "0.10.0", default-features = false }
+colored = { version = "2.0.0", default-features = false, optional = true }
+flate2 = { version = "1.0.14" }
 
 [dev-dependencies]
 criterion = "0.3.1"
@@ -52,6 +54,20 @@ name = "nizk"
 harness = false
 
 [features]
-default = ["curve25519-dalek/simd_backend"]
+default = ["std", "simd_backend"]
+std = [
+    "curve25519-dalek/std",
+    "digest/std",
+    "merlin/std",
+    "rand/std",
+    "sha3/std",
+    "byteorder/std",
+    "serde/std",
+    "subtle/std",
+    "zeroize/std",
+    "itertools/use_std",
+    "flate2/rust_backend",
+]
+simd_backend = ["curve25519-dalek/simd_backend"]
 multicore = ["rayon"]
-profile = []
+profile = ["colored"]
