@@ -32,6 +32,10 @@ flate2 = { version = "1.0.14" }
 
 [dev-dependencies]
 criterion = "0.3.1"
+# since curve25519-dalek (v3) uses old rand(v0.7) we need this.
+# should upgrade curve25519-dalek to v4 once it out of pre release 
+# (current latest version v4.0.0-pre.5, as of writing)
+rand07 = { package = "rand", version = "0.7" }
 
 [lib]
 name = "libspartan"
