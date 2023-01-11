@@ -12,7 +12,7 @@
 use curve25519_dalek::scalar::Scalar;
 use libspartan::{InputsAssignment, Instance, SNARKGens, VarsAssignment, SNARK};
 use merlin::Transcript;
-use rand07::rngs::OsRng;
+use rand::rngs::OsRng;
 
 #[allow(non_snake_case)]
 fn produce_r1cs() -> (
