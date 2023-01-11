@@ -284,7 +284,26 @@ RUSTFLAGS="-C target_cpu=native" cargo build --release
 > NOTE: We enable SIMD instructions in `curve25519-dalek` by default, so if it fails to build remove the "simd_backend" feature argument in `Cargo.toml`.
 
 ### Supported features
-* `profile`: enables fine-grained profiling information (see below for its use)
+
+- `std`: enables std features (enabled by default)
+- `simd_backend`: enables `curve25519-dalek`'s simd feature (enabled by default)
+- `profile`: enables fine-grained profiling information (see below for its use)
+
+### WASM Support
+
+`libspartan` depends upon `rand::OsRng` (internally uses `getrandom` crate), it has out of box support for `wasm32-wasi`.
+
+For the target `wasm32-unknown-unknown` disable default features for spartan
+and add direct dependency on `getrandom` with `wasm-bindgen` feature enabled.
+
+```toml
+[dependencies]
+spartan = { version = "0.7", default-features = false }
+# since spartan uses getrandom(rand's OsRng), we need to enable 'wasm-bindgen'
+# feature to make it feed rand seed from js/nodejs env
+# https://docs.rs/getrandom/0.1.16/getrandom/index.html#support-for-webassembly-and-asmjs
+getrandom = { version = "0.1", features = ["wasm-bindgen"] }
+```
 
 ## Performance
 
