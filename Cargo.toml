@@ -44,18 +44,22 @@ path = "src/lib.rs"
 [[bin]]
 name = "snark"
 path = "profiler/snark.rs"
+required-features = ["std"]
 
 [[bin]]
 name = "nizk"
 path = "profiler/nizk.rs"
+required-features = ["std"]
 
 [[bench]]
 name = "snark"
 harness = false
+required-features = ["std"]
 
 [[bench]]
 name = "nizk"
 harness = false
+required-features = ["std"]
 
 [features]
 default = ["std", "simd_backend"]
