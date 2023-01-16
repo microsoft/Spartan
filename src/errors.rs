@@ -3,8 +3,9 @@ use core::{
   fmt::{self, Debug},
 };
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum ProofVerifyError {
+  #[default]
   InternalError,
   DecompressionError([u8; 32]),
 }
@@ -20,12 +21,6 @@ impl Display for ProofVerifyError {
         write!(f, "Proof verification failed",)
       }
     }
-  }
-}
-
-impl Default for ProofVerifyError {
-  fn default() -> Self {
-    ProofVerifyError::InternalError
   }
 }
 
