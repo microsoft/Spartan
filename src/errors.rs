@@ -1,17 +1,26 @@
-use core::fmt::Debug;
-use thiserror::Error;
+use core::{
+  fmt::Display,
+  fmt::{self, Debug},
+};
 
-#[derive(Error, Debug)]
+#[derive(Debug, Default)]
 pub enum ProofVerifyError {
-  #[error("Proof verification failed")]
+  #[default]
   InternalError,
-  #[error("Compressed group element failed to decompress: {0:?}")]
   DecompressionError([u8; 32]),
 }
 
-impl Default for ProofVerifyError {
-  fn default() -> Self {
-    ProofVerifyError::InternalError
+impl Display for ProofVerifyError {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    match &self {
+      ProofVerifyError::DecompressionError(bytes) => write!(
+        f,
+        "Compressed group element failed to decompress: {bytes:?}",
+      ),
+      ProofVerifyError::InternalError => {
+        write!(f, "Proof verification failed",)
+      }
+    }
   }
 }
 

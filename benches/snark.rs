@@ -22,7 +22,7 @@ fn snark_encode_benchmark(c: &mut Criterion) {
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
     // produce a commitment to R1CS instance
-    let name = format!("SNARK_encode_{}", num_cons);
+    let name = format!("SNARK_encode_{num_cons}");
     group.bench_function(&name, move |b| {
       b.iter(|| {
         SNARK::encode(black_box(&inst), black_box(&gens));
@@ -51,7 +51,7 @@ fn snark_prove_benchmark(c: &mut Criterion) {
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof
-    let name = format!("SNARK_prove_{}", num_cons);
+    let name = format!("SNARK_prove_{num_cons}");
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut prover_transcript = Transcript::new(b"example");
@@ -100,7 +100,7 @@ fn snark_verify_benchmark(c: &mut Criterion) {
     );
 
     // verify the proof
-    let name = format!("SNARK_verify_{}", num_cons);
+    let name = format!("SNARK_verify_{num_cons}");
     group.bench_function(&name, move |b| {
       b.iter(|| {
         let mut verifier_transcript = Transcript::new(b"example");

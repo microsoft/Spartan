@@ -90,9 +90,9 @@ impl R1CSInstance {
     B: &[(usize, usize, Scalar)],
     C: &[(usize, usize, Scalar)],
   ) -> R1CSInstance {
-    Timer::print(&format!("number_of_constraints {}", num_cons));
-    Timer::print(&format!("number_of_variables {}", num_vars));
-    Timer::print(&format!("number_of_inputs {}", num_inputs));
+    Timer::print(&format!("number_of_constraints {num_cons}"));
+    Timer::print(&format!("number_of_variables {num_vars}"));
+    Timer::print(&format!("number_of_inputs {num_inputs}"));
     Timer::print(&format!("number_non-zero_entries_A {}", A.len()));
     Timer::print(&format!("number_non-zero_entries_B {}", B.len()));
     Timer::print(&format!("number_non-zero_entries_C {}", C.len()));
@@ -157,9 +157,9 @@ impl R1CSInstance {
     num_vars: usize,
     num_inputs: usize,
   ) -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
-    Timer::print(&format!("number_of_constraints {}", num_cons));
-    Timer::print(&format!("number_of_variables {}", num_vars));
-    Timer::print(&format!("number_of_inputs {}", num_inputs));
+    Timer::print(&format!("number_of_constraints {num_cons}"));
+    Timer::print(&format!("number_of_variables {num_vars}"));
+    Timer::print(&format!("number_of_inputs {num_inputs}"));
 
     let mut csprng: OsRng = OsRng;
 
