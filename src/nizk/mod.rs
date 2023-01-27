@@ -472,11 +472,16 @@ impl DotProductProofLog {
 
     a_vec.append_to_transcript(b"a", transcript);
 
-    let blind_Gamma = blind_x + blind_y;
+    // sample a random base and scale the generator used for
+    // the output of the inner product
+    let r = transcript.challenge_scalar(b"r");
+    let gens_1_scaled = gens.gens_1.scale(&r);
+
+    let blind_Gamma = blind_x + r * blind_y;
     let (bullet_reduction_proof, _Gamma_hat, x_hat, a_hat, g_hat, rhat_Gamma) =
       BulletReductionProof::prove(
         transcript,
-        &gens.gens_1.G[0],
+        &gens_1_scaled.G[0],
         &gens.gens_n.G,
         &gens.gens_n.h,
         x_vec,
@@ -496,7 +501,7 @@ impl DotProductProofLog {
     };
     delta.append_to_transcript(b"delta", transcript);
 
-    let beta = d.commit(&r_beta, &gens.gens_1).compress();
+    let beta = d.commit(&r_beta, &gens_1_scaled).compress();
     beta.append_to_transcript(b"beta", transcript);
 
     let c = transcript.challenge_scalar(b"c");
@@ -534,7 +539,12 @@ impl DotProductProofLog {
     Cy.append_to_transcript(b"Cy", transcript);
     a.append_to_transcript(b"a", transcript);
 
-    let Gamma = Cx.unpack()? + Cy.unpack()?;
+    // sample a random base and scale the generator used for
+    // the output of the inner product
+    let r = transcript.challenge_scalar(b"r");
+    let gens_1_scaled = gens.gens_1.scale(&r);
+
+    let Gamma = Cx.unpack()? + r * Cy.unpack()?;
 
     let (g_hat, Gamma_hat, a_hat) =
       self
@@ -553,7 +563,7 @@ impl DotProductProofLog {
     let z2_s = &self.z2;
 
     let lhs = ((Gamma_hat * c_s + beta_s) * a_hat_s + delta_s).compress();
-    let rhs = ((g_hat + gens.gens_1.G[0] * a_hat_s) * z1_s + gens.gens_1.h * z2_s).compress();
+    let rhs = ((g_hat + gens_1_scaled.G[0] * a_hat_s) * z1_s + gens_1_scaled.h * z2_s).compress();
 
     assert_eq!(lhs, rhs);
 
