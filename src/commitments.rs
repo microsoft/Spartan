@@ -40,6 +40,14 @@ impl MultiCommitGens {
     }
   }
 
+  pub fn scale(&self, s: &Scalar) -> MultiCommitGens {
+    MultiCommitGens {
+      n: self.n,
+      h: self.h,
+      G: (0..self.n).map(|i| s * self.G[i]).collect(),
+    }
+  }
+
   pub fn split_at(&self, mid: usize) -> (MultiCommitGens, MultiCommitGens) {
     let (G1, G2) = self.G.split_at(mid);
 
