@@ -380,8 +380,7 @@ impl SparseMatPolynomial {
     let N = (0..sparse_polys.len())
       .map(|i| sparse_polys[i].get_num_nz_entries())
       .max()
-      .unwrap()
-      .next_power_of_two();
+      .unwrap();
 
     let mut ops_row_vec: Vec<Vec<usize>> = Vec::new();
     let mut ops_col_vec: Vec<Vec<usize>> = Vec::new();
