@@ -110,21 +110,24 @@ impl R1CSInstance {
     let num_poly_vars_x = num_cons.log_2();
     let num_poly_vars_y = (2 * num_vars).log_2();
 
-    let mat_A = (0..A.len())
-      .map(|i| SparseMatEntry::new(A[i].0, A[i].1, A[i].2))
+    let mat_A = A
+      .iter()
+      .map(|(row, col, val)| SparseMatEntry::new(*row, *col, *val))
       .collect::<Vec<SparseMatEntry>>();
-    let mat_B = (0..B.len())
-      .map(|i| SparseMatEntry::new(B[i].0, B[i].1, B[i].2))
+    let mat_B = B
+      .iter()
+      .map(|(row, col, val)| SparseMatEntry::new(*row, *col, *val))
       .collect::<Vec<SparseMatEntry>>();
-    let mat_C = (0..C.len())
-      .map(|i| SparseMatEntry::new(C[i].0, C[i].1, C[i].2))
+    let mat_C = C
+      .iter()
+      .map(|(row, col, val)| SparseMatEntry::new(*row, *col, *val))
       .collect::<Vec<SparseMatEntry>>();
 
     let poly_A = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, mat_A);
     let poly_B = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, mat_B);
     let poly_C = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, mat_C);
 
-    R1CSInstance {
+    Self {
       num_cons,
       num_vars,
       num_inputs,
@@ -257,11 +260,7 @@ impl R1CSInstance {
     assert_eq!(Az.len(), self.num_cons);
     assert_eq!(Bz.len(), self.num_cons);
     assert_eq!(Cz.len(), self.num_cons);
-    let res: usize = (0..self.num_cons)
-      .map(|i| usize::from(Az[i] * Bz[i] != Cz[i]))
-      .sum();
-
-    res == 0
+    (0..self.num_cons).all(|i| Az[i] * Bz[i] == Cz[i])
   }
 
   pub fn multiply_vec(
