@@ -373,8 +373,9 @@ impl SparseMatPolynomial {
       assert_eq!(sparse_polys[i].num_vars_y, sparse_polys[0].num_vars_y);
     }
 
-    let N = (0..sparse_polys.len())
-      .map(|i| sparse_polys[i].get_num_nz_entries())
+    let N = sparse_polys
+      .iter()
+      .map(|sparse_poly| sparse_poly.get_num_nz_entries())
       .max()
       .unwrap();
 

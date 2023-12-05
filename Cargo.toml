@@ -11,9 +11,8 @@ license-file = "LICENSE"
 keywords = ["zkSNARKs", "cryptography", "proofs"]
 
 [dependencies]
-curve25519-dalek = { version = "3.2.0", features = [
+curve25519-dalek = { version = "4.1.1", features = [
     "serde",
-    "u64_backend",
     "alloc",
 ], default-features = false }
 merlin = { version = "3.0.0", default-features = false }
@@ -58,9 +57,8 @@ harness = false
 required-features = ["std"]
 
 [features]
-default = ["std", "simd_backend"]
+default = ["std"]
 std = [
-    "curve25519-dalek/std",
     "digest/std",
     "merlin/std",
     "rand/std",
@@ -72,6 +70,5 @@ std = [
     "itertools/use_std",
     "flate2/rust_backend",
 ]
-simd_backend = ["curve25519-dalek/simd_backend"]
 multicore = ["rayon"]
 profile = ["colored"]
