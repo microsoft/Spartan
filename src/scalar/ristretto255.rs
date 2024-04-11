@@ -13,7 +13,6 @@ use core::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use subtle::{Choice, ConditionallySelectable, ConstantTimeEq, CtOption};
-use zeroize::Zeroize;
 
 // use crate::util::{adc, mac, sbb};
 /// Compute a + b + carry, returning the result and the new carry over.
@@ -359,12 +358,6 @@ where
   }
 }
 
-impl Zeroize for Scalar {
-  fn zeroize(&mut self) {
-    self.0 = [0u64; 4];
-  }
-}
-
 impl Scalar {
   /// Returns zero, the additive identity.
   #[inline]
@@ -609,22 +602,17 @@ impl Scalar {
     // externally, but there's no corresponding distinction for
     // field elements.
 
-    use zeroize::Zeroizing;
-
     let n = inputs.len();
     let one = Scalar::one();
 
-    // Place scratch storage in a Zeroizing wrapper to wipe it when
-    // we pass out of scope.
-    let scratch_vec = vec![one; n];
-    let mut scratch = Zeroizing::new(scratch_vec);
+    let mut scratch_vec = vec![one; n];
 
     // Keep an accumulator of all of the previous products
     let mut acc = Scalar::one();
 
     // Pass through the input vector, recording the previous
     // products in the scratch space
-    for (input, scratch) in inputs.iter().zip(scratch.iter_mut()) {
+    for (input, scratch) in inputs.iter().zip(scratch_vec.iter_mut()) {
       *scratch = acc;
 
       acc = acc * input;
@@ -641,7 +629,7 @@ impl Scalar {
 
     // Pass through the vector backwards to compute the inverses
     // in place
-    for (input, scratch) in inputs.iter_mut().rev().zip(scratch.iter().rev()) {
+    for (input, scratch) in inputs.iter_mut().rev().zip(scratch_vec.iter().rev()) {
       let tmp = &acc * input.clone();
       *input = &acc * scratch;
       acc = tmp;
