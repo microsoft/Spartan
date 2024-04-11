@@ -257,8 +257,8 @@ impl ProductCircuitEvalProof {
 
 impl ProductCircuitEvalProofBatched {
   pub fn prove(
-    prod_circuit_vec: &mut Vec<&mut ProductCircuit>,
-    dotp_circuit_vec: &mut Vec<&mut DotProductCircuit>,
+    prod_circuit_vec: &mut [&mut ProductCircuit],
+    dotp_circuit_vec: &mut [&mut DotProductCircuit],
     transcript: &mut Transcript,
   ) -> (Self, Vec<Scalar>) {
     assert!(!prod_circuit_vec.is_empty());

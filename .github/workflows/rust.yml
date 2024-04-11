@@ -7,12 +7,12 @@ on:
     branches: [ master ]
 
 jobs:
-  build_nightly:
+  build:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
     - name: Install
-      run: rustup default nightly
+      run: rustup default stable 
     - name: Install rustfmt Components
       run: rustup component add rustfmt
     - name: Install clippy
@@ -28,13 +28,13 @@ jobs:
     - name: Check clippy warnings
       run: cargo clippy --all-targets --all-features -- -D warnings
 
-  build_nightly_wasm:
+  build_wasm:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v2
 
     - name: Install
-      run: rustup default nightly
+      run: rustup default stable 
 
     - name: Build without std
       run: cargo build --no-default-features --verbose
@@ -63,4 +63,3 @@ jobs:
 
     - name: Build for target wasm32-unknown-unknown
       run: RUSTFLAGS="" cargo build --target=wasm32-unknown-unknown --no-default-features --verbose
-    
