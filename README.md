@@ -187,7 +187,7 @@ fn produce_tiny_r1cs() -> (
   // To construct these matrices, we will use `curve25519-dalek` but one can use any other method.
 
   // a variable that holds a byte representation of 1
-  let one = Scalar::one().to_bytes();
+  let one = Scalar::ONE.to_bytes();
 
   // R1CS is a set of three sparse matrices A B C, where is a row for every
   // constraint and a column for every entry in z = (vars, 1, inputs)
@@ -224,10 +224,10 @@ fn produce_tiny_r1cs() -> (
   let z1 = Scalar::random(&mut csprng);
   let z2 = (z0 + z1) * i0; // constraint 0
   let z3 = (z0 + i1) * z2; // constraint 1
-  let z4 = Scalar::zero(); //constraint 2
+  let z4 = Scalar::ZERO; //constraint 2
 
   // create a VarsAssignment
-  let mut vars = vec![Scalar::zero().to_bytes(); num_vars];
+  let mut vars = vec![Scalar::ZERO.to_bytes(); num_vars];
   vars[0] = z0.to_bytes();
   vars[1] = z1.to_bytes();
   vars[2] = z2.to_bytes();
@@ -236,7 +236,7 @@ fn produce_tiny_r1cs() -> (
   let assignment_vars = VarsAssignment::new(&vars).unwrap();
 
   // create an InputsAssignment
-  let mut inputs = vec![Scalar::zero().to_bytes(); num_inputs];
+  let mut inputs = vec![Scalar::ZERO.to_bytes(); num_inputs];
   inputs[0] = i0.to_bytes();
   inputs[1] = i1.to_bytes();
   let assignment_inputs = InputsAssignment::new(&inputs).unwrap();

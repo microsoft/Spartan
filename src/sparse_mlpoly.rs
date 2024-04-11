@@ -1154,7 +1154,7 @@ impl ProductLayerProof {
     };
 
     let (proof_ops, rand_ops) = ProductCircuitEvalProofBatched::prove(
-      &mut vec![
+      &mut [
         &mut row_read_A[0],
         &mut row_read_B[0],
         &mut row_read_C[0],
@@ -1168,7 +1168,7 @@ impl ProductLayerProof {
         &mut col_write_B[0],
         &mut col_write_C[0],
       ],
-      &mut vec![
+      &mut [
         &mut dotp_left_A[0],
         &mut dotp_right_A[0],
         &mut dotp_left_B[0],
@@ -1181,7 +1181,7 @@ impl ProductLayerProof {
 
     // produce a batched proof of memory-related product circuits
     let (proof_mem, rand_mem) = ProductCircuitEvalProofBatched::prove(
-      &mut vec![
+      &mut [
         &mut row_prod_layer.init,
         &mut row_prod_layer.audit,
         &mut col_prod_layer.init,
