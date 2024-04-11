@@ -1,7 +1,6 @@
 use super::group::{GroupElement, VartimeMultiscalarMul, GROUP_BASEPOINT_COMPRESSED};
 use super::scalar::Scalar;
-use digest::XofReader;
-use digest::{ExtendableOutput, Input};
+use digest::{ExtendableOutput, Input, XofReader};
 use sha3::Shake256;
 
 #[derive(Debug)]
