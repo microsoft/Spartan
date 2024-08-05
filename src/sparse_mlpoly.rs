@@ -1262,7 +1262,7 @@ impl ProductLayerProof {
 
     // verify the evaluation of the sparse polynomial
     let (eval_dotp_left, eval_dotp_right) = &self.eval_val;
-    assert_eq!(eval_dotp_left.len(), eval_dotp_left.len());
+    assert_eq!(eval_dotp_left.len(), eval_dotp_right.len());
     assert_eq!(eval_dotp_left.len(), num_instances);
     let mut claims_dotp_circuit: Vec<Scalar> = Vec::new();
     for i in 0..num_instances {
