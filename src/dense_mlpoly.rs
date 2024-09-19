@@ -416,7 +416,7 @@ mod tests {
     // compute n = 2^\ell
     let n = ell.pow2();
     // compute m = sqrt(n) = 2^{\ell/2}
-    let m = n.square_root();
+    let m = (n as f64).sqrt() as usize;
 
     // compute vector-matrix product between L and Z viewed as a matrix
     let LZ = (0..m)
@@ -455,7 +455,7 @@ mod tests {
     let ell = r.len();
     assert!(ell % 2 == 0); // ensure ell is even
     let n = ell.pow2();
-    let m = n.square_root();
+    let m = (n as f64).sqrt() as usize;
 
     // compute row vector L
     for i in 0..m {
