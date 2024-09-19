@@ -1,6 +1,6 @@
 # Spartan: High-speed zkSNARKs without trusted setup
 
-![Rust](https://github.com/microsoft/Spartan/workflows/Rust/badge.svg)
+![Rust](https://github.com/microsoft/Spartan/actions/workflows/rust.yml/badge.svg)
 [![](https://img.shields.io/crates/v/spartan.svg)](<(https://crates.io/crates/spartan)>)
 
 Spartan is a high-speed zero-knowledge proof system, a cryptographic primitive that enables a prover to prove a mathematical statement to a verifier without revealing anything besides the validity of the statement. This repository provides `libspartan,` a Rust library that implements a zero-knowledge succinct non-interactive argument of knowledge (zkSNARK), which is a type of zero-knowledge proof system with short proofs and fast verification times. The details of the Spartan proof system are described in our [paper](https://eprint.iacr.org/2019/550) published at [CRYPTO 2020](https://crypto.iacr.org/2020/). The security of the Spartan variant implemented in this library is based on the discrete logarithm problem in the random oracle model.

@@ -1234,10 +1234,8 @@ impl ProductLayerProof {
     let (row_eval_init, row_eval_read, row_eval_write, row_eval_audit) = &self.eval_row;
     assert_eq!(row_eval_write.len(), num_instances);
     assert_eq!(row_eval_read.len(), num_instances);
-    let ws: Scalar = (0..row_eval_write.len())
-      .map(|i| row_eval_write[i])
-      .product();
-    let rs: Scalar = (0..row_eval_read.len()).map(|i| row_eval_read[i]).product();
+    let ws: Scalar = row_eval_write.iter().product();
+    let rs: Scalar = row_eval_read.iter().product();
     assert_eq!(row_eval_init * ws, rs * row_eval_audit);
 
     row_eval_init.append_to_transcript(b"claim_row_eval_init", transcript);
@@ -1249,10 +1247,8 @@ impl ProductLayerProof {
     let (col_eval_init, col_eval_read, col_eval_write, col_eval_audit) = &self.eval_col;
     assert_eq!(col_eval_write.len(), num_instances);
     assert_eq!(col_eval_read.len(), num_instances);
-    let ws: Scalar = (0..col_eval_write.len())
-      .map(|i| col_eval_write[i])
-      .product();
-    let rs: Scalar = (0..col_eval_read.len()).map(|i| col_eval_read[i]).product();
+    let ws: Scalar = col_eval_write.iter().product();
+    let rs: Scalar = col_eval_read.iter().product();
     assert_eq!(col_eval_init * ws, rs * col_eval_audit);
 
     col_eval_init.append_to_transcript(b"claim_col_eval_init", transcript);
@@ -1262,7 +1258,7 @@ impl ProductLayerProof {
 
     // verify the evaluation of the sparse polynomial
     let (eval_dotp_left, eval_dotp_right) = &self.eval_val;
-    assert_eq!(eval_dotp_left.len(), eval_dotp_left.len());
+    assert_eq!(eval_dotp_left.len(), eval_dotp_right.len());
     assert_eq!(eval_dotp_left.len(), num_instances);
     let mut claims_dotp_circuit: Vec<Scalar> = Vec::new();
     for i in 0..num_instances {
