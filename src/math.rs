@@ -1,16 +1,10 @@
 pub trait Math {
-  fn square_root(self) -> usize;
   fn pow2(self) -> usize;
   fn get_bits(self, num_bits: usize) -> Vec<bool>;
   fn log_2(self) -> usize;
 }
 
 impl Math for usize {
-  #[inline]
-  fn square_root(self) -> usize {
-    (self as f64).sqrt() as usize
-  }
-
   #[inline]
   fn pow2(self) -> usize {
     let base: usize = 2;
