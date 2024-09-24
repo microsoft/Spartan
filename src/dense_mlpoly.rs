@@ -216,6 +216,7 @@ impl DensePolynomial {
     for i in 0..n {
       self.Z[i] = self.Z[i] + r * (self.Z[i + n] - self.Z[i]);
     }
+    self.Z.truncate(n); // Resize the vector Z to the new length
     self.num_vars -= 1;
     self.len = n;
   }
@@ -225,6 +226,7 @@ impl DensePolynomial {
     for i in 0..n {
       self.Z[i] = self.Z[2 * i] + r * (self.Z[2 * i + 1] - self.Z[2 * i]);
     }
+    self.Z.truncate(n); // Resize the vector Z to the new length
     self.num_vars -= 1;
     self.len = n;
   }
