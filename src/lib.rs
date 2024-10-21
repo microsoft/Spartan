@@ -45,11 +45,13 @@ use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
+#[derive(Serialize, Deserialize)]
 pub struct ComputationCommitment {
   comm: R1CSCommitment,
 }
 
 /// `ComputationDecommitment` holds information to decommit `ComputationCommitment`
+#[derive(Serialize, Deserialize)]
 pub struct ComputationDecommitment {
   decomm: R1CSDecommitment,
 }

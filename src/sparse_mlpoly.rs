@@ -209,6 +209,7 @@ impl AppendToTranscript for DerefsCommitment {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 struct AddrTimestamps {
   ops_addr_usize: Vec<Vec<usize>>,
   ops_addr: Vec<DensePolynomial>,
@@ -270,6 +271,7 @@ impl AddrTimestamps {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct MultiSparseMatPolynomialAsDense {
   batch_size: usize,
   val: Vec<DensePolynomial>,

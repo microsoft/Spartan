@@ -63,6 +63,7 @@ impl AppendToTranscript for R1CSCommitment {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct R1CSDecommitment {
   dense: MultiSparseMatPolynomialAsDense,
 }
