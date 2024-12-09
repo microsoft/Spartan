@@ -1,4 +1,4 @@
-//! Demonstrates how to produces a proof for canonical cubic equation: `x^3 + x + 5 = y`.
+//! Demonstrates how to produce a proof for canonical cubic equation: `x^3 + x + 5 = y`.
 //! The example is described in detail [here].
 //!
 //! The R1CS for this problem consists of the following 4 constraints:
