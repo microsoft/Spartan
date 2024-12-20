@@ -36,6 +36,7 @@ pub struct R1CSProof {
   proof_eq_sc_phase2: EqualityProof,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct R1CSSumcheckGens {
   gens_1: MultiCommitGens,
   gens_3: MultiCommitGens,
@@ -57,6 +58,7 @@ impl R1CSSumcheckGens {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct R1CSGens {
   gens_sc: R1CSSumcheckGens,
   gens_pc: PolyCommitmentGens,

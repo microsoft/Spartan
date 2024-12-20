@@ -14,13 +14,14 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "multicore")]
 use rayon::prelude::*;
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct DensePolynomial {
   num_vars: usize, // the number of variables in the multilinear polynomial
   len: usize,
   Z: Vec<Scalar>, // evaluations of the polynomial in all the 2^num_vars Boolean inputs
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct PolyCommitmentGens {
   pub gens: DotProductProofGens,
 }

@@ -25,6 +25,7 @@ pub struct R1CSInstance {
   C: SparseMatPolynomial,
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct R1CSCommitmentGens {
   gens: SparseMatPolyCommitmentGens,
 }
@@ -63,6 +64,7 @@ impl AppendToTranscript for R1CSCommitment {
   }
 }
 
+#[derive(Serialize, Deserialize)]
 pub struct R1CSDecommitment {
   dense: MultiSparseMatPolynomialAsDense,
 }

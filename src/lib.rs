@@ -45,17 +45,19 @@ use timer::Timer;
 use transcript::{AppendToTranscript, ProofTranscript};
 
 /// `ComputationCommitment` holds a public preprocessed NP statement (e.g., R1CS)
+#[derive(Serialize, Deserialize)]
 pub struct ComputationCommitment {
   comm: R1CSCommitment,
 }
 
 /// `ComputationDecommitment` holds information to decommit `ComputationCommitment`
+#[derive(Serialize, Deserialize)]
 pub struct ComputationDecommitment {
   decomm: R1CSDecommitment,
 }
 
 /// `Assignment` holds an assignment of values to either the inputs or variables in an `Instance`
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Assignment {
   assignment: Vec<Scalar>,
 }
@@ -276,6 +278,7 @@ impl Instance {
 }
 
 /// `SNARKGens` holds public parameters for producing and verifying proofs with the Spartan SNARK
+#[derive(Serialize, Deserialize)]
 pub struct SNARKGens {
   gens_r1cs_sat: R1CSGens,
   gens_r1cs_eval: R1CSCommitmentGens,
