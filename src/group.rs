@@ -30,14 +30,14 @@ impl<'b> MulAssign<&'b Scalar> for GroupElement {
   }
 }
 
-impl<'a, 'b> Mul<&'b Scalar> for &'a GroupElement {
+impl<'b> Mul<&'b Scalar> for &GroupElement {
   type Output = GroupElement;
   fn mul(self, scalar: &'b Scalar) -> GroupElement {
     self * Scalar::decompress_scalar(scalar)
   }
 }
 
-impl<'a, 'b> Mul<&'b GroupElement> for &'a Scalar {
+impl<'b> Mul<&'b GroupElement> for &Scalar {
   type Output = GroupElement;
 
   fn mul(self, point: &'b GroupElement) -> GroupElement {
