@@ -54,7 +54,7 @@ fn main() {
     // produce public parameters
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_non_zero_entries);
 
-    // ask the library to produce a synthentic R1CS instance
+    // ask the library to produce a synthetic R1CS instance
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // create a commitment to the R1CS instance
@@ -89,7 +89,7 @@ fn main() {
     // produce public parameters
     let gens = NIZKGens::new(num_cons, num_vars, num_inputs);
 
-    // ask the library to produce a synthentic R1CS instance
+    // ask the library to produce a synthetic R1CS instance
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // produce a proof of satisfiability
@@ -183,7 +183,7 @@ fn produce_tiny_r1cs() -> (
   let mut C: Vec<(usize, usize, [u8; 32])> = Vec::new();
 
   // The constraint system is defined over a finite field, which in our case is
-  // the scalar field of ristreeto255/curve25519 i.e., p =  2^{252}+27742317777372353535851937790883648493
+  // the scalar field of ristretto255/curve25519 i.e., p =  2^{252}+27742317777372353535851937790883648493
   // To construct these matrices, we will use `curve25519-dalek` but one can use any other method.
 
   // a variable that holds a byte representation of 1
