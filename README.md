@@ -73,7 +73,7 @@ fn main() {
 }
 ```
 
-Here is another example to use the NIZK variant of the Spartan proof system:
+Here is another example of using the NIZK variant of the Spartan proof system:
 
 ```rust
 extern crate libspartan;
