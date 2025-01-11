@@ -45,7 +45,7 @@ Specifically, from [src/bls12_381/scalar.rs](https://github.com/zkcrypto/bls12_3
 
    ========================================================================
 
-   Portions of curve25519-dalek were originally derived from Adam Langley's Go ed25519 implementation, found at <https://github.com/agl/ed25519/>, under the following licence:
+   Portions of curve25519-dalek were originally derived from Adam Langley's Go ed25519 implementation, found at <https://github.com/agl/ed25519/>, under the following license:
 
    ========================================================================
 
