@@ -23,25 +23,47 @@ jobs:
         with:
           command: build
           args: --examples --benches --verbose
-
-	build_wasm:
+  
+  build-no-default-features:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install
-        run: rustup default stable
-      - name: Build without std
-        run: cargo build --no-default-features --verbose
-      - name: Run tests without std
-        run: cargo test --no-default-features --verbose
-      - name: Build examples without std
-        run: cargo build --examples --no-default-features --verbose
-      - name: Install wasm32-wasi target
-        run: rustup target add wasm32-wasi
-      - name: Install wasm32-unknown-unknown target
-        run: rustup target add wasm32-unknown-unknown
-      - name: Build for target wasm-wasi
-        run: RUSTFLAGS="" cargo build --target=wasm32-wasi --no-default-features --verbose
+      - name: Build
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --no-default-features --examples --benches --verbose
+
+  build-wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Wasm build
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-unknown-unknown
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --no-default-features --target wasm32-unknown-unknown
+
+  build-wasi:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Wasi build
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-wasi
+      - uses: actions-rs/cargo@v1
+        with:
+          command: build
+          args: --no-default-features --target wasm32-wasi
 
   test:
     runs-on: ubuntu-latest
@@ -55,6 +77,19 @@ jobs:
         with:
           command: test
           args: --release --verbose
+  
+  test-no-default-features:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Run tests
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+      - uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --no-default-features --release --verbose
 
   fmt:
     runs-on: ubuntu-latest
