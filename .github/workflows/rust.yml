@@ -60,6 +60,8 @@ jobs:
         with:
           toolchain: stable
           target: wasm32-wasi
+      - name: Install wasm32-wasi target
+        run: rustup target add wasm32-wasi
       - uses: actions-rs/cargo@v1
         with:
           command: build
