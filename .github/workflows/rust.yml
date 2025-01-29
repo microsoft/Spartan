@@ -27,21 +27,21 @@ jobs:
 	build_wasm:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
-    - name: Install
-      run: rustup default stable
-    - name: Build without std
-      run: cargo build --no-default-features --verbose
-    - name: Run tests without std
-      run: cargo test --no-default-features --verbose
-    - name: Build examples without std
-      run: cargo build --examples --no-default-features --verbose
-    - name: Install wasm32-wasi target
-      run: rustup target add wasm32-wasi
-    - name: Install wasm32-unknown-unknown target
-      run: rustup target add wasm32-unknown-unknown
-    - name: Build for target wasm-wasi
-      run: RUSTFLAGS="" cargo build --target=wasm32-wasi --no-default-features --verbose
+      - uses: actions/checkout@v2
+      - name: Install
+        run: rustup default stable
+      - name: Build without std
+        run: cargo build --no-default-features --verbose
+      - name: Run tests without std
+        run: cargo test --no-default-features --verbose
+      - name: Build examples without std
+        run: cargo build --examples --no-default-features --verbose
+      - name: Install wasm32-wasi target
+        run: rustup target add wasm32-wasi
+      - name: Install wasm32-unknown-unknown target
+        run: rustup target add wasm32-unknown-unknown
+      - name: Build for target wasm-wasi
+        run: RUSTFLAGS="" cargo build --target=wasm32-wasi --no-default-features --verbose
 
   test:
     runs-on: ubuntu-latest
