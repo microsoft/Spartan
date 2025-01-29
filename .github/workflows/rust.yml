@@ -55,12 +55,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: Install wasm32-wasi target
-        run: rustup target add wasm32-wasi
+      - name: Install wasm32-wasip1 target
+        run: rustup target add wasm32-wasip1
       - uses: actions-rs/cargo@v1
         with:
           command: build
-          args: --no-default-features --target wasm32-wasi
+          args: --no-default-features --target wasm32-wasip1
 
   test:
     runs-on: ubuntu-latest
