@@ -236,7 +236,7 @@ impl SumcheckInstanceProof {
       //derive the verifier's challenge for the next round
       let r_j = transcript.challenge_scalar(b"challenge_nextround");
       r.push(r_j);
-      // bound all tables to the verifier's challenege
+      // bound all tables to the verifier's challenge
       poly_A.bound_poly_var_top(&r_j);
       poly_B.bound_poly_var_top(&r_j);
       poly_C.bound_poly_var_top(&r_j);
@@ -375,7 +375,7 @@ impl SumcheckInstanceProof {
       let r_j = transcript.challenge_scalar(b"challenge_nextround");
       r.push(r_j);
 
-      // bound all tables to the verifier's challenege
+      // bound all tables to the verifier's challenge
       for (poly_A, poly_B) in poly_A_vec_par.iter_mut().zip(poly_B_vec_par.iter_mut()) {
         poly_A.bound_poly_var_top(&r_j);
         poly_B.bound_poly_var_top(&r_j);
@@ -481,7 +481,7 @@ impl ZKSumcheckInstanceProof {
       //derive the verifier's challenge for the next round
       let r_j = transcript.challenge_scalar(b"challenge_nextround");
 
-      // bound all tables to the verifier's challenege
+      // bound all tables to the verifier's challenge
       poly_A.bound_poly_var_top(&r_j);
       poly_B.bound_poly_var_top(&r_j);
 
@@ -669,7 +669,7 @@ impl ZKSumcheckInstanceProof {
       //derive the verifier's challenge for the next round
       let r_j = transcript.challenge_scalar(b"challenge_nextround");
 
-      // bound all tables to the verifier's challenege
+      // bound all tables to the verifier's challenge
       poly_A.bound_poly_var_top(&r_j);
       poly_B.bound_poly_var_top(&r_j);
       poly_C.bound_poly_var_top(&r_j);

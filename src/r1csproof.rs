@@ -263,9 +263,9 @@ impl R1CSProof {
 
     let timer_sc_proof_phase2 = Timer::new("prove_sc_phase_two");
     // combine the three claims into a single claim
-    let r_A = transcript.challenge_scalar(b"challenege_Az");
-    let r_B = transcript.challenge_scalar(b"challenege_Bz");
-    let r_C = transcript.challenge_scalar(b"challenege_Cz");
+    let r_A = transcript.challenge_scalar(b"challenge_Az");
+    let r_B = transcript.challenge_scalar(b"challenge_Bz");
+    let r_C = transcript.challenge_scalar(b"challenge_Cz");
     let claim_phase2 = r_A * Az_claim + r_B * Bz_claim + r_C * Cz_claim;
     let blind_claim_phase2 = r_A * Az_blind + r_B * Bz_blind + r_C * Cz_blind;
 
@@ -418,9 +418,9 @@ impl R1CSProof {
     )?;
 
     // derive three public challenges and then derive a joint claim
-    let r_A = transcript.challenge_scalar(b"challenege_Az");
-    let r_B = transcript.challenge_scalar(b"challenege_Bz");
-    let r_C = transcript.challenge_scalar(b"challenege_Cz");
+    let r_A = transcript.challenge_scalar(b"challenge_Az");
+    let r_B = transcript.challenge_scalar(b"challenge_Bz");
+    let r_C = transcript.challenge_scalar(b"challenge_Cz");
 
     // r_A * comm_Az_claim + r_B * comm_Bz_claim + r_C * comm_Cz_claim;
     let comm_claim_phase2 = GroupElement::vartime_multiscalar_mul(

@@ -122,7 +122,7 @@ impl DerefsEvalProof {
     proof_derefs
   }
 
-  // evalues both polynomials at r and produces a joint proof of opening
+  // evaluates both polynomials at r and produces a joint proof of opening
   pub fn prove(
     derefs: &Derefs,
     eval_row_ops_val_vec: &[Scalar],
