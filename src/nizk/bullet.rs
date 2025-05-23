@@ -67,7 +67,7 @@ impl BulletReductionProof {
     let mut L_vec = Vec::with_capacity(lg_n);
     let mut R_vec = Vec::with_capacity(lg_n);
     let mut blinds_iter = blinds_vec.iter();
-    let mut blind_fin = *blind;
+    let mut blind_final = *blind;
 
     while n != 1 {
       n /= 2;
@@ -108,7 +108,7 @@ impl BulletReductionProof {
         G_L[i] = GroupElement::vartime_multiscalar_mul(&[u_inv, u], &[G_L[i], G_R[i]]);
       }
 
-      blind_fin = blind_fin + blind_L * u * u + blind_R * u_inv * u_inv;
+      blind_final = blind_final + blind_L * u * u + blind_R * u_inv * u_inv;
 
       L_vec.push(L.compress());
       R_vec.push(R.compress());
@@ -119,7 +119,7 @@ impl BulletReductionProof {
     }
 
     let Gamma_hat =
-      GroupElement::vartime_multiscalar_mul(&[a[0], a[0] * b[0], blind_fin], &[G[0], *Q, *H]);
+      GroupElement::vartime_multiscalar_mul(&[a[0], a[0] * b[0], blind_final], &[G[0], *Q, *H]);
 
     (
       BulletReductionProof { L_vec, R_vec },
@@ -127,7 +127,7 @@ impl BulletReductionProof {
       a[0],
       b[0],
       G[0],
-      blind_fin,
+      blind_final,
     )
   }
 
