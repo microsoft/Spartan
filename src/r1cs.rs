@@ -16,7 +16,7 @@ use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct R1CSInstance {
+pub struct R1CSShape {
   num_cons: usize,
   num_vars: usize,
   num_inputs: usize,
@@ -83,7 +83,7 @@ impl R1CSCommitment {
   }
 }
 
-impl R1CSInstance {
+impl R1CSShape {
   pub fn new(
     num_cons: usize,
     num_vars: usize,
@@ -91,7 +91,7 @@ impl R1CSInstance {
     A: &[(usize, usize, Scalar)],
     B: &[(usize, usize, Scalar)],
     C: &[(usize, usize, Scalar)],
-  ) -> R1CSInstance {
+  ) -> R1CSShape {
     Timer::print(&format!("number_of_constraints {num_cons}"));
     Timer::print(&format!("number_of_variables {num_vars}"));
     Timer::print(&format!("number_of_inputs {num_inputs}"));
@@ -161,7 +161,7 @@ impl R1CSInstance {
     num_cons: usize,
     num_vars: usize,
     num_inputs: usize,
-  ) -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
+  ) -> (R1CSShape, Vec<Scalar>, Vec<Scalar>) {
     Timer::print(&format!("number_of_constraints {num_cons}"));
     Timer::print(&format!("number_of_variables {num_vars}"));
     Timer::print(&format!("number_of_inputs {num_inputs}"));
@@ -223,7 +223,7 @@ impl R1CSInstance {
     let poly_B = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, B);
     let poly_C = SparseMatPolynomial::new(num_poly_vars_x, num_poly_vars_y, C);
 
-    let inst = R1CSInstance {
+    let inst = R1CSShape {
       num_cons,
       num_vars,
       num_inputs,

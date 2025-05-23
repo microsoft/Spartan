@@ -285,21 +285,20 @@ cargo doc
 To run tests:
 
 ```text
-RUSTFLAGS="-C target_cpu=native" cargo test
+RUSTFLAGS='-C target_cpu=native --cfg curve25519_dalek_backend="BACKEND"' cargo test
 ```
 
 To build `libspartan`:
 
 ```text
-RUSTFLAGS="-C target_cpu=native" cargo build --release
+RUSTFLAGS='-C target_cpu=native --cfg curve25519_dalek_backend="BACKEND"' cargo build --release
 ```
 
-> NOTE: We enable SIMD instructions in `curve25519-dalek` by default, so if it fails to build remove the "simd_backend" feature argument in `Cargo.toml`.
+> NOTE: We enable SIMD instructions in `curve25519-dalek` by default, so if it fails to build remove the argument passed to curve25519_dalek in the above command.
 
 ### Supported features
 
 - `std`: enables std features (enabled by default)
-- `simd_backend`: enables `curve25519-dalek`'s simd feature (enabled by default)
 - `profile`: enables fine-grained profiling information (see below for its use)
 
 ### WASM Support
@@ -327,7 +326,7 @@ getrandom = { version = "0.1", features = ["wasm-bindgen"] }
 To run end-to-end benchmarks:
 
 ```text
-RUSTFLAGS="-C target_cpu=native" cargo bench
+RUSTFLAGS='-C target_cpu=native --cfg curve25519_dalek_backend="BACKEND"' cargo bench
 ```
 
 ### Fine-grained profiling

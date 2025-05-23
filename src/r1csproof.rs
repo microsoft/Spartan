@@ -7,7 +7,7 @@ use super::errors::ProofVerifyError;
 use super::group::{CompressedGroup, GroupElement, VartimeMultiscalarMul};
 use super::math::Math;
 use super::nizk::{EqualityProof, KnowledgeProof, ProductProof};
-use super::r1csinstance::R1CSInstance;
+use super::r1cs::R1CSShape;
 use super::random::RandomTape;
 use super::scalar::Scalar;
 use super::sparse_mlpoly::{SparsePolyEntry, SparsePolynomial};
@@ -142,7 +142,7 @@ impl R1CSProof {
   }
 
   pub fn prove(
-    inst: &R1CSInstance,
+    inst: &R1CSShape,
     vars: Vec<Scalar>,
     input: &[Scalar],
     gens: &R1CSGens,
@@ -495,7 +495,7 @@ mod tests {
   use super::*;
   use rand::rngs::OsRng;
 
-  fn produce_tiny_r1cs() -> (R1CSInstance, Vec<Scalar>, Vec<Scalar>) {
+  fn produce_tiny_r1cs() -> (R1CSShape, Vec<Scalar>, Vec<Scalar>) {
     // three constraints over five variables Z1, Z2, Z3, Z4, and Z5
     // rounded to the nearest power of two
     let num_cons = 128;
@@ -526,7 +526,7 @@ mod tests {
     A.push((2, 4, one));
     B.push((2, num_vars, one));
 
-    let inst = R1CSInstance::new(num_cons, num_vars, num_inputs, &A, &B, &C);
+    let inst = R1CSShape::new(num_cons, num_vars, num_inputs, &A, &B, &C);
 
     // compute a satisfying assignment
     let mut csprng: OsRng = OsRng;
@@ -561,7 +561,7 @@ mod tests {
 
   #[test]
   fn test_synthetic_r1cs() {
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(1024, 1024, 10);
+    let (inst, vars, input) = R1CSShape::produce_synthetic_r1cs(1024, 1024, 10);
     let is_sat = inst.is_sat(&vars, &input);
     assert!(is_sat);
   }
@@ -571,7 +571,7 @@ mod tests {
     let num_vars = 1024;
     let num_cons = num_vars;
     let num_inputs = 10;
-    let (inst, vars, input) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, input) = R1CSShape::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     let gens = R1CSGens::new(b"test-m", num_cons, num_vars);
 
