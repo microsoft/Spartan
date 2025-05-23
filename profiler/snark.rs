@@ -24,13 +24,13 @@ pub fn main() {
     let num_cons = num_vars;
     let num_inputs = 10;
 
-    // produce a synthetic R1CSInstance
+    // produce a synthetic R1CSShape
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // produce public generators
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
-    // create a commitment to R1CSInstance
+    // create a commitment to R1CSShape
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof of satisfiability

@@ -20,7 +20,7 @@ mod group;
 mod math;
 mod nizk;
 mod product_tree;
-mod r1csinstance;
+mod r1cs;
 mod r1csproof;
 mod random;
 mod scalar;
@@ -33,9 +33,7 @@ mod unipoly;
 use core::cmp::max;
 use errors::{ProofVerifyError, R1CSError};
 use merlin::Transcript;
-use r1csinstance::{
-  R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSInstance,
-};
+use r1cs::{R1CSCommitment, R1CSCommitmentGens, R1CSDecommitment, R1CSEvalProof, R1CSShape};
 use r1csproof::{R1CSGens, R1CSProof};
 use random::RandomTape;
 use scalar::Scalar;
@@ -114,7 +112,7 @@ pub type InputsAssignment = Assignment;
 
 /// `Instance` holds the description of R1CS matrices and a hash of the matrices
 pub struct Instance {
-  inst: R1CSInstance,
+  inst: R1CSShape,
   digest: Vec<u8>,
 }
 
@@ -214,7 +212,7 @@ impl Instance {
       return Err(C_scalar.err().unwrap());
     }
 
-    let inst = R1CSInstance::new(
+    let inst = R1CSShape::new(
       num_cons_padded,
       num_vars_padded,
       num_inputs,
@@ -228,7 +226,7 @@ impl Instance {
     Ok(Instance { inst, digest })
   }
 
-  /// Checks if a given R1CSInstance is satisfiable with a given variables and inputs assignments
+  /// Checks if a given R1CSShape is satisfiable with a given variables and inputs assignments
   pub fn is_sat(
     &self,
     vars: &VarsAssignment,
@@ -266,7 +264,7 @@ impl Instance {
     num_vars: usize,
     num_inputs: usize,
   ) -> (Instance, VarsAssignment, InputsAssignment) {
-    let (inst, vars, inputs) = R1CSInstance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
+    let (inst, vars, inputs) = R1CSShape::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
     let digest = inst.get_digest();
     (
       Instance { inst, digest },
@@ -513,7 +511,7 @@ impl NIZK {
     let mut random_tape = RandomTape::new(b"proof");
 
     transcript.append_protocol_name(NIZK::protocol_name());
-    transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
+    transcript.append_message(b"R1CSShapeDigest", &inst.digest);
 
     let (r1cs_sat_proof, rx, ry) = {
       // we might need to pad variables
@@ -558,7 +556,7 @@ impl NIZK {
     let timer_verify = Timer::new("NIZK::verify");
 
     transcript.append_protocol_name(NIZK::protocol_name());
-    transcript.append_message(b"R1CSInstanceDigest", &inst.digest);
+    transcript.append_message(b"R1CSShapeDigest", &inst.digest);
 
     // We send evaluations of A, B, C at r = (rx, ry) as claims
     // to enable the verifier complete the first sum-check
@@ -601,10 +599,10 @@ mod tests {
     // produce public generators
     let gens = SNARKGens::new(num_cons, num_vars, num_inputs, num_cons);
 
-    // produce a synthetic R1CSInstance
+    // produce a synthetic R1CSShape
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
-    // create a commitment to R1CSInstance
+    // create a commitment to R1CSShape
     let (comm, decomm) = SNARK::encode(&inst, &gens);
 
     // produce a proof

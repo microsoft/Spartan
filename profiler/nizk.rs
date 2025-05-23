@@ -25,7 +25,7 @@ pub fn main() {
     let num_cons = num_vars;
     let num_inputs = 10;
 
-    // produce a synthetic R1CSInstance
+    // produce a synthetic R1CSShape
     let (inst, vars, inputs) = Instance::produce_synthetic_r1cs(num_cons, num_vars, num_inputs);
 
     // produce public generators
