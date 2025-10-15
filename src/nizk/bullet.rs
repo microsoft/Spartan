@@ -62,7 +62,7 @@ impl BulletReductionProof {
     assert_eq!(G.len(), n);
     assert_eq!(a.len(), n);
     assert_eq!(b.len(), n);
-    assert_eq!(blinds_vec.len(), 2 * lg_n);
+    assert_eq!(blinds_vec.len(), lg_n);
 
     let mut L_vec = Vec::with_capacity(lg_n);
     let mut R_vec = Vec::with_capacity(lg_n);

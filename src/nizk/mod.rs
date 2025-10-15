@@ -458,9 +458,10 @@ impl DotProductProofLog {
     let r_delta = random_tape.random_scalar(b"r_delta");
     let r_beta = random_tape.random_scalar(b"r_delta");
     let blinds_vec = {
-      let v1 = random_tape.random_vector(b"blinds_vec_1", 2 * n.log_2());
-      let v2 = random_tape.random_vector(b"blinds_vec_2", 2 * n.log_2());
-      (0..v1.len())
+      let lg_n = n.log_2();
+      let v1 = random_tape.random_vector(b"blinds_vec_1", lg_n);
+      let v2 = random_tape.random_vector(b"blinds_vec_2", lg_n);
+      (0..lg_n)
         .map(|i| (v1[i], v2[i]))
         .collect::<Vec<(Scalar, Scalar)>>()
     };
