@@ -44,11 +44,6 @@ pub struct PolyCommitment {
   C: Vec<CompressedGroup>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct ConstPolyCommitment {
-  C: CompressedGroup,
-}
-
 pub struct EqPolynomial {
   r: Vec<Scalar>,
 }
@@ -415,7 +410,7 @@ mod tests {
 
     let ell = r.len();
     // ensure ell is even
-    assert!(ell % 2 == 0);
+    assert!(ell.is_multiple_of(2));
     // compute n = 2^\ell
     let n = ell.pow2();
     // compute m = sqrt(n) = 2^{\ell/2}
@@ -456,7 +451,7 @@ mod tests {
     let mut R: Vec<Scalar> = Vec::new();
 
     let ell = r.len();
-    assert!(ell % 2 == 0); // ensure ell is even
+    assert!(ell.is_multiple_of(2)); // ensure ell is even
     let n = ell.pow2();
     let m = (n as f64).sqrt() as usize;
 
